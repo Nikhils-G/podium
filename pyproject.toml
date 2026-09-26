@@ -1,0 +1,44 @@
+[project]
+name = "podium"
+version = "0.1.0"
+description = "Open-source, self-hostable hackathon submission and judging platform"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "sqlalchemy>=2.0",
+  "alembic>=1.13",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",
+  "pydantic-settings>=2.4",
+  "argon2-cffi>=23.1",
+  "cryptography>=50.0.1",
+  "segno>=1.6.6",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/podium"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["B008"]  # Depends()/Query() in defaults is the FastAPI idiom
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
+"migrations/versions/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
