@@ -136,6 +136,18 @@ def invite_judge(
         if role == Role.judge:
             raise Conflict(f"{email} is already a judge in this event.")
         raise Conflict(f"{email} is a {role} in this event and can't also judge it.")
+    pending = db.execute(
+        select(JudgeInvite).where(
+            JudgeInvite.event_id == event.id,
+            JudgeInvite.email == email,
+            JudgeInvite.accepted_at.is_(None),
+            JudgeInvite.expires_at > utcnow(),
+        )
+    ).scalar_one_or_none()
+    if pending is not None:
+        raise Conflict(
+            f"{email} already has a pending invitation. Regenerate its link or revoke it below."
+        )
     token = secrets.token_urlsafe(24)
     invite = JudgeInvite(
         event_id=event.id,
@@ -160,6 +172,77 @@ def invite_judge(
     return invite, token
 
 
+def pending_invite(db: DbSession, event: Event, invite_id: int) -> JudgeInvite:
+    invite = db.execute(
+        select(JudgeInvite).where(
+            JudgeInvite.event_id == event.id,
+            JudgeInvite.id == invite_id,
+            JudgeInvite.accepted_at.is_(None),
+        )
+    ).scalar_one_or_none()
+    if invite is None:
+        raise NotFound("No pending invitation with that id.")
+    return invite
+
+
+def regenerate_invite(
+    db: DbSession, event: Event, organizer: User, invite_id: int, *, days: int = 30
+) -> tuple[JudgeInvite, str]:
+    """A fresh link for a pending invite; the old one stops working at once."""
+    invite = pending_invite(db, event, invite_id)
+    token = secrets.token_urlsafe(24)
+    invite.token_hash = _hash(token)
+    invite.expires_at = utcnow() + timedelta(days=days)
+    audit.record(
+        db,
+        "judge.invite_regenerated",
+        "invite",
+        str(invite.id),
+        event_id=event.id,
+        actor_id=organizer.id,
+        meta={"email": invite.email},
+    )
+    db.commit()
+    return invite, token
+
+
+def revoke_invite(db: DbSession, event: Event, organizer: User, invite_id: int) -> None:
+    invite = pending_invite(db, event, invite_id)
+    audit.record(
+        db,
+        "judge.invite_revoked",
+        "invite",
+        str(invite.id),
+        event_id=event.id,
+        actor_id=organizer.id,
+        meta={"email": invite.email},
+    )
+    db.delete(invite)
+    db.commit()
+
+
+def invite_refusal(db: DbSession, invite: JudgeInvite, user: User) -> str | None:
+    """Why this signed-in person cannot accept the invite, or None when they can."""
+    if invite.accepted_at is not None:
+        return None if invite.accepted_user_id == user.id else "This invitation was already used."
+    if normalize_email(user.email) != invite.email:
+        return (
+            f"This invitation was sent to {invite.email}, but you're signed in as {user.email}. "
+            "Sign out and use the invited address, or ask the organizer for a new link."
+        )
+    role = db.execute(
+        select(EventRole.role).where(
+            EventRole.event_id == invite.event_id, EventRole.user_id == user.id
+        )
+    ).scalar_one_or_none()
+    if role is not None and role != Role.judge:
+        return (
+            f"You're a {role.value} in this event, so you can't judge it. "
+            "Conflicts of interest are blocked by design."
+        )
+    return None
+
+
 def invite_by_token(db: DbSession, token: str) -> JudgeInvite:
     invite = db.execute(
         select(JudgeInvite).where(JudgeInvite.token_hash == _hash(token))
@@ -175,6 +258,11 @@ def accept_invite(db: DbSession, invite: JudgeInvite, user: User) -> Event:
         if invite.accepted_user_id == user.id:
             return event
         raise Conflict("This invitation was already used.")
+    if normalize_email(user.email) != invite.email:
+        raise Forbidden(
+            f"This invitation was sent to {invite.email}, but you're signed in as {user.email}. "
+            "Sign out and use the invited address, or ask the organizer for a new link."
+        )
     role = db.execute(
         select(EventRole).where(EventRole.event_id == event.id, EventRole.user_id == user.id)
     ).scalar_one_or_none()

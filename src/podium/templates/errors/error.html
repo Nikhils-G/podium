@@ -4,6 +4,7 @@
   <p class="code">{{ status }}</p>
   <h1>{{ heading }}</h1>
   <p class="ink-2">{{ message }}</p>
+  {% if status >= 500 %}<p class="muted text-sm">Request <code>{{ request_id }}</code>{% if user %} · signed in as {{ user.email }}{% endif %}. Quote the request id if you report this.</p>{% endif %}
   <div class="cluster">
     {% if status == 401 %}<a class="btn btn--primary" href="/login?next={{ request.url.path|urlencode }}">Sign in</a>
     {% elif status == 403 and user %}<form method="post" action="/logout" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--secondary" type="submit">Sign in as a different account</button></form>

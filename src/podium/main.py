@@ -51,6 +51,16 @@ def json_error(request: Request, status: int, code: str, message: str, **extra) 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    if settings.default_secret:
+        if settings.base_url.lower().startswith("https://"):
+            log.error(
+                "Refusing to start: PODIUM_SECRET_KEY is the shipped default while "
+                "PODIUM_BASE_URL is https. Set a real secret before exposing Podium."
+            )
+            raise RuntimeError("PODIUM_SECRET_KEY is the shipped default; set a real secret")
+        log.warning(
+            "PODIUM_SECRET_KEY is the shipped default: fine for a demo, never for a real event"
+        )
     stop = asyncio.Event()
     task = None
     if settings.webhook_worker:

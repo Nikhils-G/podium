@@ -5,6 +5,7 @@
   <p class="ink-2 mt-2">Judges score every criterion on its scale; totals are weighted and shown out of 100. {% if locked %}Judging has opened, so the structure is locked — weights can still change and re-weight every review consistently.{% else %}Structure locks when judging opens; weights stay editable.{% endif %}</p></div>
   {% if locked %}{{ badge('Structure locked', 'warning') }}{% endif %}</div>
 {% if errors.name %}{{ alert('critical', errors.name) }}{% endif %}
+{% if saved == 'added' %}{{ alert('success', 'Criterion added.') }}{% elif saved == 'saved' %}{{ alert('success', 'Criterion saved. Every review is re-weighted consistently.') }}{% elif saved == 'archived' %}{{ alert('success', 'Criterion archived. Existing scores stay in the record; new reviews no longer show it.') }}{% endif %}
 {% if criteria %}
 <table class="table table--dense mt-4">
   <thead><tr><th>Criterion</th><th>Description</th><th class="num">Weight</th><th class="num">Scale</th><th></th></tr></thead>

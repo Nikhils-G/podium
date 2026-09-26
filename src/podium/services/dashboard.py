@@ -1,6 +1,7 @@
 """Numbers, attention items and judging progress for the organizer console."""
 
 from dataclasses import dataclass, field
+from datetime import timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
@@ -16,10 +17,12 @@ from podium.models import (
     Review,
     ReviewStatus,
     Role,
+    RubricCriterion,
     Team,
     Track,
     User,
 )
+from podium.models.base import utcnow
 from podium.services.events import Stage, stage_of
 
 
@@ -43,6 +46,7 @@ class Overview:
     judges: int
     participants: int
     attention: list[AttentionItem] = field(default_factory=list)
+    invites_pending: int = 0
 
 
 def overview(db: DbSession, event: Event) -> Overview:
@@ -157,6 +161,7 @@ def overview(db: DbSession, event: Event) -> Overview:
         .select_from(JudgeInvite)
         .where(JudgeInvite.event_id == event.id, JudgeInvite.accepted_at.is_(None))
     ).scalar_one()
+    data.invites_pending = pending
     if pending:
         add(
             AttentionItem(
@@ -167,6 +172,51 @@ def overview(db: DbSession, event: Event) -> Overview:
                 "See invites",
             )
         )
+    stale = db.execute(
+        select(func.count())
+        .select_from(JudgeInvite)
+        .where(
+            JudgeInvite.event_id == event.id,
+            JudgeInvite.accepted_at.is_(None),
+            JudgeInvite.created_at < utcnow() - timedelta(days=7),
+        )
+    ).scalar_one()
+    if stale:
+        add(
+            AttentionItem(
+                "info",
+                f"{stale} invitation(s) older than a week",
+                "Chase the judge, regenerate the link, or revoke it.",
+                f"{base}/judges#invites",
+                "Review invites",
+            )
+        )
+    if data.stage in (Stage.draft, Stage.upcoming, Stage.open, Stage.closed):
+        criteria = db.execute(
+            select(func.count())
+            .select_from(RubricCriterion)
+            .where(RubricCriterion.event_id == event.id, RubricCriterion.archived_at.is_(None))
+        ).scalar_one()
+        if not criteria:
+            add(
+                AttentionItem(
+                    "warning",
+                    "No rubric yet",
+                    "Judges can't score until the rubric has at least one criterion.",
+                    f"{base}/rubric",
+                    "Add criteria",
+                )
+            )
+        if data.judges == 0 and data.stage != Stage.draft:
+            add(
+                AttentionItem(
+                    "warning",
+                    "No judges have accepted yet",
+                    "Invite judges and send them their links; assignments need accepted judges.",
+                    f"{base}/judges",
+                    "Invite judges",
+                )
+            )
     return data
 
 
@@ -394,6 +444,8 @@ class Progress:
     flat_judges: list[User]
     total_assignments: int
     total_done: int
+    projects_total: int = 0
+    projects_reviewed: int = 0  # submitted projects at or above reviews_per_project
 
     @property
     def pct(self) -> int:
@@ -488,6 +540,8 @@ def progress(db: DbSession, event: Event) -> Progress:
         judges=judge_rows,
         tracks=track_rows,
         below_target=below_target,
+        projects_total=len(projects),
+        projects_reviewed=len(projects) - len(below_target),
         flat_judges=flat,
         total_assignments=total,
         total_done=done,

@@ -1,11 +1,11 @@
 import enum
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from podium.errors import Conflict, Forbidden, NotFound, ValidationFailed
-from podium.models import Event, EventRole, Prize, Project, Role, Track, User, utcnow
+from podium.models import Event, EventRole, Prize, Project, ProjectStatus, Role, Track, User, utcnow
 from podium.services import audit, webhooks
 
 
@@ -94,8 +94,9 @@ def slugify(name: str) -> str:
     return out[:60] or "event"
 
 
-def parse_utc(value: str | None) -> datetime | None:
-    """Accept '2026-03-01T18:00' (datetime-local) or ISO 8601; always interpreted as UTC."""
+def parse_utc(value: str | None, offset_minutes: int = 0) -> datetime | None:
+    """Accept '2026-03-01T18:00' (datetime-local) or ISO 8601. A naive value is read as UTC, or
+    as local time when the form says how far its clock is from UTC (`offset_minutes`, east +)."""
     if not value:
         return None
     text = value.strip().replace("Z", "+00:00")
@@ -103,7 +104,18 @@ def parse_utc(value: str | None) -> datetime | None:
         parsed = datetime.fromisoformat(text)
     except ValueError as exc:
         raise ValueError("Enter a date and time like 2026-03-01T18:00") from exc
-    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+    if parsed.tzinfo is None:
+        return (parsed - timedelta(minutes=offset_minutes)).replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def tz_offset(data: dict) -> int:
+    """Minutes east of UTC that the browser reported (hidden field); 0 without JavaScript."""
+    try:
+        offset = int(data.get("tz_offset_minutes") or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(-14 * 60, min(14 * 60, offset))
 
 
 def validate_event(data: dict) -> tuple[dict, dict[str, str]]:
@@ -116,9 +128,10 @@ def validate_event(data: dict) -> tuple[dict, dict[str, str]]:
         errors["name"] = "Give the event a name."
     elif len(clean["name"]) > 160:
         errors["name"] = "Keep the name under 160 characters."
+    offset = tz_offset(data)
     for field in DATE_FIELDS:
         try:
-            clean[field] = parse_utc(data.get(field))
+            clean[field] = parse_utc(data.get(field), offset)
         except ValueError as exc:
             errors[field] = str(exc)
             clean[field] = None
@@ -398,6 +411,53 @@ def remove_prize(db: DbSession, event: Event, user: User, public_id: str) -> Non
     )
     db.delete(prize)
     db.commit()
+
+
+def award_prize(
+    db: DbSession,
+    event: Event,
+    user: User,
+    prize_public_id: str,
+    project_public_id: str | None,
+    *,
+    ip_hash: str | None = None,
+) -> Prize:
+    """Link a prize to a submitted project (or clear it). Winner certificates and the public
+    results page read these awards; the ranking itself is never changed by them."""
+    prize = db.execute(
+        select(Prize).where(Prize.event_id == event.id, Prize.public_id == prize_public_id)
+    ).scalar_one_or_none()
+    if prize is None:
+        raise NotFound("No such prize.")
+    project = None
+    if project_public_id:
+        project = db.execute(
+            select(Project).where(
+                Project.event_id == event.id,
+                Project.public_id == project_public_id,
+                Project.status == ProjectStatus.submitted,
+            )
+        ).scalar_one_or_none()
+        if project is None:
+            raise NotFound("Choose a submitted project from this event.")
+    prize.project_id = project.id if project else None
+    audit.record(
+        db,
+        "prize.awarded" if project else "prize.cleared",
+        "prize",
+        prize.public_id,
+        event_id=event.id,
+        actor_id=user.id,
+        ip_hash=ip_hash,
+        meta={"name": prize.name, "project": project.public_id if project else None},
+    )
+    db.commit()
+    return prize
+
+
+def awards(event: Event) -> list[Prize]:
+    """Prizes that have been awarded, in display order."""
+    return [p for p in sorted(event.prizes, key=lambda p: p.position) if p.project_id is not None]
 
 
 def require_can_manage(db: DbSession, event: Event, user: User) -> None:

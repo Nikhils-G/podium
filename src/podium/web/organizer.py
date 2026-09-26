@@ -15,7 +15,7 @@ from podium.security.ratelimit import ip_hash
 from podium.services import dashboard
 from podium.services import events as events_service
 from podium.services.events import STAGE_LABELS, stage_of
-from podium.web.rendering import render
+from podium.web.rendering import is_htmx, render
 
 router = APIRouter(include_in_schema=False)
 
@@ -277,6 +277,20 @@ async def settings_save(
     return RedirectResponse(f"/e/{ctx.event.slug}/organizer/settings?saved=1", status_code=303)
 
 
+def _section(request, ctx, db, section: str, errors: dict, status_code: int = 200):
+    """Tracks/prizes forms swap their own section over htmx; the page reloads without JS."""
+    if not is_htmx(request):
+        return None
+    db.expire(ctx.event, ["tracks", "prizes"])
+    return render(
+        request,
+        f"partials/settings_{section}.html",
+        status_code=status_code,
+        event=ctx.event,
+        errors=errors,
+    )
+
+
 @router.post("/e/{slug}/organizer/tracks", dependencies=[Depends(verify_csrf)])
 def track_add(
     request: Request,
@@ -288,6 +302,9 @@ def track_add(
     try:
         events_service.add_track(db, ctx.event, ctx.user, name, description)
     except PodiumError as exc:
+        errors = getattr(exc, "errors", None) or {"track_name": exc.message}
+        if partial := _section(request, ctx, db, "tracks", errors, exc.status_code):
+            return partial
         return render(
             request,
             "organizer/settings.html",
@@ -297,10 +314,12 @@ def track_add(
                 ctx,
                 "settings",
                 values=_event_form_values(ctx.event),
-                errors=getattr(exc, "errors", {"track_name": exc.message}),
+                errors=errors,
                 saved=False,
             ),
         )
+    if partial := _section(request, ctx, db, "tracks", {}):
+        return partial
     return RedirectResponse(f"/e/{ctx.event.slug}/organizer/settings#tracks", status_code=303)
 
 
@@ -314,6 +333,10 @@ def track_delete(
     try:
         events_service.remove_track(db, ctx.event, ctx.user, track_id)
     except PodiumError as exc:
+        if partial := _section(
+            request, ctx, db, "tracks", {"track_name": exc.message}, exc.status_code
+        ):
+            return partial
         return render(
             request,
             "organizer/settings.html",
@@ -327,6 +350,8 @@ def track_delete(
                 saved=False,
             ),
         )
+    if partial := _section(request, ctx, db, "tracks", {}):
+        return partial
     return RedirectResponse(f"/e/{ctx.event.slug}/organizer/settings#tracks", status_code=303)
 
 
@@ -343,6 +368,9 @@ def prize_add(
     try:
         events_service.add_prize(db, ctx.event, ctx.user, name, amount, description, track)
     except PodiumError as exc:
+        errors = getattr(exc, "errors", None) or {"prize_name": exc.message}
+        if partial := _section(request, ctx, db, "prizes", errors, exc.status_code):
+            return partial
         return render(
             request,
             "organizer/settings.html",
@@ -352,16 +380,23 @@ def prize_add(
                 ctx,
                 "settings",
                 values=_event_form_values(ctx.event),
-                errors=getattr(exc, "errors", {"prize_name": exc.message}),
+                errors=errors,
                 saved=False,
             ),
         )
+    if partial := _section(request, ctx, db, "prizes", {}):
+        return partial
     return RedirectResponse(f"/e/{ctx.event.slug}/organizer/settings#prizes", status_code=303)
 
 
 @router.post("/e/{slug}/organizer/prizes/{prize_id}/delete", dependencies=[Depends(verify_csrf)])
 def prize_delete(
-    prize_id: str, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
+    request: Request,
+    prize_id: str,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
 ):
     events_service.remove_prize(db, ctx.event, ctx.user, prize_id)
+    if partial := _section(request, ctx, db, "prizes", {}):
+        return partial
     return RedirectResponse(f"/e/{ctx.event.slug}/organizer/settings#prizes", status_code=303)

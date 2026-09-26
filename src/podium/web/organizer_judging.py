@@ -8,9 +8,11 @@ from podium.errors import PodiumError
 from podium.models import NormalizationMethod, RankingBasis
 from podium.security.csrf import verify_csrf
 from podium.security.deps import EventContext, require_organizer
+from podium.security.ratelimit import ip_hash
 from podium.services import assignments as assignments_service
 from podium.services import audit as audit_service
 from podium.services import dashboard, exports, scoring
+from podium.services import events as events_service
 from podium.services import judges as judges_service
 from podium.services import rubric as rubric_service
 from podium.web.organizer import _console
@@ -37,8 +39,11 @@ def rubric_page(
     request: Request,
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
+    saved: str = "",
 ):
-    return render(request, "organizer/rubric.html", title="Rubric", **_rubric_ctx(ctx, db))
+    return render(
+        request, "organizer/rubric.html", title="Rubric", **_rubric_ctx(ctx, db, saved=saved)
+    )
 
 
 @router.post("/e/{slug}/organizer/rubric", dependencies=[Depends(verify_csrf)])
@@ -62,7 +67,7 @@ def rubric_add(
         return render(
             request, "organizer/rubric.html", status_code=exc.status_code, title="Rubric", **c
         )
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/rubric", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/rubric?saved=added", status_code=303)
 
 
 @router.post("/e/{slug}/organizer/rubric/{criterion_id}", dependencies=[Depends(verify_csrf)])
@@ -86,7 +91,7 @@ def rubric_update(
         return render(
             request, "organizer/rubric.html", status_code=exc.status_code, title="Rubric", **c
         )
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/rubric", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/rubric?saved=saved", status_code=303)
 
 
 @router.post(
@@ -107,7 +112,7 @@ def rubric_archive(
         return render(
             request, "organizer/rubric.html", status_code=exc.status_code, title="Rubric", **c
         )
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/rubric", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/rubric?saved=archived", status_code=303)
 
 
 # --- judges ---------------------------------------------------------------------------------------
@@ -129,8 +134,11 @@ def judges_page(
     request: Request,
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
+    saved: str = "",
 ):
-    return render(request, "organizer/judges.html", title="Judges", **_judges_ctx(ctx, db))
+    return render(
+        request, "organizer/judges.html", title="Judges", **_judges_ctx(ctx, db, saved=saved)
+    )
 
 
 @router.post("/e/{slug}/organizer/judges/invite", dependencies=[Depends(verify_csrf)])
@@ -160,6 +168,41 @@ async def judges_invite(
     )
 
 
+@router.post(
+    "/e/{slug}/organizer/judges/invites/{invite_id}/regenerate",
+    dependencies=[Depends(verify_csrf)],
+)
+def invite_regenerate(
+    request: Request,
+    invite_id: int,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    invite, token = judges_service.regenerate_invite(db, ctx.event, ctx.user, invite_id)
+    link = f"{settings.base_url}/judge-invite/{token}"
+    return render(
+        request,
+        "organizer/judges.html",
+        title="Judges",
+        **_judges_ctx(ctx, db, link=link, invited=invite.email, regenerated=True),
+    )
+
+
+@router.post(
+    "/e/{slug}/organizer/judges/invites/{invite_id}/revoke", dependencies=[Depends(verify_csrf)]
+)
+def invite_revoke(
+    invite_id: int,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+):
+    judges_service.revoke_invite(db, ctx.event, ctx.user, invite_id)
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/judges?saved=revoked#invites", status_code=303
+    )
+
+
 @router.post("/e/{slug}/organizer/judges/{judge_id}/remove", dependencies=[Depends(verify_csrf)])
 def judges_remove(
     request: Request,
@@ -175,7 +218,7 @@ def judges_remove(
         return render(
             request, "organizer/judges.html", status_code=exc.status_code, title="Judges", **c
         )
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/judges", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/judges?saved=removed", status_code=303)
 
 
 @router.post("/e/{slug}/organizer/judges/{judge_id}/tracks", dependencies=[Depends(verify_csrf)])
@@ -188,7 +231,7 @@ async def judges_tracks(
     form = await request.form()
     judge = judges_service.judge_by_public_id(db, ctx.event, judge_id)
     judges_service.set_judge_tracks(db, ctx.event, judge, [str(v) for v in form.getlist("tracks")])
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/judges", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/judges?saved=tracks", status_code=303)
 
 
 # --- assignments ----------------------------------------------------------------------------------
@@ -327,15 +370,55 @@ def results_page(
     request: Request,
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
+    saved: str = "",
 ):
     from podium.services import pairwise
+    from podium.services import reviews as reviews_service
 
     results = scoring.compute(db, ctx.event, include_withdrawn=False)
+    normalized = results.basis.value == "normalized"
+    scored = [p for p in results.projects if (p.rank_norm if normalized else p.rank_raw)]
+    scored.sort(key=lambda p: p.rank_norm if normalized else p.rank_raw)
+    ranked_ids = {p.project.id for p in scored}
+    unranked = [p.project for p in results.projects if p.project.id not in ranked_ids]
+    suggestions = {}
+    for prize in ctx.event.prizes:
+        for p in scored:
+            if prize.track_id is None or p.project.track_id == prize.track_id:
+                suggestions[prize.public_id] = p.project.public_id
+                break
     return render(
         request,
         "organizer/results.html",
         title="Results",
-        **_console(ctx, "results", results=results, pairwise=pairwise.results(db, ctx.event)),
+        **_console(
+            ctx,
+            "results",
+            results=results,
+            pairwise=pairwise.results(db, ctx.event),
+            saved=saved,
+            ranked=scored,
+            unranked=unranked,
+            prizes=sorted(ctx.event.prizes, key=lambda p: p.position),
+            suggestions=suggestions,
+            judging_open=reviews_service.judging_is_open(ctx.event),
+        ),
+    )
+
+
+@router.post("/e/{slug}/organizer/results/prizes/{prize_id}", dependencies=[Depends(verify_csrf)])
+def award_prize(
+    request: Request,
+    prize_id: str,
+    project: str = Form(""),
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+):
+    events_service.award_prize(
+        db, ctx.event, ctx.user, prize_id, project or None, ip_hash=ip_hash(request)
+    )
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/results?saved=prize#prizes", status_code=303
     )
 
 
@@ -367,7 +450,7 @@ def results_settings(
         },
     )
     db.commit()
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/results", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/results?saved=1", status_code=303)
 
 
 # --- audit ----------------------------------------------------------------------------------------

@@ -64,7 +64,9 @@ def invite_page(
         tracks=tracks,
         token=token,
         next=f"/judge-invite/{token}",
-        accepted=invite.accepted_at is not None,
+        accepted=invite.accepted_at is not None
+        and invite.accepted_user_id == (user.id if user else None),
+        refusal=judges_service.invite_refusal(db, invite, user) if user else None,
     )
 
 

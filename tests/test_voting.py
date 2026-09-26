@@ -95,7 +95,8 @@ def test_account_mode_one_vote_per_account_and_retract(world):
     r = c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v)
     assert r.status_code == 201 and r.json()["vote"]["my_votes"] == 1
     assert c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v).status_code == 409
-    assert c.get(f"/api/v1/events/{slug}/votes/me", headers=v).json()["votes"]
+    mine = c.get(f"/api/v1/events/{slug}/votes/me", headers=v).json()["votes"]
+    assert mine and all(k.startswith("prj_") for k in mine), "votes are keyed by public id"
     assert c.delete(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v).status_code == 200
     assert c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v).status_code == 201
 
@@ -185,7 +186,7 @@ def test_code_mode(world):
     )
     assert (
         guest.post(
-            f"/api/v1/events/{slug}/voting/codes/redeem", params={"code": codes[0]["code"]}
+            f"/api/v1/events/{slug}/voting/codes/redeem", json={"code": codes[0]["code"]}
         ).status_code
         == 200
     )

@@ -1,15 +1,22 @@
 """Voting, comments and tallies. Voter identity follows the event's mode exactly as on the web:
 account (session/bearer), link (signed anonymous cookie) or a redeemed code cookie."""
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from podium.config import Settings, get_settings
 from podium.db import get_db
 from podium.errors import NotFound, Unauthorized
-from podium.models import User
-from podium.schemas.community import CodesCreate, CommentCreate, VoidVote, VotingSettings
+from podium.models import Project, User
+from podium.schemas.community import (
+    CodeRedeem,
+    CodesCreate,
+    CommentCreate,
+    VoidVote,
+    VotingSettings,
+)
 from podium.security.deps import EventContext, load_event, require_organizer, require_user
 from podium.security.ratelimit import ip_hash, limiter
 from podium.services import comments as comments_service
@@ -94,13 +101,17 @@ def my_votes(
     db: DbSession = Depends(get_db),
 ):
     status = voting_service.voter_status(db, ctx.event, voter)
+    public_ids = {
+        p.id: p.public_id
+        for p in db.execute(select(Project).where(Project.id.in_(list(status.votes)))).scalars()
+    }
     return {
         "identified": voter is not None,
         "mode": ctx.event.voting_mode.value,
         "voting_open": voting_service.voting_is_open(ctx.event),
         "credits_spent": status.credits_spent,
         "credits_left": status.credits_left,
-        "votes": {str(k): v for k, v in status.votes.items()},
+        "votes": {public_ids.get(k, str(k)): v for k, v in status.votes.items()},
     }
 
 
@@ -161,14 +172,15 @@ def generate_codes(
 
 @router.post("/events/{slug}/voting/codes/redeem")
 def redeem_code(
-    code: str,
+    body: CodeRedeem | None = None,
+    code: str = Query("", max_length=40, description='Deprecated: send {"code"} as JSON.'),
     ctx: EventContext = Depends(load_event),
     db: DbSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
     from podium.web.community import _sign, code_cookie_name
 
-    key = voting_service.redeem_code(db, ctx.event, code)
+    key = voting_service.redeem_code(db, ctx.event, (body.code if body else "") or code)
     response = JSONResponse({"redeemed": True})
     response.set_cookie(
         code_cookie_name(ctx.event),

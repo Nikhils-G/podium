@@ -27,7 +27,7 @@
       </div>
     </section>
     {% if event.prizes %}
-    <section class="stack"><h2>Prizes</h2><ul class="row-list">{% for prize in event.prizes %}<li><strong>{{ prize.name }}</strong>{% if prize.amount_text %}<span class="ink-2">{{ prize.amount_text }}</span>{% endif %}{% if prize.track %}<span class="muted text-sm">· {{ prize.track.name }}</span>{% endif %}</li>{% endfor %}</ul></section>
+    <section class="stack"><h2>Prizes</h2><ul class="row-list">{% for prize in event.prizes %}<li><strong>{{ prize.name }}</strong>{% if prize.amount_text %}<span class="ink-2">{{ prize.amount_text }}</span>{% endif %}{% if prize.track %}<span class="muted text-sm">· {{ prize.track.name }}</span>{% endif %}{% if prize.project and event.results_published_at %}<span class="grow"></span><span class="text-sm">Awarded to <a href="/e/{{ event.slug }}/projects/{{ prize.project.public_id }}">{{ prize.project.title }}</a></span>{% endif %}</li>{% endfor %}</ul></section>
     {% endif %}
     {% if not user or not links.role %}
     <section class="stack"><h2>How it works</h2>

@@ -15,6 +15,7 @@ from podium.security.csrf import verify_csrf
 from podium.security.deps import EventContext, load_event, require_organizer, require_user
 from podium.security.ratelimit import ip_hash, limiter
 from podium.services import comments as comments_service
+from podium.services import events as events_service
 from podium.services import projects as projects_service
 from podium.services import scoring
 from podium.services import voting as voting_service
@@ -336,6 +337,7 @@ def results_page(
         tallies=tallies,
         votes_by_project=votes_by_project,
         favourite=favourite,
+        awards=events_service.awards(ctx.event),
         **base,
     )
 

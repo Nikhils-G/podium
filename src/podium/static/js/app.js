@@ -61,6 +61,35 @@
     showAlert("critical", "You're offline. Your changes are kept on this page — try again when you're back.");
   });
 
+  // ---- date entry in the organizer's local time (stored as UTC by the server) -----------------
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function localizeDateForms() {
+    document.querySelectorAll("[data-tz-offset]").forEach(function (hidden) {
+      var form = hidden.closest("form");
+      if (!form || form.dataset.tzDone) return;
+      form.dataset.tzDone = "1";
+      var alreadyLocal = hidden.value !== "";  // re-rendered after a failed save: values are as typed
+      hidden.value = String(-new Date().getTimezoneOffset());
+      var zone = "";
+      try { zone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (err) {}
+      form.querySelectorAll("label").forEach(function (label) {
+        label.childNodes.forEach(function (node) {
+          if (node.nodeType === 3 && node.nodeValue.indexOf("(UTC)") !== -1) node.nodeValue = node.nodeValue.replace("(UTC)", "(your local time)");
+        });
+      });
+      if (!alreadyLocal) form.querySelectorAll('input[type="datetime-local"]').forEach(function (input) {
+        if (!input.value) return;
+        var d = new Date(input.value + "Z");
+        if (isNaN(d)) return;
+        input.value = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+      });
+      var note = form.querySelector("[data-tz-note]");
+      if (note) note.textContent = "Times are in your local time" + (zone ? " (" + zone + ")" : "") + " and stored in UTC. Deadlines are enforced server-side to the minute.";
+    });
+  }
+  localizeDateForms();
+  document.body.addEventListener("htmx:load", localizeDateForms);
+
   // ---- local time beside UTC ------------------------------------------------------------------
   function enhanceTimes(root) {
     (root || document).querySelectorAll("time[datetime][data-local]").forEach(function (t) {

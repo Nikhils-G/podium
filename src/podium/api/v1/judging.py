@@ -172,11 +172,40 @@ def invite_judge(
     invite, token = judges_service.invite_judge(db, ctx.event, ctx.user, body.email, body.tracks)
     return {
         "invite": {
+            "id": invite.id,
             "email": invite.email,
             "expires_at": invite.expires_at,
             "link": f"{settings.base_url}/judge-invite/{token}",
         }
     }
+
+
+@router.post("/events/{slug}/judges/invites/{invite_id}/regenerate")
+def regenerate_invite(
+    invite_id: int,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """A fresh link for a pending invite; the previous link stops working immediately."""
+    invite, token = judges_service.regenerate_invite(db, ctx.event, ctx.user, invite_id)
+    return {
+        "invite": {
+            "id": invite.id,
+            "email": invite.email,
+            "expires_at": invite.expires_at,
+            "link": f"{settings.base_url}/judge-invite/{token}",
+        }
+    }
+
+
+@router.delete("/events/{slug}/judges/invites/{invite_id}", status_code=204)
+def revoke_invite(
+    invite_id: int,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+):
+    judges_service.revoke_invite(db, ctx.event, ctx.user, invite_id)
 
 
 @router.delete("/events/{slug}/judges/{judge_id}", status_code=204)

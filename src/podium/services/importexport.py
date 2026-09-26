@@ -182,6 +182,7 @@ def export_event(db: DbSession, event: Event) -> dict:
                     "amount": p.amount_text,
                     "description": p.description,
                     "track": track_public.get(p.track_id),
+                    "project": p.project.public_id if p.project else None,
                 }
                 for p in prizes
             ],

@@ -3,7 +3,8 @@ deleted or edited entry breaks verification."""
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
@@ -79,6 +80,10 @@ def verify_chain(db: DbSession) -> ChainReport:
     return ChainReport(entries=count, ok=True)
 
 
+if TYPE_CHECKING:
+    from podium.models import User
+
+
 @dataclass
 class AuditPage:
     rows: list[AuditLog]
@@ -86,6 +91,7 @@ class AuditPage:
     page: int
     pages: int
     actions: list[str]
+    actors: dict[int, "User"] = field(default_factory=dict)  # actor_id → user, for this page
 
 
 def list_entries(
@@ -118,4 +124,12 @@ def list_entries(
     if event_id is not None:
         actions_q = actions_q.where(AuditLog.event_id == event_id)
     actions = list(db.execute(actions_q).scalars())
-    return AuditPage(rows=rows, total=total, page=page, pages=pages, actions=actions)
+    from podium.models import User
+
+    actor_ids = {r.actor_id for r in rows if r.actor_id is not None}
+    actors = (
+        {u.id: u for u in db.execute(select(User).where(User.id.in_(actor_ids))).scalars()}
+        if actor_ids
+        else {}
+    )
+    return AuditPage(rows=rows, total=total, page=page, pages=pages, actions=actions, actors=actors)

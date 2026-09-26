@@ -8,6 +8,10 @@
   </div>
   {% if accepted %}
     <p>This invitation has been accepted.</p><a class="btn btn--primary" href="/e/{{ event.slug }}/judge">Open the judge console</a>
+  {% elif user and refusal %}
+    <div class="alert alert--warning" role="alert">{{ refusal }}</div>
+    <form method="post" action="/logout" hx-boost="false" class="stack"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--secondary btn--block" type="submit">Sign out and use another account</button></form>
+    <p class="text-sm muted">Open this link again after signing in with the invited address.</p>
   {% elif user %}
     <form method="post" action="/judge-invite/{{ token }}" hx-boost="false" class="stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

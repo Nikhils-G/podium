@@ -1,11 +1,13 @@
 {% from "macros/ui.html" import field %}
 {{ field('name', 'Event name', value=values.name, required=True, error=errors.name, maxlength=160) }}
 {{ field('description', 'Description', value=values.description, type='textarea', rows=4, error=errors.description, help='Shown on the event page.') }}
-<div class="field-grid">
+<input type="hidden" name="tz_offset_minutes" value="{{ values.tz_offset_minutes or '' }}" data-tz-offset>
+<div class="field-grid" data-tz-fields>
   {{ field('submissions_open_at', 'Submissions open (UTC)', value=values.submissions_open_at, type='datetime-local', error=errors.submissions_open_at) }}
   {{ field('submissions_close_at', 'Submissions close (UTC)', value=values.submissions_close_at, type='datetime-local', error=errors.submissions_close_at, help='The deadline is enforced server-side to the minute.') }}
   {{ field('voting_open_at', 'Voting opens (UTC)', value=values.voting_open_at, type='datetime-local', error=errors.voting_open_at) }}
   {{ field('voting_close_at', 'Voting closes (UTC)', value=values.voting_close_at, type='datetime-local', error=errors.voting_close_at) }}
 </div>
+<p class="text-sm muted" data-tz-note>Times are in UTC. Deadlines are enforced server-side to the minute.</p>
 {{ field('max_team_size', 'Maximum team size', value=values.max_team_size, type='number', error=errors.max_team_size) }}
 <label class="check"><input type="checkbox" name="is_public" {% if values.is_public %}checked{% endif %}> <span>Public — visible to everyone (you can also publish later from the dashboard)</span></label>

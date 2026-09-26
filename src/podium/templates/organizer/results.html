@@ -5,7 +5,9 @@
 {% block content %}
 <div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Results &amp; normalization</h1>
   <p class="ink-2 mt-2">{{ r.reviews|length }} submitted reviews from {{ r.judges|length }} judges. {% if r.global_mean is not none %}Event mean {{ '%.1f'|format(r.global_mean) }}, spread {{ '%.1f'|format(r.global_std) }}.{% endif %}</p></div>
-  {% if event.results_published_at %}{{ badge('Published', 'accent') }}{% else %}<a class="btn btn--primary" href="/e/{{ event.slug }}/organizer">Publish from dashboard</a>{% endif %}</div>
+  {% if event.results_published_at %}{{ badge('Published', 'accent') }}
+  {% elif judging_open %}<div class="stack-sm"><button class="btn btn--primary" type="button" disabled aria-disabled="true">Publish results</button><span class="muted text-sm">Close judging first (Dashboard → Next step).</span></div>
+  {% else %}<form method="post" action="/e/{{ event.slug }}/organizer/actions/publish_results" hx-boost="false" data-confirm="Publish results? Rankings, judge names and vote counts become public for this event."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--primary" type="submit">Publish results</button></form>{% endif %}</div>
 <form class="cluster card card--flat" method="post" action="/e/{{ event.slug }}/organizer/results/settings" hx-boost="false">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label class="field__label">Normalization <select class="select select--inline" name="method"><option value="zscore" {% if r.method.value == 'zscore' %}selected{% endif %}>Per-judge z-score with shrinkage (k = {{ '%g'|format(r.k) }})</option><option value="none" {% if r.method.value == 'none' %}selected{% endif %}>None (raw means)</option></select></label>
@@ -13,6 +15,7 @@
   <button class="btn btn--secondary btn--sm" type="submit">Save</button>
   <a class="btn btn--ghost btn--sm" href="/api/v1/events/{{ event.slug }}/exports/scores.csv" hx-boost="false">Download scores.csv</a>
 </form>
+{% if saved == 'prize' %}{{ alert('success', 'Prize award saved. Winner certificates are issued from these awards.') }}{% elif saved %}{{ alert('success', 'Ranking settings saved.') }}{% endif %}
 {% if r.judges|length < 2 %}{{ alert('info', 'Normalization needs at least two judges with reviews; with fewer, rankings use raw means.') }}{% endif %}
 {% if r.judges|length >= 2 and r.global_mean is not none %}
 <div class="two-col two-col--wide mt-6">
@@ -22,6 +25,7 @@
 {% endif %}
 <section class="stack mt-6">
   <h2>Ranking</h2>
+  <p class="text-sm ink-2">Disagreement is the spread (standard deviation) of the normalized scores a project received: 0 means every judge agreed, above 1 means judges saw it very differently and it deserves a look.</p>
   <table class="table table--dense">
     <thead><tr><th class="num">Rank</th><th>Project</th><th>Track</th><th class="num">Reviews</th><th class="num">Raw mean</th><th class="num">Normalized</th><th class="num">Δ rank</th><th class="num">Disagreement</th></tr></thead>
     <tbody>{% for p in r.projects %}
@@ -45,13 +49,37 @@
     <tbody>{% for j in r.judges %}<tr><td>{{ j.judge.name }} <span class="muted text-sm"><code>{{ j.judge.public_id }}</code></span></td><td class="num">{{ j.n }}</td><td class="num">{{ '%.1f'|format(j.mean) }}</td><td class="num">{{ '%.1f'|format(j.std) }}</td><td class="num">{{ '%.1f'|format(j.shrunk_mean) }}</td><td class="num">{{ '%.1f'|format(j.shrunk_std) }}</td><td>{% if j.flat %}{{ badge('flat scorer', 'warning') }}{% endif %}{% if j.few %}{{ badge('few reviews', 'plain') }}{% endif %}</td></tr>{% endfor %}</tbody>
   </table>
 </section>
+<section class="stack mt-6" id="prizes">
+  <h2>Prizes</h2>
+  {% if prizes %}
+  <p class="text-sm ink-2">Pick the winner of each prize. Suggestions follow the ranking above (top project overall, or top in the prize's track) but nothing is awarded until you save it. Winner certificates are issued from these awards.</p>
+  <div class="table-wrap"><table class="table table--dense">
+    <thead><tr><th>Prize</th><th>Track</th><th>Awarded to</th></tr></thead>
+    <tbody>{% for prize in prizes %}<tr>
+      <td><strong>{{ prize.name }}</strong>{% if prize.amount_text %} <span class="muted text-sm">{{ prize.amount_text }}</span>{% endif %}<br>{% if prize.project %}{{ badge('Awarded', 'good') }}{% else %}{{ badge('Not awarded') }}{% endif %}</td>
+      <td>{{ prize.track.name if prize.track else 'Overall' }}</td>
+      <td><form class="cluster" method="post" action="/e/{{ event.slug }}/organizer/results/prizes/{{ prize.public_id }}" hx-boost="false">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="visually-hidden" for="prize-{{ prize.public_id }}">Project for {{ prize.name }}</label>
+        <select class="select select--inline" id="prize-{{ prize.public_id }}" name="project">
+          <option value="">— not awarded —</option>
+          {% for p in ranked %}{% set rank = p.rank_norm if r.basis.value == 'normalized' else p.rank_raw %}<option value="{{ p.project.public_id }}" {% if prize.project_id == p.project.id or (not prize.project_id and suggestions.get(prize.public_id) == p.project.public_id) %}selected{% endif %}>#{{ rank }} {{ p.project.title }} · {{ p.project.team.name }}</option>{% endfor %}
+          {% if unranked %}<optgroup label="Not ranked (no reviews)">{% for project in unranked %}<option value="{{ project.public_id }}" {% if prize.project_id == project.id %}selected{% endif %}>{{ project.title }} · {{ project.team.name }}</option>{% endfor %}</optgroup>{% endif %}
+        </select>
+        <button class="btn btn--secondary btn--sm" type="submit">{{ 'Change award' if prize.project else 'Award prize' }}</button>
+        {% if not prize.project and suggestions.get(prize.public_id) %}<span class="muted text-sm">suggested from the ranking</span>{% endif %}
+      </form></td></tr>{% endfor %}</tbody></table></div>
+  {% else %}<p class="muted">No prizes configured yet. <a href="/e/{{ event.slug }}/organizer/settings#prizes">Add prizes in Settings</a> to award them here.</p>{% endif %}
+</section>
 <section class="stack mt-6" id="pairwise">
   <h2>Pairwise ranking (Bradley-Terry)</h2>
   {% if pairwise.rows %}
   <p class="text-sm ink-2">{{ pairwise.comparisons }} comparisons from {{ pairwise.judges }} judges ({{ pairwise.judge_comparisons }} made in the compare tab{% if pairwise.derived_comparisons %}, {{ pairwise.derived_comparisons }} derived from scored reviews for demonstration{% endif %}; {{ pairwise.skipped }} skipped). Strengths fitted by minorization-maximization with a virtual reference; {% if pairwise.rho is not none %}Spearman ρ against the normalized ranking: <strong>{{ '%.2f'|format(pairwise.rho) }}</strong>.{% endif %}</p>
+  {% if pairwise.judge_comparisons == 0 and pairwise.derived_comparisons %}{{ alert('info', 'Demonstration data: no judge has used the compare tab yet, so these comparisons were derived from the scored reviews to show the method working. They carry no weight in the published ranking.') }}
+  {% elif pairwise.rho_judges is not none and pairwise.derived_comparisons %}<p class="text-sm ink-2">Judge comparisons alone ({{ pairwise.judge_comparisons }}): Spearman ρ <strong>{{ '%.2f'|format(pairwise.rho_judges) }}</strong> against the normalized ranking.</p>{% endif %}
   <table class="table table--dense">
     <thead><tr><th class="num">BT rank</th><th>Project</th><th class="num">log strength</th><th class="num">Comparisons</th><th class="num">Wins</th><th class="num">Normalized rank</th><th class="num">Δ</th></tr></thead>
-    <tbody>{% for row in pairwise.rows %}<tr><td class="num">{{ row.rank }}</td><td><a href="/e/{{ event.slug }}/projects/{{ row.project.public_id }}">{{ row.project.title }}</a></td><td class="num">{{ '%+.2f'|format(row.log_strength) }}</td><td class="num">{{ row.comparisons }}</td><td class="num">{{ row.wins }}</td><td class="num">{{ row.rank_normalized or '—' }}</td><td class="num">{% if row.rank_normalized %}{% set d = row.rank_normalized - row.rank %}{% if d %}<span class="{{ 'delta-up' if d > 0 else 'delta-down' }}">{{ '+' if d > 0 }}{{ d }}</span>{% else %}·{% endif %}{% endif %}</td></tr>{% endfor %}</tbody>
+    <tbody>{% for row in pairwise.rows %}<tr><td class="num">{{ row.rank }}</td><td><a href="/e/{{ event.slug }}/projects/{{ row.project.public_id }}">{{ row.project.title }}</a> <span class="muted text-sm">{{ row.project.team.name }} · {{ row.project.public_id }}</span></td><td class="num">{{ '%+.2f'|format(row.log_strength) }}</td><td class="num">{{ row.comparisons }}</td><td class="num">{{ row.wins }}</td><td class="num">{{ row.rank_normalized or '—' }}</td><td class="num">{% if row.rank_normalized %}{% set d = row.rank_normalized - row.rank %}{% if d %}<span class="{{ 'delta-up' if d > 0 else 'delta-down' }}">{{ '+' if d > 0 }}{{ d }}</span>{% else %}·{% endif %}{% endif %}</td></tr>{% endfor %}</tbody>
   </table>
   {% else %}<p class="muted">No comparisons yet. Judges make them in the Compare tab of their console.</p>{% endif %}
 </section>

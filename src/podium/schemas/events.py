@@ -30,6 +30,10 @@ class PrizeCreate(BaseModel):
     track: str = Field("", description="Track public id, optional")
 
 
+class PrizeAward(BaseModel):
+    project: str | None = Field(default=None, description="Project public id, or null to clear")
+
+
 class TeamCreate(BaseModel):
     name: str = Field(..., max_length=120)
 
@@ -60,6 +64,7 @@ def event_out(event, stage: str) -> dict:
                 "name": p.name,
                 "amount": p.amount_text,
                 "track": p.track.public_id if p.track else None,
+                "project": p.project.public_id if p.project else None,
             }
             for p in event.prizes
         ],

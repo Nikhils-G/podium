@@ -2,10 +2,11 @@
 {% from "macros/ui.html" import field, alert, badge, when %}
 {% block content %}
 <div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Judges</h1><p class="ink-2 mt-2">Invite judges with a link. Podium never sends email, so you stay in control of how invitations go out.</p></div></div>
+{% if saved == 'removed' %}{{ alert('success', 'Judge removed.') }}{% elif saved == 'tracks' %}{{ alert('success', 'Tracks saved.') }}{% elif saved == 'revoked' %}{{ alert('success', 'Invitation revoked. The link no longer works.') }}{% endif %}
 {% if link %}
 <div class="card card--success stack">
-  <h2>Invitation for {{ invited }} is ready</h2>
-  <p class="text-sm ink-2">Send this link to the judge. It expires in 30 days and works once.</p>
+  <h2>{% if regenerated %}New link for {{ invited }}{% else %}Invitation for {{ invited }} is ready{% endif %}</h2>
+  <p class="text-sm ink-2">Send this link to the judge. It expires in 30 days and works once.{% if regenerated %} The previous link has stopped working.{% endif %}</p>
   <div class="copy-field"><code class="copy-field__value">{{ link }}</code><button class="btn btn--secondary btn--sm" type="button" data-copy="{{ link }}">Copy link</button></div>
 </div>
 {% endif %}
@@ -35,8 +36,10 @@
     </table>
     {% else %}<p class="muted">No judges yet. Invite the first one.</p>{% endif %}
     {% if invites %}
-    <h3 class="mt-4">Pending invitations <span class="count">{{ invites|length }}</span></h3>
-    <ul class="row-list">{% for row in invites %}<li><span>{{ row.invite.email }}</span><span class="text-sm ink-2">{% for t in row.tracks %}{{ t.name }}{{ ', ' if not loop.last }}{% endfor %}</span><span class="grow"></span><span class="muted text-sm">expires {{ when(row.invite.expires_at) }}</span></li>{% endfor %}</ul>
+    <h3 class="mt-4" id="invites">Pending invitations <span class="count">{{ invites|length }}</span></h3>
+    <ul class="row-list">{% for row in invites %}<li><span>{{ row.invite.email }}</span><span class="text-sm ink-2">{% for t in row.tracks %}{{ t.name }}{{ ', ' if not loop.last }}{% endfor %}</span><span class="grow"></span><span class="muted text-sm">expires {{ when(row.invite.expires_at) }}</span>
+      <form method="post" action="/e/{{ event.slug }}/organizer/judges/invites/{{ row.invite.id }}/regenerate" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Regenerate link</button></form>
+      <form method="post" action="/e/{{ event.slug }}/organizer/judges/invites/{{ row.invite.id }}/revoke" hx-boost="false" data-confirm="Revoke the invitation for {{ row.invite.email }}? Its link stops working immediately."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Revoke</button></form></li>{% endfor %}</ul>
     {% endif %}
   </section>
   <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/judges/invite" hx-boost="false">

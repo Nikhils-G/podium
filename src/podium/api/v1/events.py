@@ -3,7 +3,14 @@ from sqlalchemy.orm import Session as DbSession
 
 from podium.db import get_db
 from podium.models import User
-from podium.schemas.events import EventCreate, EventUpdate, PrizeCreate, TrackCreate, event_out
+from podium.schemas.events import (
+    EventCreate,
+    EventUpdate,
+    PrizeAward,
+    PrizeCreate,
+    TrackCreate,
+    event_out,
+)
 from podium.security.deps import (
     EventContext,
     current_user,
@@ -102,6 +109,28 @@ def add_prize(
         db, ctx.event, ctx.user, body.name, body.amount, body.description, body.track
     )
     return {"prize": {"id": prize.public_id, "name": prize.name, "amount": prize.amount_text}}
+
+
+@router.post("/events/{slug}/prizes/{prize_id}/award")
+def award_prize(
+    prize_id: str,
+    body: PrizeAward,
+    request: Request,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+):
+    """Award a prize to a submitted project (`project: null` clears it). Winner certificates and
+    the public results page follow these awards."""
+    prize = events_service.award_prize(
+        db, ctx.event, ctx.user, prize_id, body.project, ip_hash=ip_hash(request)
+    )
+    return {
+        "prize": {
+            "id": prize.public_id,
+            "name": prize.name,
+            "project": prize.project.public_id if prize.project else None,
+        }
+    }
 
 
 @router.delete("/events/{slug}/prizes/{prize_id}", status_code=204)

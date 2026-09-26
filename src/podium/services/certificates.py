@@ -270,7 +270,46 @@ def issue_winners(
     if event.results_published_at is None:
         raise Conflict("Publish results before issuing winner certificates.")
     report = IssueReport()
-    results = scoring.compute(db, event)
+    awarded = sorted(
+        (p for p in event.prizes if p.project_id is not None), key=lambda p: p.position
+    )
+    if awarded:
+        # organizers awarded prizes explicitly: those are the winners
+        for prize in awarded:
+            members = (
+                db.execute(
+                    select(User)
+                    .join(TeamMember, TeamMember.user_id == User.id)
+                    .where(TeamMember.team_id == prize.project.team_id)
+                )
+                .scalars()
+                .all()
+            )
+            for member in members:
+                if existing(db, event, CertificateKind.winner, member.id):
+                    report.skipped += 1
+                    continue
+                issue(
+                    db,
+                    settings,
+                    event,
+                    CertificateKind.winner,
+                    user=member,
+                    team=prize.project.team,
+                    details={
+                        "project": {"id": prize.project.public_id, "title": prize.project.title},
+                        "prize": {
+                            "id": prize.public_id,
+                            "name": prize.name,
+                            "track": prize.track.name if prize.track else None,
+                        },
+                    },
+                    issued_by=issued_by,
+                )
+                report.issued += 1
+        db.commit()
+        return report
+    results = scoring.compute(db, event)  # no awards: fall back to the top three
     ranked = [
         p
         for p in results.projects

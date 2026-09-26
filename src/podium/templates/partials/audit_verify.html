@@ -1,2 +1,2 @@
 {% from "macros/ui.html" import badge %}
-{% if report.ok %}{{ badge('Chain verified · ' ~ report.entries ~ ' entries', 'good') }}{% else %}{{ badge('Chain BROKEN at entry ' ~ report.first_bad_id, 'critical') }}{% endif %}
+{% if report.ok %}{{ badge('Chain verified · ' ~ report.entries ~ ' entries across the whole instance', 'good') }}{% else %}{{ badge('Chain BROKEN at entry ' ~ report.first_bad_id, 'critical') }}{% endif %}

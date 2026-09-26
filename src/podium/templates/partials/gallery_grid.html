@@ -1,5 +1,6 @@
 {% from "macros/ui.html" import empty, badge %}
 <section id="gallery-results" class="mt-4" aria-live="polite" aria-busy="false">
+  {% if oob %}<span class="count" id="gallery-count" hx-swap-oob="true">{{ page.total }} project{{ '' if page.total == 1 else 's' }}</span>{% endif %}
   {% if ballot %}<p class="text-sm ink-2">Voting is open. Projects are shown in a random order that stays fixed for you, so no entry benefits from being first.</p>{% endif %}
   {% if page.cards %}
   <p class="visually-hidden">{{ page.total }} projects shown</p>

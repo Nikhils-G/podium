@@ -55,7 +55,9 @@ def _pair_counts(db: DbSession, event: Event, judge: User) -> dict[tuple[int, in
     counts: dict[tuple[int, int], int] = {}
     for a, b in db.execute(
         select(PairwiseComparison.project_a_id, PairwiseComparison.project_b_id).where(
-            PairwiseComparison.event_id == event.id, PairwiseComparison.judge_id == judge.id
+            PairwiseComparison.event_id == event.id,
+            PairwiseComparison.judge_id == judge.id,
+            PairwiseComparison.source == ComparisonSource.judge,  # derived rows are demo data
         )
     ).all():
         key = (min(a, b), max(a, b))
@@ -236,6 +238,7 @@ class PairwiseResults:
     skipped: int = 0
     judges: int = 0
     rho: float | None = None
+    rho_judges: float | None = None  # Spearman ρ using judge comparisons alone
 
 
 def results(db: DbSession, event: Event) -> PairwiseResults:
@@ -253,6 +256,7 @@ def results(db: DbSession, event: Event) -> PairwiseResults:
     )
     out = PairwiseResults(comparisons=len(rows), judges=len({r.judge_id for r in rows}))
     pairs: list[tuple[int, int]] = []
+    judge_pairs: list[tuple[int, int]] = []
     per_project: dict[int, int] = {}
     wins: dict[int, int] = {}
     for r in rows:
@@ -265,6 +269,8 @@ def results(db: DbSession, event: Event) -> PairwiseResults:
             continue
         loser = r.project_b_id if r.winner_id == r.project_a_id else r.project_a_id
         pairs.append((r.winner_id, loser))
+        if r.source == ComparisonSource.judge:
+            judge_pairs.append((r.winner_id, loser))
         for pid in (r.project_a_id, r.project_b_id):
             per_project[pid] = per_project.get(pid, 0) + 1
         wins[r.winner_id] = wins.get(r.winner_id, 0) + 1
@@ -289,6 +295,15 @@ def results(db: DbSession, event: Event) -> PairwiseResults:
             )
         )
     out.rho = spearman(bt_rank, norm_rank)
+    if judge_pairs and judge_pairs != pairs:
+        judged = {pid for pair in judge_pairs for pid in pair}
+        judge_strengths = bradley_terry([p.id for p in projects], judge_pairs)
+        order = sorted(
+            (p for p in projects if p.id in judged), key=lambda p: -judge_strengths[p.id]
+        )
+        out.rho_judges = spearman({p.id: i + 1 for i, p in enumerate(order)}, norm_rank)
+    elif judge_pairs:
+        out.rho_judges = out.rho
     return out
 
 

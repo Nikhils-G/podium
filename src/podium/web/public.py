@@ -146,6 +146,7 @@ def gallery(
         ballot=ballot,
         voted=voted,
         voter=voter,
+        oob=template != "public/gallery.html",
     )
 
 

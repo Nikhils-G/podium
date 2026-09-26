@@ -379,6 +379,8 @@ def _apply_extension(db, event, ext: dict, tracks, projects, criteria, judges, r
         prize.description = pz.get("description", "") or ""
         prize.position = position
         prize.track_id = tracks[pz["track"]].id if pz.get("track") in tracks else None
+        winner = pz.get("project")
+        prize.project_id = projects[winner].id if winner in projects else None
     for position, c in enumerate(ext.get("rubric") or []):
         crit = criteria.get(c.get("key"))
         if crit is None:
