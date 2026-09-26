@@ -8,7 +8,7 @@
   <section class="stack">
     <h2>Webhooks <span class="count">{{ hooks|length }}</span></h2>
     {% if hooks %}
-    <ul class="row-list">{% for h in hooks %}<li><code class="text-sm">{{ h.url }}</code><span class="text-sm ink-2">{{ h.event_types|length }} event type{{ '' if h.event_types|length == 1 else 's' }}</span>{{ badge('active' if h.active else 'paused', 'good' if h.active else 'plain') }}<span class="grow"></span>
+    <ul class="row-list">{% for h in hooks %}<li><code class="text-sm">{{ h.url }}</code><span class="text-sm ink-2 nowrap">{{ h.event_types|length }} event type{{ '' if h.event_types|length == 1 else 's' }}</span>{{ badge('active' if h.active else 'paused', 'good' if h.active else 'plain') }}<span class="grow"></span>
       <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/test" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit" {% if not h.active %}disabled{% endif %}>Send test</button></form>
       <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/toggle" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">{{ 'Pause' if h.active else 'Resume' }}</button></form>
       <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/delete" hx-boost="false" data-confirm="Delete this webhook and its delivery history?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Delete</button></form></li>{% endfor %}</ul>

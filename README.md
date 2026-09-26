@@ -138,7 +138,7 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 ## Development
 
 ```
-make test      # pytest — 90+ tests on a temp database seeded from the real fixtures
+make test      # pytest — 118 tests on a temp database seeded from the real fixtures
 make lint      # ruff
 make check     # run the organizer's checker against a running portal → acceptance-report.txt
 make clean-verify   # what a judge does: rebuild without cache, boot, run the checker

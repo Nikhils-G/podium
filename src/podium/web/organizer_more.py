@@ -269,10 +269,14 @@ def _age(path: Path) -> float:
 
 
 def _certs(ctx, db, **extra):
+    from podium.services import reviews as reviews_service
+
     defaults = {
         "certificates": cert_service.for_event(db, ctx.event),
         "report": None,
         "error": "",
+        "judging_open": reviews_service.judging_is_open(ctx.event),
+        "published": ctx.event.results_published_at is not None,
     }
     defaults.update(extra)
     return _console(ctx, "certificates", **defaults)
