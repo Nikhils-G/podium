@@ -1,0 +1,25 @@
+# DOGFOOD 2026 — tells the acceptance checker where things are in Podium.
+# Run:  python3 tools/run.py .dogfood.toml --fixtures fixtures/fixtures.json > acceptance-report.txt
+
+[portal]
+base_url = "http://localhost:8080"
+
+[tiers]
+claimed = ["T1", "T2", "T3", "T4"]
+pitch = "Podium: a self-hosted hackathon platform with backend-enforced judging isolation, documented score normalization and a full API."
+
+[auth]
+# Demo sessions are derived from PODIUM_SECRET_KEY, so these values are stable on every
+# fresh `docker compose up` with the default configuration. The boot log prints them too.
+organizer   = "Cookie: session=org_4be7f712dd292c7905b0"
+judge_a     = "Cookie: session=jdg_a_ab5d1b797ef777b2aa2a"
+judge_b     = "Cookie: session=jdg_b_afebfc3dbf25925af382"
+participant = "Cookie: session=prt_3039e207c9a1d4d0218d"
+
+[routes]
+gallery      = "/e/sample-hack-2026/projects"
+submit       = "/api/v1/events/sample-hack-2026/projects"
+judge_scores = "/api/v1/events/sample-hack-2026/judges/me/reviews"
+# peer_scores is the URL that returns judge_a's (jdg_24) reviews; judge_b must be refused.
+peer_scores  = "/api/v1/events/sample-hack-2026/judges/jdg_24/reviews"
+csv_export   = "/api/v1/events/sample-hack-2026/exports/scores.csv"
