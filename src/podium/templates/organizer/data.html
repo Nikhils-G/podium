@@ -1,0 +1,36 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import alert, badge %}
+{% block content %}
+<div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Import &amp; export</h1><p class="ink-2 mt-2">Your data is yours. Export everything as JSON (re-importable here or on any other Podium) or as CSV per table.</p></div></div>
+{% if error %}{{ alert('critical', error) }}{% endif %}
+<div class="two-col two-col--wide mt-4">
+  <section class="stack">
+    <div class="card stack">
+      <h2>Export</h2>
+      <p class="text-sm ink-2">The JSON export uses the DOGFOOD fixtures shape plus a <code>podium</code> block (rubric, prizes, dates, assignments, project details).</p>
+      <div class="cluster"><a class="btn btn--primary" href="/api/v1/events/{{ event.slug }}/export.json" hx-boost="false">Download export.json</a></div>
+      <h3 class="mt-2">CSV</h3>
+      <div class="cluster">{% for name in ['projects', 'teams', 'assignments', 'reviews', 'scores', 'audit'] %}<a class="btn btn--secondary btn--sm" href="/api/v1/events/{{ event.slug }}/exports/{{ name }}.csv" hx-boost="false">{{ name }}.csv</a>{% endfor %}</div>
+    </div>
+    {% if outcome %}
+    <div class="card stack {{ 'card--success' if not outcome.errors else '' }}">
+      <h2>{{ 'Dry run' if outcome.dry_run else 'Import applied' }}</h2>
+      {% if outcome.errors %}{% for e in outcome.errors %}{{ alert('critical', e) }}{% endfor %}
+      {% else %}
+        <p class="text-sm">{% if outcome.report.counts %}{% for k, v in outcome.report.counts.items() %}<strong>{{ v }}</strong> {{ k }}{{ ', ' if not loop.last }}{% endfor %} {{ 'would be' if outcome.dry_run else 'were' }} added; existing rows matched by id {{ 'would be' if outcome.dry_run else 'were' }} updated.{% else %}Nothing new — every row already exists (matched by id) and {{ 'would be' if outcome.dry_run else 'was' }} updated in place.{% endif %}</p>
+        {% for dup, orig in outcome.report.duplicates %}{{ alert('warning', 'Duplicate submission flagged: ' ~ dup ~ ' duplicates ' ~ orig) }}{% endfor %}
+        {% for w in outcome.report.warnings %}{{ alert('warning', w) }}{% endfor %}
+        {% if outcome.dry_run %}<p class="text-sm ink-2">Nothing was written. Re-upload with “Apply” to import.</p>{% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+  <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/data/import" enctype="multipart/form-data" hx-boost="false">
+    <h2>Import into this event</h2>
+    <p class="text-sm ink-2">Upload a fixtures.json or a Podium export for <code>{{ event.public_id }}</code>. Rows are matched by id, so re-importing is safe. Always dry-run first.</p>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field"><label class="field__label" for="f-file">JSON file</label><input class="input" id="f-file" type="file" name="file" accept="application/json,.json" required></div>
+    <div class="cluster"><button class="btn btn--secondary" type="submit" name="mode" value="dry_run">Dry run</button><button class="btn btn--primary" type="submit" name="mode" value="apply" data-confirm="Apply this import? Matching rows are updated in place and new rows are created. This is logged.">Apply import</button></div>
+  </form>
+</div>
+{% endblock %}

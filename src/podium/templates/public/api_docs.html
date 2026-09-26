@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Podium API reference</title>
+  <link rel="icon" href="/static/img/podium.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/vendor/swagger-ui/swagger-ui.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <header class="topbar"><div class="container topbar__inner"><a class="brand" href="/"><img class="brand__mark" src="/static/img/podium.svg" alt="">Podium</a><nav class="topnav"><a href="/api/openapi.json">openapi.json</a>{% if user %}<a href="/account">API tokens</a>{% else %}<a href="/login">Sign in</a>{% endif %}</nav></div></header>
+  <div id="swagger-ui"></div>
+  <script src="/static/vendor/swagger-ui/swagger-ui-bundle.js" defer></script>
+  <script nonce="{{ nonce }}">window.addEventListener("DOMContentLoaded", function () { window.ui = SwaggerUIBundle({ url: "/api/openapi.json", dom_id: "#swagger-ui", deepLinking: true, displayRequestDuration: true, tryItOutEnabled: true, persistAuthorization: true }); });</script>
+</body>
+</html>

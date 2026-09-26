@@ -1,0 +1,44 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import field, alert, badge, when %}
+{% block content %}
+<div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Integrations</h1><p class="ink-2 mt-2">Everything the console can do, the <a href="/api/docs">REST API</a> can do. Webhooks push events to your systems; the embed drops the gallery into any site.</p></div></div>
+{% if new_secret %}<div class="alert alert--success" role="status"><div><strong>Webhook added.</strong> Signing secret (shown once): <code>{{ new_secret }}</code> — deliveries carry <code>X-Podium-Signature: sha256=HMAC(secret, body)</code>.</div></div>{% endif %}
+<div class="two-col two-col--wide mt-4">
+  <section class="stack">
+    <h2>Webhooks <span class="count">{{ hooks|length }}</span></h2>
+    {% if hooks %}
+    <ul class="row-list">{% for h in hooks %}<li><code class="text-sm">{{ h.url }}</code><span class="text-sm ink-2">{{ h.event_types|length }} event type{{ '' if h.event_types|length == 1 else 's' }}</span>{{ badge('active' if h.active else 'paused', 'good' if h.active else 'plain') }}<span class="grow"></span>
+      <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/toggle" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">{{ 'Pause' if h.active else 'Resume' }}</button></form>
+      <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/delete" hx-boost="false" data-confirm="Delete this webhook and its delivery history?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Delete</button></form></li>{% endfor %}</ul>
+    {% else %}<p class="muted">No webhooks yet.</p>{% endif %}
+    <h3 class="mt-4" id="deliveries">Recent deliveries</h3>
+    {% if deliveries %}
+    <table class="table table--dense"><thead><tr><th>Type</th><th>Status</th><th class="num">Attempts</th><th>Detail</th><th></th></tr></thead><tbody>
+    {% for d in deliveries %}<tr><td><code>{{ d.event_type }}</code><br><span class="muted text-sm">{{ when(d.created_at) }}</span></td><td>{{ badge(d.status.value, 'good' if d.status.value == 'delivered' else ('critical' if d.status.value == 'failed' else 'warning')) }}</td><td class="num">{{ d.attempts }}</td><td class="text-sm">{{ d.last_error or (d.last_status_code and 'HTTP ' ~ d.last_status_code) or '' }}{% if d.next_attempt_at and d.status.value == 'pending' %}<br><span class="muted">retry {{ when(d.next_attempt_at) }}</span>{% endif %}</td>
+      <td>{% if d.status.value != 'pending' %}<form method="post" action="/e/{{ event.slug }}/organizer/webhooks/deliveries/{{ d.id }}/redeliver" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Redeliver</button></form>{% endif %}</td></tr>{% endfor %}
+    </tbody></table>
+    {% else %}<p class="muted text-sm">Nothing delivered yet.</p>{% endif %}
+  </section>
+  <aside class="stack">
+    <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/webhooks" hx-boost="false">
+      <h2>Add a webhook</h2>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {{ field('url', 'Endpoint URL', type='url', required=True, error=errors.url, placeholder='https://example.org/hooks/podium') }}
+      {{ field('secret', 'Signing secret (optional)', help='Leave empty to generate one.', autocomplete='off') }}
+      <div class="field"><span class="field__label">Events</span><div class="checklist">{% for t in event_types %}<label><input type="checkbox" name="events" value="{{ t }}" checked> <code>{{ t }}</code></label>{% endfor %}</div></div>
+      <div><button class="btn btn--primary" type="submit">Add webhook</button></div>
+    </form>
+    <section class="card stack">
+      <h2>Embed the gallery</h2>
+      <p class="text-sm ink-2">Paste this where you want the projects to appear. Add <code>?theme=dark</code> or <code>&amp;track=trk_id</code> to the URL.</p>
+      <div class="copy-field"><code class="copy-field__value">&lt;iframe src="{{ base_url }}/e/{{ event.slug }}/embed" width="100%" height="600" loading="lazy" title="{{ event.name }} projects"&gt;&lt;/iframe&gt;</code><button class="btn btn--secondary btn--sm" type="button" data-copy='<iframe src="{{ base_url }}/e/{{ event.slug }}/embed" width="100%" height="600" loading="lazy" title="{{ event.name }} projects"></iframe>'>Copy</button></div>
+      <p class="text-sm"><a href="/e/{{ event.slug }}/embed" target="_blank" rel="noopener">Preview the embed ↗</a> · JSON for custom widgets: <code>GET /api/v1/events/{{ event.slug }}/projects</code> (CORS enabled).</p>
+    </section>
+    <section class="card stack">
+      <h2>API</h2>
+      <p class="text-sm ink-2">OpenAPI spec at <a href="/api/openapi.json">/api/openapi.json</a>, interactive docs at <a href="/api/docs">/api/docs</a>. Create a token on your <a href="/account">account page</a>.</p>
+      <pre class="meta">curl -H "Authorization: Bearer pdm_…" {{ base_url }}/api/v1/events/{{ event.slug }}/exports/scores.csv</pre>
+    </section>
+  </aside>
+</div>
+{% endblock %}

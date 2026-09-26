@@ -1,0 +1,23 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import field, badge, alert %}
+{% block content %}
+<div class="auth-card stack">
+  <div><h1>Verify a certificate</h1><p class="ink-2 mt-2">Enter a serial to check it against this Podium's signing key.</p></div>
+  <form method="get" action="/verify" hx-boost="false" class="stack">
+    {{ field('serial', 'Serial', value=serial, placeholder='PDM-EVT01-XXXXXXXX', required=True, autocomplete='off') }}
+    <button class="btn btn--primary btn--block" type="submit">Verify</button>
+  </form>
+  {% if verification %}
+    {% if verification.status == 'valid' %}
+      <div class="alert alert--success"><div><strong>Valid.</strong> {{ verification.certificate.payload.recipient.name if verification.certificate.payload.recipient else verification.certificate.payload.team.name }} — {{ verification.certificate.kind.value }} — {{ event.name }}. <a href="/certificates/{{ verification.certificate.serial }}">View certificate</a>.</div></div>
+    {% elif verification.status == 'revoked' %}
+      {{ alert('warning', 'This certificate was revoked by the organizers on ' ~ verification.certificate.revoked_at.strftime('%-d %b %Y') ~ '.') }}
+    {% elif verification.status == 'invalid' %}
+      {{ alert('critical', 'The record exists but its signature does not verify. Treat it as tampered.') }}
+    {% else %}
+      {{ alert('critical', 'No certificate with that serial.') }}
+    {% endif %}
+    <p class="muted text-sm">Signing key (ed25519, hex): <code class="mono">{{ verification.public_key }}</code> · <a href="/.well-known/podium-signing-key.json">key file</a></p>
+  {% endif %}
+</div>
+{% endblock %}

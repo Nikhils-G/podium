@@ -1,0 +1,23 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import badge %}
+{% block content %}
+<article class="certificate">
+  <div class="certificate__frame">
+    <p class="certificate__eyebrow">{{ event.name }}</p>
+    <h1 class="certificate__title serif">Certificate of {{ {'participation': 'participation', 'judge': 'judging', 'winner': 'achievement'}[cert.kind.value] }}</h1>
+    <p class="certificate__lead">This certifies that</p>
+    <p class="certificate__name serif">{{ cert.payload.recipient.name if cert.payload.recipient else cert.payload.team.name }}</p>
+    <p class="certificate__body">
+      {% if cert.kind.value == 'participation' %}took part in <strong>{{ event.name }}</strong>{% if cert.payload.team %} as a member of <strong>{{ cert.payload.team.name }}</strong>{% endif %}{% if cert.payload.project %}, submitting <strong>“{{ cert.payload.project.title }}”</strong>{% endif %}.
+      {% elif cert.kind.value == 'judge' %}served as a judge for <strong>{{ event.name }}</strong>, submitting {{ cert.payload.reviews_submitted }} independent review{{ '' if cert.payload.reviews_submitted == 1 else 's' }}.
+      {% else %}placed <strong>{{ ['1st', '2nd', '3rd'][cert.payload.rank - 1] if cert.payload.rank <= 3 else cert.payload.rank ~ 'th' }}</strong> in <strong>{{ event.name }}</strong>{% if cert.payload.project %} with <strong>“{{ cert.payload.project.title }}”</strong>{% endif %}{% if cert.payload.team %} as part of {{ cert.payload.team.name }}{% endif %}.{% endif %}
+    </p>
+    <div class="certificate__footer">
+      <div><p class="certificate__serial">Serial <code>{{ cert.serial }}</code></p><p class="muted text-sm">Issued {{ cert.issued_at.strftime('%-d %B %Y') }} · signed ed25519</p>
+        {% if verification.status == 'valid' %}{{ badge('Signature valid', 'good') }}{% elif verification.status == 'revoked' %}{{ badge('Revoked', 'critical') }}{% else %}{{ badge('Signature invalid', 'critical') }}{% endif %}</div>
+      <img class="certificate__qr" src="/verify/{{ cert.serial }}.svg" alt="QR code linking to the verification page" width="96" height="96">
+    </div>
+  </div>
+  <p class="cluster no-print mt-4"><a class="btn btn--secondary btn--sm" href="/verify/{{ cert.serial }}">Verify</a><a class="btn btn--secondary btn--sm" href="/certificates/{{ cert.serial }}.json" hx-boost="false">Signed record (JSON)</a><button class="btn btn--ghost btn--sm" type="button" data-print>Print</button></p>
+</article>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import field, alert, when %}
+{% block content %}
+<div class="page-header"><div><p class="page-header__eyebrow">Account</p><h1>{{ user.name }}</h1><p class="ink-2 mt-2">{{ user.email }}{% if user.is_admin %} · instance admin{% endif %}</p></div></div>
+{% if saved == 'profile' %}{{ alert('success', 'Profile saved.') }}{% elif saved == 'password' %}{{ alert('success', 'Password changed.') }}{% elif saved == 'token' %}{{ alert('success', 'Token revoked.') }}{% endif %}
+<div class="two-col mt-4">
+  <form class="card stack" method="post" action="/account/profile" hx-boost="false">
+    <h2>Profile</h2>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ field('name', 'Name', value=user.name, required=True, error=errors.name, maxlength=120, autocomplete='name') }}
+    <div><button class="btn btn--primary" type="submit">Save profile</button></div>
+  </form>
+  <form class="card stack" method="post" action="/account/password" hx-boost="false">
+    <h2>Password</h2>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ field('current', 'Current password', type='password', required=True, error=errors.current, autocomplete='current-password') }}
+    {{ field('new', 'New password', type='password', required=True, error=errors.new, autocomplete='new-password', help='At least 8 characters.') }}
+    <div><button class="btn btn--secondary" type="submit">Change password</button></div>
+  </form>
+</div>
+<section class="card stack mt-4">
+  <h2>API tokens</h2>
+  <p class="text-sm ink-2">Use a token as <code>Authorization: Bearer …</code> against <a href="/api/docs">the API</a>. Tokens carry your permissions.</p>
+  {% if new_token %}
+  <div class="alert alert--success" role="status"><div><strong>Token created.</strong> Copy it now — it won't be shown again.<div class="copy-field mt-2"><code class="copy-field__value">{{ new_token }}</code><button class="btn btn--secondary btn--sm" type="button" data-copy="{{ new_token }}">Copy</button></div></div></div>
+  {% endif %}
+  {% if tokens %}
+  <table class="table table--dense"><thead><tr><th>Name</th><th>Prefix</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody>
+  {% for t in tokens %}<tr><td>{{ t.name }}</td><td><code>{{ t.prefix }}…</code></td><td class="text-sm">{{ when(t.created_at) }}</td><td class="text-sm">{{ when(t.last_used_at) if t.last_used_at else 'never' }}</td>
+    <td><form method="post" action="/account/tokens/{{ t.id }}/revoke" hx-boost="false" data-confirm="Revoke “{{ t.name }}”? Anything using it stops working immediately."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Revoke</button></form></td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="muted text-sm">No tokens yet.</p>{% endif %}
+  <form class="cluster align-end" method="post" action="/account/tokens" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grow">{{ field('name', 'New token name', required=True, placeholder='e.g. results exporter', error=errors.name, maxlength=80) }}</div>
+    <button class="btn btn--secondary" type="submit">Create token</button>
+  </form>
+</section>
+{% endblock %}

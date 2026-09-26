@@ -1,0 +1,10 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import badge, when, empty %}
+{% block content %}
+<div class="page-header"><div><p class="page-header__eyebrow">Judge</p><h1>Your records</h1><p class="ink-2 mt-2">Signed, publicly verifiable records of your participation as a judge. Share the serial or the verification link.</p></div></div>
+{% if certificates %}
+<ul class="row-list mt-4">{% for c in certificates %}<li><a href="/certificates/{{ c.serial }}"><code>{{ c.serial }}</code></a>{{ badge(c.kind.value, 'plain') }}<span class="text-sm ink-2">issued {{ when(c.issued_at) }}{% if c.revoked_at %} · revoked{% endif %}</span><span class="grow"></span><a class="btn btn--secondary btn--sm" href="/certificates/{{ c.serial }}.json" hx-boost="false">Signed JSON</a><a class="btn btn--ghost btn--sm" href="/verify/{{ c.serial }}">Verify</a></li>{% endfor %}</ul>
+{% else %}
+{{ empty("No records yet", "The organizer issues judge records once judging is complete. Yours will appear here with a verification link.") }}
+{% endif %}
+{% endblock %}
