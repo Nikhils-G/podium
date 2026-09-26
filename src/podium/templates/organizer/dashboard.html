@@ -10,9 +10,7 @@
   {% for stg, label, hint in steps %}
     {% set i = loop.index0 %}
     <li class="stepper__step{% if i < step_index %} is-done{% elif i == step_index %} is-current{% endif %}" {% if i == step_index %}aria-current="step"{% endif %}>
-      <span class="stepper__dot" aria-hidden="true"></span>
-      <span class="stepper__label">{{ label }}</span>
-      <span class="stepper__hint">{{ hint }}</span>
+      <span class="stepper__label">{{ label }}</span><span class="stepper__hint">{{ hint }}</span>
     </li>
   {% endfor %}
 </ol>
@@ -20,7 +18,7 @@
 <section class="kpis" aria-label="Key numbers">
   <div class="kpi"><span class="kpi__label">Projects submitted</span><span class="kpi__value">{{ overview.projects_submitted }}</span><span class="kpi__sub">{{ overview.projects_draft }} draft · {{ overview.projects_withdrawn }} withdrawn</span></div>
   <div class="kpi"><span class="kpi__label">Teams</span><span class="kpi__value">{{ overview.teams }}</span><span class="kpi__sub">{{ overview.participants }} participants</span></div>
-  <div class="kpi"><span class="kpi__label">Judges</span><span class="kpi__value">{{ overview.judges }}</span><span class="kpi__sub">{{ overview.tracks }} tracks</span></div>
+  <div class="kpi"><span class="kpi__label">Judges accepted</span><span class="kpi__value">{{ overview.judges }}</span><span class="kpi__sub">{{ overview.tracks }} track{{ '' if overview.tracks == 1 else 's' }}</span></div>
   <div class="kpi"><span class="kpi__label">Submissions close</span><span class="kpi__value kpi__value--sm">{% if event.submissions_close_at %}{{ event.submissions_close_at.strftime('%-d %b') }}{% else %}—{% endif %}</span><span class="kpi__sub">{% if event.submissions_close_at %}{{ event.submissions_close_at.strftime('%H:%M') }} UTC{% else %}not set{% endif %}</span></div>
 </section>
 
@@ -37,23 +35,42 @@
       </li>
       {% endfor %}
     </ul>
-    {% else %}
-    <p class="muted">Nothing needs your attention right now.</p>
-    {% endif %}
+    {% else %}<p class="muted">Nothing needs your attention right now.</p>{% endif %}
   </section>
   <section class="stack">
-    <h2>Actions</h2>
-    <ul class="action-list">
-      {% for key, label, consequence in actions %}
-      <li>
-        <form method="post" action="/e/{{ event.slug }}/organizer/actions/{{ key }}" hx-boost="false" data-confirm="{{ label }}? {{ consequence }}">
+    <div class="card card--next">
+      <p class="page-header__eyebrow">Next step</p>
+      <h2>{{ next_step.label }}</h2>
+      {% if next_step.consequence %}<p class="text-sm ink-2">{{ next_step.consequence }}</p>{% endif %}
+      {% if next_step.note %}<p class="text-sm"><strong>{{ next_step.note }}</strong></p>{% endif %}
+      {% if next_step.action and next_step.enabled %}
+        <form method="post" action="/e/{{ event.slug }}/organizer/actions/{{ next_step.action }}" hx-boost="false" data-confirm="{{ next_step.label }}? {{ next_step.consequence }}{% if next_step.note %} {{ next_step.note }}{% endif %}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button class="btn {{ 'btn--primary' if loop.first else ('btn--danger' if key == 'archive' else 'btn--secondary') }} btn--sm" type="submit">{{ label }}</button>
+          <button class="btn btn--primary" type="submit">{{ next_step.label }}</button>
         </form>
-        <span class="text-sm ink-2">{{ consequence }}</span>
-      </li>
-      {% endfor %}
-    </ul>
+      {% elif next_step.href and next_step.enabled %}
+        <a class="btn btn--primary" href="{{ next_step.href }}">{{ next_step.label }}</a>
+      {% elif next_step.href %}
+        <a class="btn btn--secondary btn--sm" href="{{ next_step.href }}">Open</a>
+      {% endif %}
+      {% if next_step.reason %}<p class="muted text-sm">{{ next_step.reason }}</p>{% endif %}
+    </div>
+    {% if more_actions %}
+    <details class="more">
+      <summary class="text-sm">More actions</summary>
+      <ul class="action-list mt-2">
+        {% for key, label, consequence in more_actions %}
+        <li>
+          <form method="post" action="/e/{{ event.slug }}/organizer/actions/{{ key }}" hx-boost="false" data-confirm="{{ label }}? {{ consequence }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn {{ 'btn--danger' if key == 'archive' else 'btn--secondary' }} btn--sm" type="submit">{{ label }}</button>
+          </form>
+          <span class="text-sm ink-2">{{ consequence }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
   </section>
 </div>
 {% endblock %}

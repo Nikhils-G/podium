@@ -238,6 +238,8 @@ def apply_action(db: DbSession, event: Event, user: User, action: str, *, ip_has
     elif action == "open_judging":
         if event.judging_opened_at is not None and event.judging_closed_at is None:
             raise Conflict("Judging is already open.")
+        if event.results_published_at is not None:
+            raise Conflict("Unpublish results before reopening judging.")
         event.judging_opened_at, event.judging_closed_at = now, None
     elif action == "close_judging":
         if event.judging_opened_at is None or event.judging_closed_at is not None:
@@ -246,6 +248,10 @@ def apply_action(db: DbSession, event: Event, user: User, action: str, *, ip_has
     elif action == "publish_results":
         if event.results_published_at is not None:
             raise Conflict("Results are already published.")
+        if event.judging_opened_at is not None and event.judging_closed_at is None:
+            raise Conflict(
+                "Close judging before publishing results, so scores can't change afterwards."
+            )
         event.results_published_at = now
     elif action == "unpublish_results":
         if event.results_published_at is None:
@@ -422,6 +428,18 @@ def update_voting_settings(
         credits = event.voting_credits
     if errors:
         raise ValidationFailed(errors=errors)
+    from podium.models import Vote
+    from podium.services.voting import voting_is_open
+
+    if voting_is_open(event):
+        cast = db.execute(
+            select(func.count()).select_from(Vote).where(Vote.event_id == event.id)
+        ).scalar_one()
+        if cast:
+            raise Conflict(
+                f"Voting is open and {cast} vote(s) are in. "
+                "Close the window before changing how people vote."
+            )
     quadratic = str(data.get("quadratic_enabled", "")).lower() in ("1", "true", "on", "yes")
     comments = str(data.get("comments_enabled", "")).lower() in ("1", "true", "on", "yes")
     changes = {}
@@ -448,3 +466,65 @@ def update_voting_settings(
         )
     db.commit()
     return event
+
+
+# --- organizers ------------------------------------------------------------------------------
+
+
+def organizers(db: DbSession, event: Event) -> list[User]:
+    return list(
+        db.execute(
+            select(User)
+            .join(EventRole, EventRole.user_id == User.id)
+            .where(EventRole.event_id == event.id, EventRole.role == Role.organizer)
+            .order_by(User.name)
+        ).scalars()
+    )
+
+
+def add_organizer(db: DbSession, event: Event, actor: User, email: str) -> User:
+    from podium.services.auth import normalize_email
+
+    email = normalize_email(email)
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if user is None:
+        raise NotFound("No account with that email yet. Ask them to create one first.")
+    role = db.execute(
+        select(EventRole).where(EventRole.event_id == event.id, EventRole.user_id == user.id)
+    ).scalar_one_or_none()
+    if role is not None:
+        if role.role == Role.organizer:
+            raise Conflict(f"{user.name} already organizes this event.")
+        raise Conflict(f"{user.name} is a {role.role} in this event and can't also organize it.")
+    db.add(EventRole(event_id=event.id, user_id=user.id, role=Role.organizer))
+    audit.record(
+        db,
+        "organizer.added",
+        "user",
+        user.public_id,
+        event_id=event.id,
+        actor_id=actor.id,
+        meta={"email": email},
+    )
+    db.commit()
+    return user
+
+
+def remove_organizer(db: DbSession, event: Event, actor: User, public_id: str) -> None:
+    user = db.execute(select(User).where(User.public_id == public_id)).scalar_one_or_none()
+    role = (
+        db.execute(
+            select(EventRole).where(EventRole.event_id == event.id, EventRole.user_id == user.id)
+        ).scalar_one_or_none()
+        if user
+        else None
+    )
+    if user is None or role is None or role.role != Role.organizer:
+        raise NotFound("That person doesn't organize this event.")
+    if len(organizers(db, event)) <= 1:
+        raise Conflict("An event needs at least one organizer.")
+    db.delete(role)
+    audit.record(
+        db, "organizer.removed", "user", user.public_id, event_id=event.id, actor_id=actor.id
+    )
+    db.commit()

@@ -57,6 +57,35 @@ def world(app):
     return {"client": client, "slug": slug, "org": org, "voters": voters, "pids": pids, "now": now}
 
 
+def _window(client, slug, org, now, *, open_now: bool):
+    """Organizers must close the window before changing how people vote; tests do the same."""
+    if open_now:
+        opens, closes = now - timedelta(hours=1), now + timedelta(hours=1)
+    else:
+        opens, closes = now - timedelta(hours=3), now - timedelta(hours=2)
+    r = client.patch(
+        f"/api/v1/events/{slug}",
+        headers=org,
+        json={
+            "name": "Vote Hack",
+            "is_public": True,
+            "submissions_open_at": (now - timedelta(days=2)).isoformat(),
+            "submissions_close_at": (now + timedelta(days=1)).isoformat(),
+            "voting_open_at": opens.isoformat(),
+            "voting_close_at": closes.isoformat(),
+        },
+    )
+    assert r.status_code == 200, r.text
+
+
+def _switch(client, slug, org, now, **settings):
+    _window(client, slug, org, now, open_now=False)
+    r = client.patch(f"/api/v1/events/{slug}/voting", headers=org, json=settings)
+    assert r.status_code == 200, r.text
+    _window(client, slug, org, now, open_now=True)
+    return r
+
+
 def test_account_mode_one_vote_per_account_and_retract(world):
     c, slug, pid = world["client"], world["slug"], world["pids"][0]
     v = world["voters"][0]
@@ -96,7 +125,9 @@ def test_quadratic_budget(world):
         headers=org,
         json={"quadratic_enabled": True, "voting_credits": 4},
     )
-    assert r.status_code == 200 and r.json()["quadratic_enabled"]
+    assert r.status_code == 409, "votes are in and the window is open → settings are locked"
+    r = _switch(c, slug, org, world["now"], quadratic_enabled=True, voting_credits=4)
+    assert r.json()["quadratic_enabled"]
     v, pid = world["voters"][1], world["pids"][1]
     assert (
         c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v).json()["vote"][
@@ -114,12 +145,12 @@ def test_quadratic_budget(world):
     assert r.status_code == 409 and "credits" in r.json()["error"]["message"]
     r = c.delete(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v)
     assert r.json()["vote"]["my_votes"] == 1 and r.json()["vote"]["credits_spent"] == 1
-    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"quadratic_enabled": False})
+    _switch(c, slug, org, world["now"], quadratic_enabled=False)
 
 
 def test_link_mode_uses_signed_anonymous_cookie(world):
     c, slug, org, pid = world["client"], world["slug"], world["org"], world["pids"][2]
-    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"voting_mode": "link"})
+    _switch(c, slug, org, world["now"], voting_mode="link")
     anon = TestClient(c.app)
     r = anon.post(f"/api/v1/events/{slug}/projects/{pid}/votes")
     assert r.status_code == 201 and "voter" in r.cookies
@@ -132,12 +163,12 @@ def test_link_mode_uses_signed_anonymous_cookie(world):
     assert r2.status_code == 201 and r2.cookies["voter"] != r.cookies["voter"], (
         "tampered cookie is ignored"
     )
-    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"voting_mode": "account"})
+    _switch(c, slug, org, world["now"], voting_mode="account")
 
 
 def test_code_mode(world):
     c, slug, org, pid = world["client"], world["slug"], world["org"], world["pids"][0]
-    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"voting_mode": "email"})
+    _switch(c, slug, org, world["now"], voting_mode="email")
     codes = c.post(
         f"/api/v1/events/{slug}/voting/codes",
         headers=org,
@@ -166,7 +197,7 @@ def test_code_mode(world):
         ).status_code
         == 409
     )
-    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"voting_mode": "account"})
+    _switch(c, slug, org, world["now"], voting_mode="account")
 
 
 def test_ballot_order_is_stable_per_voter_and_differs_between_voters():
@@ -290,3 +321,22 @@ def test_comments_add_hide_and_limits(world):
         ).status_code
         == 403
     )
+
+
+def test_team_member_cannot_vote_for_own_project(world):
+    c, slug, org = world["client"], world["slug"], world["org"]
+    pid = world["pids"][0]  # Entry 0 belongs to team Makers whose member is maker-t3
+    _window(c, slug, org, world["now"], open_now=True)
+    with get_sessionmaker()() as db:
+        from sqlalchemy import select
+
+        from podium.models import User
+        from podium.security.sessions import create_session
+
+        maker = db.execute(select(User).where(User.email == "maker-t3@example.test")).scalar_one()
+        token = create_session(db, maker, days=1)
+        db.commit()
+    r = c.post(
+        f"/api/v1/events/{slug}/projects/{pid}/votes", headers={"Cookie": f"session={token}"}
+    )
+    assert r.status_code == 403 and "own team" in r.json()["error"]["message"]

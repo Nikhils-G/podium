@@ -23,14 +23,13 @@ router = APIRouter(include_in_schema=False)
 
 
 def _rubric_ctx(ctx, db, **extra):
-    return _console(
-        ctx,
-        "rubric",
-        criteria=rubric_service.criteria(db, ctx.event, include_archived=True),
-        locked=rubric_service.is_locked(ctx.event),
-        errors={},
-        **extra,
-    )
+    defaults = {
+        "criteria": rubric_service.criteria(db, ctx.event, include_archived=True),
+        "locked": rubric_service.is_locked(ctx.event),
+        "errors": {},
+    }
+    defaults.update(extra)
+    return _console(ctx, "rubric", **defaults)
 
 
 @router.get("/e/{slug}/organizer/rubric")
@@ -115,15 +114,14 @@ def rubric_archive(
 
 
 def _judges_ctx(ctx, db, **extra):
-    return _console(
-        ctx,
-        "judges",
-        judges=judges_service.list_judges(db, ctx.event),
-        invites=judges_service.pending_invites(db, ctx.event),
-        errors={},
-        link=None,
-        **extra,
-    )
+    defaults = {
+        "judges": judges_service.list_judges(db, ctx.event),
+        "invites": judges_service.pending_invites(db, ctx.event),
+        "errors": {},
+        "link": None,
+    }
+    defaults.update(extra)
+    return _console(ctx, "judges", **defaults)
 
 
 @router.get("/e/{slug}/organizer/judges")
@@ -197,17 +195,16 @@ async def judges_tracks(
 
 
 def _assign_ctx(ctx, db, **extra):
-    return _console(
-        ctx,
-        "assignments",
-        loads=assignments_service.by_judge(db, ctx.event),
-        projects=assignments_service.judgeable_projects(db, ctx.event),
-        plan=None,
-        errors={},
-        reviews_per_project=ctx.event.reviews_per_project,
-        seed=1,
-        **extra,
-    )
+    defaults = {
+        "loads": assignments_service.by_judge(db, ctx.event),
+        "projects": assignments_service.judgeable_projects(db, ctx.event),
+        "plan": None,
+        "errors": {},
+        "reviews_per_project": ctx.event.reviews_per_project,
+        "seed": 1,
+    }
+    defaults.update(extra)
+    return _console(ctx, "assignments", **defaults)
 
 
 @router.get("/e/{slug}/organizer/assignments")

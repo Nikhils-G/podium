@@ -18,6 +18,7 @@ from podium.security.deps import current_user
 from podium.security.headers import SecurityHeadersMiddleware
 from podium.web import (
     account,
+    admin,
     auth,
     certificates,
     community,
@@ -104,6 +105,7 @@ def create_app() -> FastAPI:
     app.include_router(organizer_voting.router)
     app.include_router(organizer_more.router)
     app.include_router(account.router)
+    app.include_router(admin.router)
     app.include_router(certificates.router)
     app.include_router(api_router)
 

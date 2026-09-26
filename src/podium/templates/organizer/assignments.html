@@ -33,7 +33,7 @@
         <div class="field"><label class="field__label" for="f-rpp">Reviews per project</label><input class="input" id="f-rpp" name="reviews_per_project" type="number" min="1" max="20" value="{{ reviews_per_project }}"></div>
         <div class="field"><label class="field__label" for="f-seed">Seed</label><input class="input" id="f-seed" name="seed" type="number" min="0" value="{{ seed }}"><p class="field__help">Same seed, same plan — reproducible.</p></div>
       </div>
-      <div><button class="btn btn--secondary" type="submit">Preview plan</button></div>
+      <div class="cluster"><button class="btn btn--secondary" type="submit">Preview plan</button><button class="btn btn--ghost btn--sm" type="submit" formaction="/e/{{ event.slug }}/organizer/assignments/auto/apply" hx-post="/e/{{ event.slug }}/organizer/assignments/auto/apply" hx-target="body" formnovalidate data-confirm="Apply the auto-assignment plan for these settings?">Apply without preview</button></div>
       <div id="assign-preview">{% if plan %}{% include "partials/assign_preview.html" %}{% endif %}</div>
     </form>
     <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/assignments/manual" hx-boost="false">

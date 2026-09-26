@@ -1,32 +1,76 @@
 {% extends "layouts/public.html" %}
-{% from "macros/ui.html" import stage_badge, when %}
+{% from "macros/ui.html" import stage_badge, when, badge %}
 {% block content %}
 <div class="page-header">
   <div>
     <p class="page-header__eyebrow">Event</p>
     <h1 class="serif">{{ event.name }}</h1>
-    <div class="page-header__meta">
-      {{ stage_badge(stage, stage_label) }}
-      <span>Submissions {{ 'closed' if stage in ('closed', 'judging', 'voting', 'published', 'archived') else 'close' }} {{ when(event.submissions_close_at) }}</span>
-    </div>
+    <div class="page-header__meta">{{ stage_badge(stage, stage_label) }}<span>Submissions {{ 'close' if submissions_open else 'closed' }} {{ when(event.submissions_close_at) }}</span></div>
   </div>
-  <a class="btn btn--primary" href="/e/{{ event.slug }}/projects">Browse {{ project_count }} project{{ '' if project_count == 1 else 's' }}</a>
 </div>
-{% if event.description %}<p class="text-lg ink-2">{{ event.description }}</p>{% endif %}
-<section class="stack mt-6">
-  <h2>Tracks</h2>
-  <div class="cluster">
-    {% for track in event.tracks %}
-      <a class="chip t-{{ (track.position % 8) + 1 }}" href="/e/{{ event.slug }}/projects?track={{ track.public_id }}"><span class="chip__dot" aria-hidden="true"></span>{{ track.name }}</a>
-    {% else %}
-      <span class="muted">No tracks defined yet.</span>
-    {% endfor %}
+<div class="two-col two-col--wide">
+  <div class="stack-lg">
+    {% if event.description %}<p class="text-lg ink-2">{{ event.description }}</p>{% endif %}
+    <section class="stack">
+      <h2>Timeline</h2>
+      <ol class="timeline">
+        <li><span class="timeline__label">Submissions</span><span>{{ when(event.submissions_open_at) if event.submissions_open_at else 'open' }} → {{ when(event.submissions_close_at) }}</span></li>
+        <li><span class="timeline__label">Judging</span><span>{% if event.judging_opened_at %}opened {{ when(event.judging_opened_at) }}{% if event.judging_closed_at %} · closed {{ when(event.judging_closed_at) }}{% endif %}{% else %}after submissions close{% endif %}</span></li>
+        {% if event.voting_open_at %}<li><span class="timeline__label">Community voting</span><span>{{ when(event.voting_open_at) }} → {{ when(event.voting_close_at) }}</span></li>{% endif %}
+        <li><span class="timeline__label">Results</span><span>{% if event.results_published_at %}published {{ when(event.results_published_at) }} · <a href="/e/{{ event.slug }}/results">see results</a>{% else %}published by the organizers after judging{% endif %}</span></li>
+      </ol>
+    </section>
+    <section class="stack">
+      <h2>Tracks</h2>
+      <div class="cluster">
+        {% for track in event.tracks %}<a class="chip t-{{ (track.position % 8) + 1 }}" href="/e/{{ event.slug }}/projects?track={{ track.public_id }}"><span class="chip__dot" aria-hidden="true"></span>{{ track.name }}</a>{% else %}<span class="muted">No tracks defined yet.</span>{% endfor %}
+      </div>
+    </section>
+    {% if event.prizes %}
+    <section class="stack"><h2>Prizes</h2><ul class="row-list">{% for prize in event.prizes %}<li><strong>{{ prize.name }}</strong>{% if prize.amount_text %}<span class="ink-2">{{ prize.amount_text }}</span>{% endif %}{% if prize.track %}<span class="muted text-sm">· {{ prize.track.name }}</span>{% endif %}</li>{% endfor %}</ul></section>
+    {% endif %}
+    {% if not user or not links.role %}
+    <section class="stack"><h2>How it works</h2>
+      <ol class="steps"><li><strong>Form a team</strong> — create one or join with an invite link (solo is fine).</li><li><strong>Submit your project</strong> — draft, then submit before the deadline; edit until it closes.</li><li><strong>Judging</strong> — assigned judges score every project on the organizer's rubric; scores are normalized across judges.</li><li><strong>Results</strong> — published by the organizers{% if event.voting_open_at %}, alongside the community vote{% endif %}.</li></ol></section>
+    {% endif %}
   </div>
-</section>
-{% if event.prizes %}
-<section class="stack mt-6">
-  <h2>Prizes</h2>
-  <ul>{% for prize in event.prizes %}<li><strong>{{ prize.name }}</strong>{% if prize.amount_text %} — {{ prize.amount_text }}{% endif %}</li>{% endfor %}</ul>
-</section>
-{% endif %}
+  <aside class="stack">
+    <div class="card card--action">
+      {% if links and links.is_organizer %}
+        <h3>You organize this event</h3>
+        {% if next_step %}<p class="text-sm ink-2">Next step: <strong>{{ next_step.label }}</strong></p>{% endif %}
+        <a class="btn btn--primary btn--block" href="/e/{{ event.slug }}/organizer">Manage event</a>
+      {% elif links and links.role == 'judge' %}
+        <h3>You judge this event</h3>
+        <p class="text-sm ink-2">{{ links.judge_done }} of {{ links.judge_total }} assigned projects reviewed.</p>
+        <a class="btn btn--primary btn--block" href="/e/{{ event.slug }}/judge">Open your queue</a>
+        <a class="btn btn--ghost btn--block" href="/e/{{ event.slug }}/judge/compare">Compare projects</a>
+      {% elif links and links.role == 'participant' %}
+        <h3>Your participation</h3>
+        {% if not team %}
+          {% if submissions_open %}<p class="text-sm ink-2">Start by forming a team — solo counts.</p><a class="btn btn--primary btn--block" href="/e/{{ event.slug }}/team">Create or join a team</a>
+          {% else %}<p class="text-sm ink-2">Submissions have closed.</p>{% endif %}
+        {% elif not project %}
+          <p class="text-sm ink-2">Team <strong>{{ team.name }}</strong> hasn't submitted yet.</p>
+          {% if submissions_open %}<a class="btn btn--primary btn--block" href="/e/{{ event.slug }}/submit">Submit your project</a>{% endif %}
+          <a class="btn btn--ghost btn--block" href="/e/{{ event.slug }}/team">Manage team</a>
+        {% else %}
+          <p class="text-sm ink-2">{{ badge(project.status.value|capitalize, 'good' if project.status.value == 'submitted' else ('critical' if project.status.value == 'withdrawn' else 'warning')) }} <strong>{{ project.title }}</strong></p>
+          {% if project.status.value == 'draft' and submissions_open %}<a class="btn btn--primary btn--block" href="/e/{{ event.slug }}/submit">Finish and submit</a>
+          {% else %}<a class="btn btn--primary btn--block" href="/e/{{ event.slug }}/projects/{{ project.public_id }}">View your project</a>{% endif %}
+          {% if submissions_open %}<a class="btn btn--ghost btn--block" href="/e/{{ event.slug }}/submit">Edit submission</a>{% endif %}
+          <a class="btn btn--ghost btn--block" href="/e/{{ event.slug }}/team">Manage team</a>
+        {% endif %}
+      {% elif user %}
+        <h3>Take part</h3>
+        {% if submissions_open %}<p class="text-sm ink-2">Create a team or join one with an invite link.</p><a class="btn btn--primary btn--block" href="/e/{{ event.slug }}/team">Create or join a team</a>{% else %}<p class="text-sm ink-2">Submissions are closed. Browse the projects{% if voting_open %} and vote{% endif %}.</p>{% endif %}
+      {% else %}
+        <h3>Take part</h3>
+        {% if submissions_open %}<p class="text-sm ink-2">Sign in or create an account to form a team and submit.</p><a class="btn btn--primary btn--block" href="/register?next=/e/{{ event.slug }}">Create account</a><a class="btn btn--ghost btn--block" href="/login?next=/e/{{ event.slug }}">Sign in</a>{% else %}<p class="text-sm ink-2">Submissions are closed.</p>{% endif %}
+      {% endif %}
+      <a class="btn btn--secondary btn--block" href="/e/{{ event.slug }}/projects">{% if voting_open %}Vote in the gallery{% else %}Browse {{ project_count }} project{{ '' if project_count == 1 else 's' }}{% endif %}</a>
+      {% if event.results_published_at %}<a class="btn btn--secondary btn--block" href="/e/{{ event.slug }}/results">See results</a>{% endif %}
+    </div>
+  </aside>
+</div>
 {% endblock %}

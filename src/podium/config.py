@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     fixtures_path: Path = Path("fixtures/fixtures.json")
     demo_accounts: bool = True
     demo_password: str = "demo-pass"
+    open_event_creation: bool = True  # False → only instance admins create events
 
     session_days: int = 14
     rate_limit_enabled: bool = True
@@ -32,6 +33,14 @@ class Settings(BaseSettings):
     smtp_from: str | None = None
 
     log_level: str = "info"
+
+    @property
+    def default_secret(self) -> bool:
+        return self.secret_key == "podium-dev-secret-change-me"
+
+    @property
+    def demo_mode(self) -> bool:
+        return self.demo_accounts or self.default_secret
 
     @property
     def sqlalchemy_url(self) -> str:

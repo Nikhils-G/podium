@@ -19,6 +19,7 @@ from podium.security.sessions import (
     revoke_session,
 )
 from podium.services import auth as auth_service
+from podium.services import navigation
 from podium.web.rendering import render
 
 router = APIRouter(include_in_schema=False)
@@ -95,7 +96,8 @@ def login_submit(
         )
     token = create_session(db, user, days=settings.session_days)
     db.commit()
-    response = RedirectResponse(safe_next(next), status_code=303)
+    target = safe_next(next) if next else navigation.landing_for(db, user)
+    response = RedirectResponse(target, status_code=303)
     set_session_cookie(response, token, settings)
     return response
 
@@ -110,7 +112,9 @@ def login_demo(
     row = db.get(Session, hash_token(token))
     if row is None:
         raise NotFound("Demo accounts have not been seeded yet.")
-    response = RedirectResponse("/", status_code=303)
+    response = RedirectResponse(
+        navigation.landing_for(db, db.get(User, row.user_id)), status_code=303
+    )
     set_session_cookie(response, token, settings)
     return response
 

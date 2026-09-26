@@ -118,6 +118,8 @@ def save(
 ) -> Review:
     if not judging_is_open(event):
         raise Closed("Judging isn't open right now, so reviews can't be changed.")
+    if event.results_published_at is not None:
+        raise Closed("Results are published; reviews are final.")
     crits = rubric_criteria(db, event)
     if not crits:
         raise Closed("The organizer hasn't published a rubric yet.")
@@ -182,6 +184,8 @@ def reopen(db: DbSession, event: Event, assignment: Assignment, judge: User) -> 
     """Turn a submitted review back into a draft so the judge can change it (judging open)."""
     if not judging_is_open(event):
         raise Closed("Judging is closed; submitted reviews are final.")
+    if event.results_published_at is not None:
+        raise Closed("Results are published; reviews can't be reopened.")
     review = review_for(db, assignment)
     if review is None:
         raise NotFound("There's no review to edit yet.")

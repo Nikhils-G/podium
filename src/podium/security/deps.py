@@ -124,3 +124,11 @@ def require_submissions_open(
         when = closes.strftime("%d %b %Y, %H:%M UTC") if closes else "for this event"
         raise Closed(f"Submissions closed on {when}.")
     return ctx
+
+
+def require_can_create_event(
+    user: User = Depends(require_user), settings: Settings = Depends(get_settings)
+) -> User:
+    if user.is_admin or settings.open_event_creation:
+        return user
+    raise Forbidden("Only instance admins can create events on this Podium.")

@@ -1,30 +1,18 @@
 {% extends "base.html" %}
-{% from "macros/ui.html" import stage_badge %}
 {% block shell %}
-<header class="topbar">
-  <div class="container container--wide topbar__inner">
-    <a class="brand" href="/"><img class="brand__mark" src="/static/img/podium.svg" alt="">Podium</a>
-    <span class="topbar__crumb muted">/</span>
-    <a class="topbar__event" href="/e/{{ event.slug }}">{{ event.name }}</a>
-    {{ stage_badge(stage, stage_label) }}
-    <nav class="topnav" aria-label="Main">
-      <a href="/e/{{ event.slug }}/projects">Gallery</a>
-      <span class="badge badge--plain">{{ 'Organizer' if console == 'organizer' else 'Judge' }}</span>
-      <span class="muted text-sm">{{ user.name }}</span>
-      <form method="post" action="/logout" hx-boost="false">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit">Sign out</button>
-      </form>
-    </nav>
-  </div>
-</header>
+{% include "partials/header.html" %}
 <div class="container container--wide shell">
   <aside class="rail" aria-label="{{ console|capitalize }} navigation">
-    <p class="rail__title">{{ 'Run of show' if console == 'organizer' else 'Judging' }}</p>
     <nav class="rail__nav">
-      {% for key, label, href in nav_items %}
-        <a href="{{ href }}" {% if key == active %}aria-current="page"{% endif %}>{{ label }}</a>
-      {% endfor %}
+      {% if nav_groups %}
+        {% for group, items in nav_groups %}
+          {% if group %}<p class="rail__title">{{ group }}</p>{% endif %}
+          {% for key, label, href in items %}<a href="{{ href }}" {% if key == active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+        {% endfor %}
+      {% else %}
+        <p class="rail__title">Judging</p>
+        {% for key, label, href in nav_items %}<a href="{{ href }}" {% if key == active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+      {% endif %}
     </nav>
   </aside>
   <main id="main" class="shell__main">

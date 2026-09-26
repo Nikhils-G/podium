@@ -22,7 +22,9 @@
     try { if (value === "system") localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, value); } catch (err) {}
     applyTheme(value === "system" ? null : value);
   });
-  applyTheme(storedTheme() === "system" ? null : storedTheme());
+  function syncTheme() { var v = storedTheme(); applyTheme(v === "system" ? null : v); }
+  syncTheme();
+  document.body.addEventListener("htmx:load", syncTheme);
 
   // ---- htmx wiring ---------------------------------------------------------------------------
   var csrfMeta = document.querySelector('meta[name="csrf-token"]');
@@ -76,6 +78,12 @@
   enhanceTimes();
   document.body.addEventListener("htmx:afterSettle", function (e) { enhanceTimes(e.target); });
 
+  // ---- close header menus on outside click / Escape ---------------------------------------------
+  document.addEventListener("click", function (e) {
+    document.querySelectorAll("details.menu[open]").forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute("open"); });
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll("details.menu[open]").forEach(function (d) { d.removeAttribute("open"); }); });
+
   // ---- copy buttons ------------------------------------------------------------------------------
   document.addEventListener("click", function (e) {
     var btn = e.target.closest("[data-copy]");
@@ -107,37 +115,38 @@
       var checked = g.querySelector("input[type=radio]:checked");
       var radios = g.querySelectorAll("input[type=radio]");
       if (!checked || !radios.length) return;
-      var min = parseFloat(radios[0].value), max = parseFloat(radios[radios.length - 1].value);
-      var w = parseFloat((g.querySelector(".muted") || {}).textContent.replace(/[^0-9.]/g, "")) || 1;
+      var min = parseFloat(g.getAttribute("data-min")), max = parseFloat(g.getAttribute("data-max"));
+      var w = parseFloat(g.getAttribute("data-weight")) || 1;
       if (max > min) { sum += w * (parseFloat(checked.value) - min) / (max - min); sumW += w; }
     });
     var out = form.querySelector("[data-total]");
     if (out) out.textContent = sumW ? (100 * sum / sumW).toFixed(1) : "—";
   }
-  var reviewForm = document.querySelector("[data-review-form]");
-  if (reviewForm) {
-    reviewForm.addEventListener("change", function () { reviewTotal(reviewForm); });
-    reviewTotal(reviewForm);
-    document.addEventListener("keydown", function (e) {
-      if (/input|textarea|select/i.test(document.activeElement.tagName) && document.activeElement.type !== "radio") {
-        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { var s = reviewForm.querySelector("[data-submit-review]"); if (s) s.click(); }
-        return;
-      }
-      var groups = Array.prototype.slice.call(reviewForm.querySelectorAll("[data-criterion]"));
-      var active = document.activeElement.closest ? document.activeElement.closest("[data-criterion]") : null;
-      var idx = active ? groups.indexOf(active) : -1;
-      if (e.key === "j" || e.key === "k") {
-        e.preventDefault();
-        var next = groups[Math.min(groups.length - 1, Math.max(0, idx + (e.key === "j" ? 1 : -1)))];
-        if (next) { var r = next.querySelector("input[type=radio]:checked") || next.querySelector("input[type=radio]"); if (r) r.focus(); }
-      } else if (/^[0-9]$/.test(e.key) && idx >= 0) {
-        var target = active.querySelector('input[type=radio][value="' + e.key + '"]');
-        if (target) { e.preventDefault(); target.checked = true; target.dispatchEvent(new Event("change", { bubbles: true })); }
-      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        var btn = reviewForm.querySelector("[data-submit-review]"); if (btn) btn.click();
-      }
-    });
-  }
+  function currentReviewForm() { return document.querySelector("[data-review-form]"); }
+  document.addEventListener("change", function (e) { var f = e.target.closest && e.target.closest("[data-review-form]"); if (f) reviewTotal(f); });
+  document.body.addEventListener("htmx:load", function () { var f = currentReviewForm(); if (f) reviewTotal(f); });
+  document.addEventListener("DOMContentLoaded", function () { var f = currentReviewForm(); if (f) reviewTotal(f); });
+  document.addEventListener("keydown", function (e) {
+    var reviewForm = currentReviewForm();
+    if (!reviewForm) return;
+    if (/input|textarea|select/i.test(document.activeElement.tagName) && document.activeElement.type !== "radio") {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { var s = reviewForm.querySelector("[data-submit-review]"); if (s) s.click(); }
+      return;
+    }
+    var groups = Array.prototype.slice.call(reviewForm.querySelectorAll("[data-criterion]"));
+    var active = document.activeElement.closest ? document.activeElement.closest("[data-criterion]") : null;
+    var idx = active ? groups.indexOf(active) : -1;
+    if (e.key === "j" || e.key === "k") {
+      e.preventDefault();
+      var next = groups[Math.min(groups.length - 1, Math.max(0, idx + (e.key === "j" ? 1 : -1)))];
+      if (next) { var r = next.querySelector("input[type=radio]:checked") || next.querySelector("input[type=radio]"); if (r) r.focus(); }
+    } else if (/^[0-9]$/.test(e.key) && idx >= 0) {
+      var target = active.querySelector('input[type=radio][value="' + e.key + '"]');
+      if (target && !target.disabled) { e.preventDefault(); target.checked = true; target.focus(); target.dispatchEvent(new Event("change", { bubbles: true })); }
+    } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      var btn = reviewForm.querySelector("[data-submit-review]"); if (btn) btn.click();
+    }
+  });
 
   // ---- compare mode keyboard -------------------------------------------------------------------
   document.addEventListener("keydown", function (e) {

@@ -25,17 +25,16 @@ router = APIRouter(include_in_schema=False)
 
 
 def _integrations(ctx, db, settings, **extra):
-    return _console(
-        ctx,
-        "integrations",
-        hooks=webhooks_service.list_hooks(db, ctx.event),
-        deliveries=webhooks_service.recent_deliveries(db, ctx.event),
-        event_types=webhooks_service.EVENT_TYPES,
-        base_url=settings.base_url,
-        errors={},
-        new_secret=None,
-        **extra,
-    )
+    defaults = {
+        "hooks": webhooks_service.list_hooks(db, ctx.event),
+        "deliveries": webhooks_service.recent_deliveries(db, ctx.event),
+        "event_types": webhooks_service.EVENT_TYPES,
+        "base_url": settings.base_url,
+        "errors": {},
+        "new_secret": None,
+    }
+    defaults.update(extra)
+    return _console(ctx, "integrations", **defaults)
 
 
 @router.get("/e/{slug}/organizer/integrations")
@@ -196,14 +195,13 @@ async def data_import(
 
 
 def _certs(ctx, db, **extra):
-    return _console(
-        ctx,
-        "certificates",
-        certificates=cert_service.for_event(db, ctx.event),
-        report=None,
-        error="",
-        **extra,
-    )
+    defaults = {
+        "certificates": cert_service.for_event(db, ctx.event),
+        "report": None,
+        "error": "",
+    }
+    defaults.update(extra)
+    return _console(ctx, "certificates", **defaults)
 
 
 @router.get("/e/{slug}/organizer/certificates")

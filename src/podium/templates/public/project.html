@@ -1,7 +1,24 @@
 {% extends "layouts/public.html" %}
 {% from "macros/ui.html" import badge, alert, when %}
 {% block content %}
-{% if is_draft %}{{ alert('info', 'Draft — only your team and the organizers can see this page.') }}{% endif %}
+{% if saved_alert %}{{ alert(saved_alert[0], saved_alert[1]) }}{% endif %}
+{% if is_draft %}
+<div class="card card--attention card--banner" role="status">
+  <div class="stack-sm">
+    <h2 class="card__title">Draft — not submitted</h2>
+    <p class="text-sm">Only your team and the organizers can see this page.
+      {% if editable and event.submissions_close_at %}Submit before {{ when(event.submissions_close_at) }} to enter the gallery and the judging pool.
+      {% elif editable %}Submit it to enter the gallery and the judging pool.
+      {% elif event.submissions_close_at %}Submissions closed {{ when(event.submissions_close_at) }}, so this draft was never entered.{% endif %}</p>
+  </div>
+  {% if editable %}
+  <div class="cluster">
+    <form method="post" action="/e/{{ event.slug }}/projects/{{ project.public_id }}/submit" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--primary" type="submit">Submit project</button></form>
+    <a class="btn btn--secondary" href="/e/{{ event.slug }}/submit">Edit draft</a>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
 {% if is_withdrawn %}{{ alert('warning', 'This project was withdrawn on ' ~ project.withdrawn_at.strftime('%-d %b %Y') ~ '.') }}{% endif %}
 <div class="page-header">
   <div>
@@ -11,10 +28,11 @@
       {% if project.track %}<span class="chip t-{{ (project.track.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ project.track.name }}</span>{% endif %}
       <span>by <strong>{{ project.team.name }}</strong></span>
       {% if project.submitted_at %}<span>Submitted {{ when(project.submitted_at) }}</span>{% endif %}
+      {% if member or ctx.is_organizer %}<span>Last edited {{ when(project.updated_at) }}</span>{% endif %}
     </div>
   </div>
   <div class="cluster">
-    {% if editable %}<a class="btn btn--primary" href="/e/{{ event.slug }}/submit">Edit project</a>{% endif %}
+    {% if editable and not is_draft %}<a class="btn btn--primary" href="/e/{{ event.slug }}/submit">Edit project</a>{% endif %}
     {% if member or ctx.is_organizer %}
       {% if is_withdrawn %}
       <form method="post" action="/e/{{ event.slug }}/projects/{{ project.public_id }}/restore" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--secondary" type="submit">Restore project</button></form>
@@ -41,11 +59,13 @@
     {% endif %}
   </article>
   <aside class="stack">
-    {% if event.voting_open_at or ctx.is_organizer %}
+    {% if event.voting_open_at and not is_draft %}
     <div class="card">
       <h3>Community vote</h3>
-      {% with %}{% set _v = vote %}{% include "partials/vote_control.html" with context %}{% endwith %}
+      {% with voter=vote.voter, status=vote.status, mine=vote.mine, open=vote.open, closed=vote.closed, cost=vote.cost, count=vote.count, mode=vote.mode, error='' %}{% include "partials/vote_control.html" %}{% endwith %}
     </div>
+    {% elif ctx.is_organizer and not event.voting_open_at %}
+    <div class="card"><h3>Community vote</h3><p class="muted text-sm">Voting isn't configured. Set a window on the <a href="/e/{{ event.slug }}/organizer/voting">Voting page</a>.</p></div>
     {% endif %}
     <div class="card">
       <h3>Team</h3>
@@ -61,7 +81,9 @@
     {% endif %}
   </aside>
 </div>
+{% if not is_draft %}
 <div class="mt-6">
 {% with %}{% set comments = comments_ctx.comments %}{% set enabled = comments_ctx.enabled %}{% set errors = comments_ctx.errors %}{% set body = comments_ctx.body %}{% include "partials/comments.html" %}{% endwith %}
 </div>
+{% endif %}
 {% endblock %}

@@ -17,19 +17,18 @@ router = APIRouter(include_in_schema=False)
 
 def _ctx(ctx, db, **extra):
     total, used = voting_service.code_stats(db, ctx.event)
-    return _console(
-        ctx,
-        "voting",
-        tally=voting_service.tally(db, ctx.event),
-        suspicious=voting_service.suspicious(db, ctx.event),
-        codes_total=total,
-        codes_used=used,
-        open=voting_service.voting_is_open(ctx.event),
-        closed=voting_service.voting_has_closed(ctx.event),
-        errors={},
-        new_codes=None,
-        **extra,
-    )
+    defaults = {
+        "tally": voting_service.tally(db, ctx.event),
+        "suspicious": voting_service.suspicious(db, ctx.event),
+        "codes_total": total,
+        "codes_used": used,
+        "open": voting_service.voting_is_open(ctx.event),
+        "closed": voting_service.voting_has_closed(ctx.event),
+        "errors": {},
+        "new_codes": None,
+    }
+    defaults.update(extra)
+    return _console(ctx, "voting", **defaults)
 
 
 @router.get("/e/{slug}/organizer/voting")

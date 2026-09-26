@@ -190,6 +190,27 @@ def cast(
         )
         db.commit()
         raise Forbidden("Your vote could not be counted.")
+    if voter.user is not None:
+        from podium.models import TeamMember
+
+        own = db.execute(
+            select(TeamMember.id).where(
+                TeamMember.team_id == project.team_id, TeamMember.user_id == voter.user.id
+            )
+        ).scalar()
+        if own is not None:
+            audit.record(
+                db,
+                "vote.rejected",
+                "project",
+                project.public_id,
+                event_id=event.id,
+                actor_id=voter.user.id,
+                meta={"reason": "own team"},
+                ip_hash=ip_hash,
+            )
+            db.commit()
+            raise Forbidden("You can't vote for your own team's project.")
     status = voter_status(db, event, voter)
     existing = db.execute(
         select(Vote).where(
@@ -243,6 +264,7 @@ def cast(
         ).scalar_one()
         if burst > BURST_THRESHOLD:
             existing.flagged = True
+            existing.flag_reason = f"{burst} votes from one network address"
     audit.record(
         db,
         "vote.cast",

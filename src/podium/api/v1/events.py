@@ -8,8 +8,8 @@ from podium.security.deps import (
     EventContext,
     current_user,
     load_event,
+    require_can_create_event,
     require_organizer,
-    require_user,
 )
 from podium.security.ratelimit import ip_hash
 from podium.services import events as events_service
@@ -36,7 +36,7 @@ def list_events(db: DbSession = Depends(get_db), user: User | None = Depends(cur
 def create_event(
     request: Request,
     body: EventCreate,
-    user: User = Depends(require_user),
+    user: User = Depends(require_can_create_event),
     db: DbSession = Depends(get_db),
 ):
     """Create an event. The caller becomes its organizer."""
@@ -109,3 +109,31 @@ def delete_prize(
     prize_id: str, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
     events_service.remove_prize(db, ctx.event, ctx.user, prize_id)
+
+
+@router.get("/events/{slug}/organizers")
+def list_organizers(
+    ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
+):
+    return {
+        "organizers": [
+            {"id": u.public_id, "name": u.name, "email": u.email}
+            for u in events_service.organizers(db, ctx.event)
+        ]
+    }
+
+
+@router.post("/events/{slug}/organizers", status_code=201)
+def add_organizer(
+    body: dict, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
+):
+    """Add a co-organizer by email (the account must already exist and hold no other role here)."""
+    user = events_service.add_organizer(db, ctx.event, ctx.user, str(body.get("email", "")))
+    return {"organizer": {"id": user.public_id, "name": user.name, "email": user.email}}
+
+
+@router.delete("/events/{slug}/organizers/{user_id}", status_code=204)
+def remove_organizer(
+    user_id: str, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
+):
+    events_service.remove_organizer(db, ctx.event, ctx.user, user_id)

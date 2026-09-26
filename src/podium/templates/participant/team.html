@@ -36,8 +36,12 @@
   <div class="card">
     <h2>Project</h2>
     {% if view.project %}
-      <p><strong>{{ view.project.title }}</strong> — {{ badge(view.project.status.value|capitalize, 'good' if view.project.status.value == 'submitted' else ('critical' if view.project.status.value == 'withdrawn' else 'warning')) }}</p>
-      <div class="cluster"><a class="btn btn--primary" href="/e/{{ event.slug }}/submit">{{ 'Edit project' if open else 'View submission' }}</a></div>
+      <p><strong>{{ view.project.title }}</strong> {{ badge(view.project.status.value|capitalize, 'good' if view.project.status.value == 'submitted' else ('critical' if view.project.status.value == 'withdrawn' else 'warning')) }}</p>
+      <p class="muted text-sm">Last edited {{ when(view.project.updated_at) }}</p>
+      <div class="cluster">
+        {% if view.project.status.value == 'draft' and open %}<a class="btn btn--primary" href="/e/{{ event.slug }}/submit">Finish and submit</a>
+        {% else %}<a class="btn btn--primary" href="/e/{{ event.slug }}/submit">{{ 'Edit project' if open else 'View submission' }}</a>{% endif %}
+      </div>
     {% elif open %}
       <p class="ink-2">Your team hasn't started a project yet.</p>
       <div class="cluster"><a class="btn btn--primary" href="/e/{{ event.slug }}/submit">Start your submission</a></div>

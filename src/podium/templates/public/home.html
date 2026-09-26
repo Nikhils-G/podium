@@ -1,12 +1,43 @@
 {% extends "layouts/public.html" %}
 {% from "macros/ui.html" import stage_badge, empty, when %}
 {% block content %}
+{% if user %}
+  <div class="page-header">
+    <div><p class="page-header__eyebrow">Welcome back</p><h1>{{ user.name }}</h1></div>
+    {% if can_create %}<a class="btn btn--primary" href="/events/new">Create an event</a>{% endif %}
+  </div>
+  {% if mine %}
+    {% for role, title in [('organizer', 'Events you organize'), ('judge', 'Events you judge'), ('participant', 'Events you take part in'), ('admin', 'All other events (admin)')] %}
+      {% if grouped[role] %}
+      <section class="stack mt-6">
+        <h2>{{ title }}</h2>
+        <div class="grid-cards">
+          {% for m in grouped[role] %}
+          <article class="card card--event">
+            <div class="cluster">{{ stage_badge(m.stage.value, m.stage_label) }}{% if m.total %}<span class="badge badge--plain">{{ m.done }} of {{ m.total }} reviewed</span>{% endif %}</div>
+            <h3 class="card__title"><a href="/e/{{ m.event.slug }}">{{ m.event.name }}</a></h3>
+            <p class="card__summary">{{ m.next_label }}</p>
+            <div class="card__links"><a class="btn btn--primary btn--sm" href="{{ m.next_href }}">{{ {'organizer': 'Manage', 'judge': 'Judge', 'participant': 'Continue', 'admin': 'Manage'}[role] }}</a><a class="btn btn--ghost btn--sm" href="/e/{{ m.event.slug }}/projects">Gallery</a></div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    {{ empty("You're not part of any event yet", "Join a team with an invite link, accept a judge invitation, or browse the public events below." ~ (" You can also create your own." if can_create else ""), "Create an event" if can_create else "", "/events/new") }}
+  {% endif %}
+  <section class="stack mt-6">
+    <h2>All public events</h2>
+{% else %}
 <section class="hero">
   <h1>Run a hackathon<br>people trust.</h1>
   <p>Submissions, judging, community voting and results — self-hosted, open source, one command.</p>
+  <div class="cluster mt-4"><a class="btn btn--primary" href="/register">Create account</a><a class="btn btn--secondary" href="/login">Sign in</a></div>
 </section>
 <section class="stack">
   <h2>Events</h2>
+{% endif %}
   {% if events %}
   <div class="grid-cards">
     {% for item in events %}
@@ -14,9 +45,7 @@
       <div class="cluster">{{ stage_badge(item.stage, item.label) }}</div>
       <h3 class="card__title"><a href="/e/{{ item.event.slug }}">{{ item.event.name }}</a></h3>
       {% if item.event.description %}<p class="card__summary">{{ item.event.description }}</p>{% endif %}
-      <div class="card__meta">
-        <span>Submissions {{ 'closed' if item.stage in ('closed', 'judging', 'voting', 'published', 'archived') else 'close' }} {{ when(item.event.submissions_close_at) }}</span>
-      </div>
+      <div class="card__meta"><span>Submissions {{ 'closed' if item.stage in ('closed', 'judging', 'voting', 'published', 'archived') else 'close' }} {{ when(item.event.submissions_close_at) }}</span></div>
     </article>
     {% endfor %}
   </div>

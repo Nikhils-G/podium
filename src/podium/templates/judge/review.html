@@ -29,14 +29,14 @@
     {% if not criteria %}{{ alert('warning', "The organizer hasn't published a rubric yet.") }}{% endif %}
     <fieldset class="stack" {% if not judging_open or submitted %}disabled{% endif %}>
       {% for c in criteria %}
-      <div class="criterion{% if errors[c.public_id] %} is-invalid{% endif %}" data-criterion>
+      <div class="criterion{% if errors[c.public_id] %} is-invalid{% endif %}" data-criterion data-weight="{{ c.weight }}" data-min="{{ c.min_score }}" data-max="{{ c.max_score }}">
         <div class="criterion__head">
           <div><span class="criterion__name">{{ c.name }}</span> <span class="muted text-sm">× {{ '%g'|format(c.weight) }}</span>
             {% if c.description %}<p class="field__help">{{ c.description }}</p>{% endif %}</div>
         </div>
         <div class="segmented" role="radiogroup" aria-label="{{ c.name }}: {{ c.min_score }} to {{ c.max_score }}">
           {% for v in range(c.min_score, c.max_score + 1) %}
-          <label class="segmented__option"><input type="radio" name="crt_{{ c.public_id }}" value="{{ v }}" {% if values[c.public_id]|string == v|string %}checked{% endif %}><span>{{ v }}</span></label>
+          <label class="segmented__option"><input type="radio" name="{{ c.public_id }}" value="{{ v }}" {% if values[c.public_id]|string == v|string %}checked{% endif %}><span>{{ v }}</span></label>
           {% endfor %}
         </div>
         {% if errors[c.public_id] %}<p class="field__error">{{ errors[c.public_id] }}</p>{% endif %}

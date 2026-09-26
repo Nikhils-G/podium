@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
+from podium.config import get_settings
 from podium.db import get_db
 from podium.models import Event, Project, ProjectStatus, User
 from podium.security.deps import EventContext, current_user, load_event
-from podium.services import projects
+from podium.services import navigation, projects
 from podium.services import voting as voting_service
 from podium.services.events import STAGE_LABELS, list_events_for, stage_of
 from podium.services.voting import Voter
@@ -38,7 +39,22 @@ def home(
         EventItem(e, stage_of(e).value, STAGE_LABELS[stage_of(e)])
         for e in list_events_for(db, user)
     ]
-    return render(request, "public/home.html", events=items, user=user, title=None)
+    mine = navigation.memberships(db, user) if user else []
+    grouped = {"organizer": [], "judge": [], "participant": [], "admin": []}
+    for m in mine:
+        grouped[m.role].append(m)
+    settings = get_settings()
+    can_create = user is not None and (user.is_admin or settings.open_event_creation)
+    return render(
+        request,
+        "public/home.html",
+        events=items,
+        user=user,
+        title=None,
+        mine=mine,
+        grouped=grouped,
+        can_create=can_create,
+    )
 
 
 @router.get("/e/{slug}")
@@ -51,6 +67,14 @@ def event_page(
         .select_from(Project)
         .where(Project.event_id == ctx.event.id, Project.status == ProjectStatus.submitted)
     ).scalar_one()
+    from podium.security.deps import submissions_are_open
+    from podium.services import dashboard
+    from podium.services import voting as voting_service
+
+    links = navigation.event_links(db, ctx.user, ctx.event)
+    team = project = None
+    if ctx.user is not None and links.role == "participant":
+        team, project = navigation.participant_state(db, ctx.event, ctx.user)
     return render(
         request,
         "public/event.html",
@@ -61,6 +85,12 @@ def event_page(
         user=ctx.user,
         nav="event",
         title=ctx.event.name,
+        links=links,
+        team=team,
+        project=project,
+        submissions_open=submissions_are_open(ctx.event),
+        voting_open=voting_service.voting_is_open(ctx.event),
+        next_step=dashboard.next_step(db, ctx.event) if ctx.is_organizer else None,
     )
 
 

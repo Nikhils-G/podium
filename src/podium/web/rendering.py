@@ -35,7 +35,11 @@ def render(request: Request, name: str, status_code: int = 200, **context) -> HT
     context.setdefault("nav", None)
     context["csrf_token"] = csrf_token
     context["nonce"] = getattr(request.state, "csp_nonce", "")
-    context["settings"] = get_settings()
+    settings = get_settings()
+    context["settings"] = settings
+    context["demo_mode"] = settings.demo_mode
+    context["request_id"] = getattr(request.state, "csp_nonce", "")[:8]
+    context["navctx"] = _header_context(request, context.get("user"), context.get("event"))
     response = templates.TemplateResponse(request, name, context, status_code=status_code)
     if getattr(request.state, "new_csrf_token", None):
         response.set_cookie(
@@ -48,6 +52,24 @@ def render(request: Request, name: str, status_code: int = 200, **context) -> HT
             path="/",
         )
     return response
+
+
+def _header_context(request: Request, user, event) -> dict:
+    """Memberships + role links for the header; computed once per request."""
+    cached = getattr(request.state, "navctx", None)
+    if cached is not None and cached.get("_for") == (id(user), id(event)):
+        return cached
+    if user is None:
+        ctx = {"memberships": [], "links": None}
+    else:
+        from podium.db import get_sessionmaker
+        from podium.services import navigation
+
+        with get_sessionmaker()() as db:
+            ctx = navigation.header_context(db, user, event)
+    ctx["_for"] = (id(user), id(event))
+    request.state.navctx = ctx
+    return ctx
 
 
 HEADINGS = {

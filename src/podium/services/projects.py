@@ -187,6 +187,7 @@ def update_project(
     for field in ("title", "summary", "description", "repo_url", "demo_url", "video_url"):
         setattr(project, field, clean[field])
     project.track_id = clean["track_id"]
+    _flag_duplicate(db, event, project)
     action = "project.updated"
     if submit is True and project.status == ProjectStatus.draft:
         project.status = ProjectStatus.submitted
@@ -333,6 +334,7 @@ def create_project(
     )
     db.add(project)
     db.flush()
+    _flag_duplicate(db, event, project)
     audit.record(
         db,
         "project.submitted" if submit else "project.created",
@@ -351,3 +353,25 @@ def create_project(
         )
     db.commit()
     return project
+
+
+def _flag_duplicate(db: DbSession, event: Event, project: Project) -> None:
+    """Same repository URL as an earlier project in this event (any team) → flag, don't block."""
+    if not project.repo_url:
+        project.duplicate_of_id = None
+        return
+    earlier = (
+        db.execute(
+            select(Project)
+            .where(
+                Project.event_id == event.id,
+                Project.id != project.id,
+                Project.repo_url == project.repo_url,
+                Project.status != ProjectStatus.withdrawn,
+            )
+            .order_by(Project.id)
+        )
+        .scalars()
+        .first()
+    )
+    project.duplicate_of_id = earlier.id if earlier else None

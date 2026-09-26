@@ -1,0 +1,41 @@
+{% set links = navctx.links if navctx else None %}
+{% set memberships = navctx.memberships if navctx else [] %}
+{% if event %}
+  {% if links and (links.is_organizer or links.role == 'organizer') %}<a href="/e/{{ event.slug }}/organizer" {% if console == 'organizer' %}aria-current="page"{% endif %}>Manage</a>{% endif %}
+  {% if links and links.role == 'judge' %}<a href="/e/{{ event.slug }}/judge" {% if console == 'judge' %}aria-current="page"{% endif %}>Judge{% if links.judge_total %} <span class="pill">{{ links.judge_done }}/{{ links.judge_total }}</span>{% endif %}</a>{% endif %}
+  {% if links and links.role == 'participant' %}
+    <a href="/e/{{ event.slug }}/team" {% if nav == 'team' %}aria-current="page"{% endif %}>My team</a>
+    <a href="/e/{{ event.slug }}/submit" {% if nav == 'submit' %}aria-current="page"{% endif %}>{{ 'My project' if links.has_project else 'Submit' }}</a>
+  {% endif %}
+  <a href="/e/{{ event.slug }}/projects" {% if nav == 'gallery' %}aria-current="page"{% endif %}>Gallery</a>
+  {% if event.results_published_at or (links and links.is_organizer) %}<a href="/e/{{ event.slug }}/results" {% if nav == 'results' %}aria-current="page"{% endif %}>Results</a>{% endif %}
+{% endif %}
+{% if user %}
+  {% if memberships %}
+  <details class="menu">
+    <summary>Your events <span class="caret" aria-hidden="true">▾</span></summary>
+    <div class="menu__panel menu__panel--wide">
+      {% for m in memberships %}
+      <a class="menu__item" href="{{ m.next_href }}">
+        <span class="menu__title">{{ m.event.name }} <span class="badge badge--plain">{{ {'organizer': 'Organizer', 'judge': 'Judge', 'participant': 'Participant', 'admin': 'Admin'}[m.role] }}</span></span>
+        <span class="menu__sub">{{ m.next_label }}</span>
+      </a>
+      {% endfor %}
+      <a class="menu__item menu__item--foot" href="/">All your events →</a>
+    </div>
+  </details>
+  {% endif %}
+  <details class="menu">
+    <summary><span class="avatar avatar--sm" aria-hidden="true">{{ user.name[:1]|upper }}</span> {{ user.name }} <span class="caret" aria-hidden="true">▾</span></summary>
+    <div class="menu__panel">
+      <a class="menu__item" href="/account">Account &amp; API tokens</a>
+      {% if user.is_admin %}<a class="menu__item" href="/admin">Admin</a>{% endif %}
+      <div class="menu__item menu__item--static"><span class="text-sm muted">Theme</span>
+        <span class="theme-menu" role="group" aria-label="Colour theme"><button type="button" data-theme-set="system" aria-pressed="true">System</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></span></div>
+      <form method="post" action="/logout" hx-boost="false" class="menu__item"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Sign out</button></form>
+    </div>
+  </details>
+{% else %}
+  <a href="/login" {% if nav == 'login' %}aria-current="page"{% endif %}>Sign in</a>
+  <a class="btn btn--primary btn--sm" href="/register">Create account</a>
+{% endif %}

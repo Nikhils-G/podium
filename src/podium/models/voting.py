@@ -27,6 +27,7 @@ class Vote(Base):
     ip_hash: Mapped[str | None] = mapped_column(String(64))
     ua_hash: Mapped[str | None] = mapped_column(String(64))
     flagged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    flag_reason: Mapped[str | None] = mapped_column(String(120))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, nullable=False)
     voided_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     void_reason: Mapped[str | None] = mapped_column(String(200))

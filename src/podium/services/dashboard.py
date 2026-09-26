@@ -163,7 +163,7 @@ def overview(db: DbSession, event: Event) -> Overview:
                 "info",
                 f"{pending} judge invitation(s) not accepted yet",
                 "Judges can't be assigned projects until they accept.",
-                f"{base}/judges",
+                f"{base}/judges#invites",
                 "See invites",
             )
         )
@@ -187,6 +187,124 @@ def step_index(stage: Stage) -> int:
     if stage == Stage.upcoming:
         return ORDER[Stage.open]
     return ORDER.get(stage, 0)
+
+
+@dataclass
+class NextStep:
+    label: str
+    consequence: str = ""
+    action: str | None = None  # POST /organizer/actions/{action}
+    href: str | None = None  # or a page to go to
+    enabled: bool = True
+    reason: str = ""
+    note: str = ""
+
+
+def next_step(db: DbSession, event: Event) -> NextStep:
+    """Exactly one recommended next move for the organizer, given the stage."""
+    from podium.models import Assignment, AssignmentStatus, RubricCriterion
+
+    stage = stage_of(event)
+    base = f"/e/{event.slug}/organizer"
+    if stage == Stage.archived:
+        return NextStep("Archived — read-only", enabled=False)
+    if not event.is_public:
+        return NextStep(
+            "Publish event",
+            "The event and its gallery become visible to everyone.",
+            action="publish_event",
+        )
+    if stage in (Stage.upcoming, Stage.open):
+        criteria = db.execute(
+            select(func.count())
+            .select_from(RubricCriterion)
+            .where(RubricCriterion.event_id == event.id, RubricCriterion.archived_at.is_(None))
+        ).scalar_one()
+        judges = db.execute(
+            select(func.count())
+            .select_from(EventRole)
+            .where(EventRole.event_id == event.id, EventRole.role == Role.judge)
+        ).scalar_one()
+        if criteria == 0:
+            return NextStep(
+                "Add rubric criteria",
+                "Judges need a rubric before judging can open.",
+                href=f"{base}/rubric",
+            )
+        if judges == 0:
+            return NextStep(
+                "Invite judges", "Invitations are links you send yourself.", href=f"{base}/judges"
+            )
+        when = (
+            event.submissions_close_at.strftime("%d %b %Y, %H:%M UTC")
+            if event.submissions_close_at
+            else "no deadline set"
+        )
+        return NextStep(
+            f"Submissions open until {when}",
+            "Judging opens once the deadline passes.",
+            href=f"{base}/progress",
+            enabled=False,
+        )
+    if stage == Stage.closed:
+        return NextStep(
+            "Open judging",
+            "Judges can start scoring their assigned projects.",
+            action="open_judging",
+        )
+    if stage == Stage.judging:
+        pending = db.execute(
+            select(func.count())
+            .select_from(Assignment)
+            .where(Assignment.event_id == event.id, Assignment.status != AssignmentStatus.done)
+        ).scalar_one()
+        note = f"{pending} review(s) still pending." if pending else "Every assigned review is in."
+        return NextStep(
+            "Close judging",
+            "Judges can no longer edit or submit reviews.",
+            action="close_judging",
+            note=note,
+        )
+    if stage == Stage.voting:
+        when = (
+            event.voting_close_at.strftime("%d %b %Y, %H:%M UTC") if event.voting_close_at else ""
+        )
+        return NextStep(
+            f"Voting open until {when}",
+            "Results can be published once it closes.",
+            href=f"{base}/voting",
+            enabled=False,
+        )
+    if event.results_published_at is None:
+        return NextStep(
+            "Publish results",
+            "Rankings, scores and vote counts become public. This is logged.",
+            action="publish_results",
+        )
+    return NextStep(
+        "Issue certificates",
+        "Participation certificates, judge records and winner certificates.",
+        href=f"{base}/certificates",
+    )
+
+
+def more_actions(event: Event) -> list[tuple[str, str, str]]:
+    """Reversible-but-disruptive actions, kept out of the primary path."""
+    out: list[tuple[str, str, str]] = []
+    if event.archived_at is not None:
+        return out
+    if event.is_public:
+        out.append(
+            ("unpublish_event", "Unpublish event", "Hides the event from everyone but organizers.")
+        )
+    if event.judging_opened_at is not None and event.judging_closed_at is not None:
+        out.append(("open_judging", "Reopen judging", "Judges can edit and submit reviews again."))
+    if event.results_published_at is not None:
+        out.append(
+            ("unpublish_results", "Unpublish results", "Results are hidden again. This is logged.")
+        )
+    out.append(("archive", "Archive event", "The event becomes read-only for everyone."))
+    return out
 
 
 def next_actions(event: Event, stage: Stage) -> list[tuple[str, str, str]]:

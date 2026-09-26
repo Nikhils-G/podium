@@ -4,7 +4,7 @@
 <div class="page-header">
   <div>
     <p class="page-header__eyebrow">{{ event.name }}</p>
-    <h1>{{ 'Your project' if project else 'Submit a project' }}</h1>
+    <h1>{{ ('Your draft' if project.status.value == 'draft' else 'Your submission') if project else 'Submit a project' }}</h1>
     <div class="page-header__meta">
       {% if project %}{{ badge(project.status.value|capitalize, 'good' if project.status.value == 'submitted' else ('critical' if project.status.value == 'withdrawn' else 'warning')) }}{% endif %}
       {% if event.submissions_close_at %}<span>Submissions {{ 'close' if open else 'closed' }} {{ when(event.submissions_close_at) }}</span>{% endif %}
@@ -22,6 +22,7 @@
   {% endif %}
   <form class="stack mt-4 form-narrow" method="post" action="/e/{{ event.slug }}/submit" hx-boost="false" data-guard>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if editable %}<button class="visually-hidden" type="submit" name="action" value="save" tabindex="-1" aria-hidden="true">Save draft</button>{% endif %}
     <fieldset class="stack" {% if not editable %}disabled{% endif %}>
       {{ field('title', 'Project title', value=values.title, required=True, error=errors.title, maxlength=140) }}
       {{ field('summary', 'One-line summary', value=values.summary, error=errors.summary, maxlength=280, help='Shown on the gallery card. Up to 280 characters.') }}

@@ -189,6 +189,47 @@ def _form_values(project) -> dict:
     }
 
 
+def _submit_title(project) -> str:
+    if project is None:
+        return "Submit a project"
+    return "Your draft" if project.status == ProjectStatus.draft else "Your submission"
+
+
+def _submit_form(request, ctx, view, project, data, *, errors, error, editable, status_code):
+    return render(
+        request,
+        "participant/submit.html",
+        status_code=status_code,
+        title=_submit_title(project),
+        nav="submit",
+        **_base(
+            ctx,
+            view=view,
+            project=project,
+            values=data,
+            errors=errors,
+            error=error,
+            editable=editable,
+        ),
+    )
+
+
+SAVED_MESSAGES = {
+    "draft": (
+        "info",
+        "Draft saved. Only your team and the organizers can see it until you submit.",
+    ),
+    "submitted": ("success", "Project submitted. It's in the gallery and the judging pool now."),
+    "updated": ("success", "Changes saved."),
+    "unsubmitted": ("warning", "Returned to draft. It left the gallery until you submit it again."),
+    "withdrawn": (
+        "warning",
+        "Project withdrawn. It's out of the gallery and judging; you can restore it.",
+    ),
+    "restored": ("success", "Project restored. It's back in the gallery."),
+}
+
+
 @router.get("/e/{slug}/submit")
 def submit_page(
     request: Request, ctx: EventContext = Depends(load_event), db: DbSession = Depends(get_db)
@@ -203,20 +244,16 @@ def submit_page(
         and submissions_are_open(ctx.event)
         or (project is not None and projects.editable_now(ctx.event, project))
     )
-    return render(
+    return _submit_form(
         request,
-        "participant/submit.html",
-        title="Submit project",
-        nav="submit",
-        **_base(
-            ctx,
-            view=view,
-            project=project,
-            values=_form_values(project),
-            errors={},
-            error="",
-            editable=editable,
-        ),
+        ctx,
+        view,
+        project,
+        _form_values(project),
+        errors={},
+        error="",
+        editable=editable,
+        status_code=200,
     )
 
 
@@ -251,40 +288,81 @@ async def submit_save(
                 db, ctx.event, project, user, data, submit=submit, ip_hash=ip_hash(request)
             )
     except ValidationFailed as exc:
-        return render(
+        return _submit_form(
             request,
-            "participant/submit.html",
+            ctx,
+            view,
+            project,
+            data,
+            errors=exc.errors,
+            error="",
+            editable=True,
             status_code=422,
-            title="Submit project",
-            nav="submit",
-            **_base(
-                ctx,
-                view=view,
-                project=project,
-                values=data,
-                errors=exc.errors,
-                error="",
-                editable=True,
-            ),
         )
     except PodiumError as exc:
-        return render(
+        return _submit_form(
             request,
-            "participant/submit.html",
+            ctx,
+            view,
+            project,
+            data,
+            errors={},
+            error=exc.message,
+            editable=False,
             status_code=exc.status_code,
-            title="Submit project",
-            nav="submit",
-            **_base(
-                ctx,
-                view=view,
-                project=project,
-                values=data,
-                errors={},
-                error=exc.message,
-                editable=False,
-            ),
         )
-    return RedirectResponse(f"/e/{ctx.event.slug}/projects/{project.public_id}", status_code=303)
+    if action == "submit":
+        saved = "submitted"
+    elif action == "unsubmit":
+        saved = "unsubmitted"
+    else:
+        saved = "updated" if project.status == ProjectStatus.submitted else "draft"
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/projects/{project.public_id}?saved={saved}", status_code=303
+    )
+
+
+@router.post("/e/{slug}/projects/{pid}/submit", dependencies=[Depends(verify_csrf)])
+def submit_draft(
+    request: Request,
+    pid: str,
+    ctx: EventContext = Depends(load_event),
+    user: User = Depends(require_user),
+    db: DbSession = Depends(get_db),
+):
+    """The Submit button on a draft's own page: submit it as it is, no field changes."""
+    project = projects.get_project(db, ctx.event, pid, user, organizer=ctx.is_organizer)
+    view = teams.team_view(db, project.team, user)
+    data = _form_values(project)
+    try:
+        projects.update_project(
+            db, ctx.event, project, user, data, submit=True, ip_hash=ip_hash(request)
+        )
+    except ValidationFailed as exc:
+        return _submit_form(
+            request,
+            ctx,
+            view,
+            project,
+            data,
+            errors=exc.errors,
+            error="Fix these before submitting.",
+            editable=True,
+            status_code=422,
+        )
+    except PodiumError as exc:
+        return _submit_form(
+            request,
+            ctx,
+            view,
+            project,
+            data,
+            errors={},
+            error=exc.message,
+            editable=False,
+            status_code=exc.status_code,
+        )
+    return RedirectResponse(f"/e/{ctx.event.slug}/projects/{pid}?saved=submitted", status_code=303)
 
 
 @router.post("/e/{slug}/projects/{pid}/withdraw", dependencies=[Depends(verify_csrf)])
@@ -299,7 +377,7 @@ def withdraw(
     projects.withdraw_project(
         db, ctx.event, project, user, organizer=ctx.is_organizer, ip_hash=ip_hash(request)
     )
-    return RedirectResponse(f"/e/{ctx.event.slug}/projects/{pid}", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/projects/{pid}?saved=withdrawn", status_code=303)
 
 
 @router.post("/e/{slug}/projects/{pid}/restore", dependencies=[Depends(verify_csrf)])
@@ -320,7 +398,7 @@ def restore(
         organizer=ctx.is_organizer,
         ip_hash=ip_hash(request),
     )
-    return RedirectResponse(f"/e/{ctx.event.slug}/projects/{pid}", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/projects/{pid}?saved=restored", status_code=303)
 
 
 # --- public project page --------------------------------------------------------------------------
@@ -333,6 +411,7 @@ def project_page(
     ctx: EventContext = Depends(load_event),
     db: DbSession = Depends(get_db),
     voter: Voter | None = Depends(current_voter),
+    saved: str = "",
 ):
     project = projects.get_project(db, ctx.event, pid, ctx.user, organizer=ctx.is_organizer)
     member = projects.is_member(db, project, ctx.user)
@@ -350,6 +429,7 @@ def project_page(
             editable=member and projects.editable_now(ctx.event, project),
             is_draft=project.status == ProjectStatus.draft,
             is_withdrawn=project.status == ProjectStatus.withdrawn,
+            saved_alert=SAVED_MESSAGES.get(saved) if member or ctx.is_organizer else None,
             role=ctx.role,
             Role=Role,
             vote=vote_context(db, ctx, project, voter),

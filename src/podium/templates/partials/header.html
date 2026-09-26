@@ -1,0 +1,19 @@
+{% from "macros/ui.html" import stage_badge %}
+{% set links = navctx.links if navctx else None %}
+{% set memberships = navctx.memberships if navctx else [] %}
+{% if demo_mode %}<div class="demo-banner" role="note">Demo mode — demo accounts and the default secret are on. Set <code>PODIUM_SECRET_KEY</code> and <code>PODIUM_DEMO_ACCOUNTS=false</code> before a real event.</div>{% endif %}
+<header class="topbar">
+  <div class="container{% if console %} container--wide{% endif %} topbar__inner">
+    <a class="brand" href="/"><img class="brand__mark" src="/static/img/podium.svg" alt="">Podium</a>
+    {% if event %}
+      <span class="topbar__crumb muted" aria-hidden="true">/</span>
+      <a class="topbar__event" href="/e/{{ event.slug }}" title="{{ event.name }}">{{ event.name }}</a>
+      <span class="topbar__stage">{{ stage_badge(stage, stage_label) }}</span>
+    {% endif %}
+    <details class="menu menu--mobile">
+      <summary class="btn btn--ghost btn--sm">Menu</summary>
+      <div class="menu__panel">{% include "partials/header_links.html" %}</div>
+    </details>
+    <nav class="topnav" aria-label="Main">{% include "partials/header_links.html" %}</nav>
+  </div>
+</header>

@@ -6,7 +6,11 @@ from podium.db import get_db
 from podium.errors import PodiumError, ValidationFailed
 from podium.models import User
 from podium.security.csrf import verify_csrf
-from podium.security.deps import EventContext, require_organizer, require_user
+from podium.security.deps import (
+    EventContext,
+    require_can_create_event,
+    require_organizer,
+)
 from podium.security.ratelimit import ip_hash
 from podium.services import dashboard
 from podium.services import events as events_service
@@ -15,20 +19,38 @@ from podium.web.rendering import render
 
 router = APIRouter(include_in_schema=False)
 
-NAV = [
-    ("dashboard", "Dashboard", ""),
-    ("settings", "Settings", "/settings"),
-    ("rubric", "Rubric", "/rubric"),
-    ("judges", "Judges", "/judges"),
-    ("assignments", "Assignments", "/assignments"),
-    ("progress", "Progress", "/progress"),
-    ("voting", "Voting", "/voting"),
-    ("results", "Results", "/results"),
-    ("certificates", "Certificates", "/certificates"),
-    ("data", "Import & export", "/data"),
-    ("integrations", "Integrations", "/integrations"),
-    ("audit", "Audit log", "/audit"),
+NAV_GROUPS = [
+    ("", [("dashboard", "Dashboard", "")]),
+    (
+        "Set up",
+        [
+            ("settings", "Settings", "/settings"),
+            ("rubric", "Rubric", "/rubric"),
+            ("judges", "Judges", "/judges"),
+        ],
+    ),
+    (
+        "Run",
+        [
+            ("assignments", "Assignments", "/assignments"),
+            ("progress", "Progress", "/progress"),
+            ("voting", "Voting", "/voting"),
+        ],
+    ),
+    (
+        "Wrap up",
+        [("results", "Results", "/results"), ("certificates", "Certificates", "/certificates")],
+    ),
+    (
+        "Tools",
+        [
+            ("data", "Import & export", "/data"),
+            ("integrations", "Integrations", "/integrations"),
+            ("audit", "Audit log", "/audit"),
+        ],
+    ),
 ]
+NAV = [item for _, items in NAV_GROUPS for item in items]
 
 
 def _console(ctx: EventContext, active: str, **extra):
@@ -42,6 +64,10 @@ def _console(ctx: EventContext, active: str, **extra):
         "stage_label": STAGE_LABELS[stage],
         "console": "organizer",
         "nav_items": [(key, label, base + path) for key, label, path in NAV],
+        "nav_groups": [
+            (group, [(key, label, base + path) for key, label, path in items])
+            for group, items in NAV_GROUPS
+        ],
         "active": active,
         **extra,
     }
@@ -64,7 +90,7 @@ def _event_form_values(event) -> dict:
 
 
 @router.get("/events/new")
-def new_event_page(request: Request, user: User = Depends(require_user)):
+def new_event_page(request: Request, user: User = Depends(require_can_create_event)):
     values = {
         "name": "",
         "description": "",
@@ -87,7 +113,9 @@ def new_event_page(request: Request, user: User = Depends(require_user)):
 
 @router.post("/events/new", dependencies=[Depends(verify_csrf)])
 async def new_event_submit(
-    request: Request, user: User = Depends(require_user), db: DbSession = Depends(get_db)
+    request: Request,
+    user: User = Depends(require_can_create_event),
+    db: DbSession = Depends(get_db),
 ):
     form = await request.form()
     data = {k: str(v) for k, v in form.items()}
@@ -124,7 +152,8 @@ def dashboard_page(
             overview=data,
             steps=dashboard.STEPS,
             step_index=dashboard.step_index(data.stage),
-            actions=dashboard.next_actions(ctx.event, data.stage),
+            next_step=dashboard.next_step(db, ctx.event),
+            more_actions=dashboard.more_actions(ctx.event),
         ),
     )
 
@@ -141,12 +170,81 @@ def lifecycle_action(
 
 
 @router.get("/e/{slug}/organizer/settings")
-def settings_page(request: Request, ctx: EventContext = Depends(require_organizer)):
+def settings_page(
+    request: Request,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+):
     return render(
         request,
         "organizer/settings.html",
         title=f"Settings · {ctx.event.name}",
-        **_console(ctx, "settings", values=_event_form_values(ctx.event), errors={}, saved=False),
+        **_console(
+            ctx,
+            "settings",
+            values=_event_form_values(ctx.event),
+            errors={},
+            saved=False,
+            organizers=events_service.organizers(db, ctx.event),
+        ),
+    )
+
+
+@router.post("/e/{slug}/organizer/organizers", dependencies=[Depends(verify_csrf)])
+def organizer_add(
+    request: Request,
+    email: str = Form(""),
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+):
+    try:
+        events_service.add_organizer(db, ctx.event, ctx.user, email)
+    except PodiumError as exc:
+        return render(
+            request,
+            "organizer/settings.html",
+            status_code=exc.status_code,
+            title="Settings",
+            **_console(
+                ctx,
+                "settings",
+                values=_event_form_values(ctx.event),
+                errors={"organizer_email": exc.message},
+                saved=False,
+                organizers=events_service.organizers(db, ctx.event),
+            ),
+        )
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/settings?saved=organizer#organizers", status_code=303
+    )
+
+
+@router.post("/e/{slug}/organizer/organizers/{user_id}/remove", dependencies=[Depends(verify_csrf)])
+def organizer_remove(
+    request: Request,
+    user_id: str,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+):
+    try:
+        events_service.remove_organizer(db, ctx.event, ctx.user, user_id)
+    except PodiumError as exc:
+        return render(
+            request,
+            "organizer/settings.html",
+            status_code=exc.status_code,
+            title="Settings",
+            **_console(
+                ctx,
+                "settings",
+                values=_event_form_values(ctx.event),
+                errors={"organizer_email": exc.message},
+                saved=False,
+                organizers=events_service.organizers(db, ctx.event),
+            ),
+        )
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/settings?saved=organizer#organizers", status_code=303
     )
 
 
@@ -167,7 +265,14 @@ async def settings_save(
             "organizer/settings.html",
             status_code=422,
             title="Settings",
-            **_console(ctx, "settings", values=data, errors=exc.errors, saved=False),
+            **_console(
+                ctx,
+                "settings",
+                values=data,
+                errors=exc.errors,
+                saved=False,
+                organizers=events_service.organizers(db, ctx.event),
+            ),
         )
     return RedirectResponse(f"/e/{ctx.event.slug}/organizer/settings?saved=1", status_code=303)
 

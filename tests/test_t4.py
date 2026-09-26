@@ -42,6 +42,9 @@ def test_webhook_emit_sign_and_retry(client, auth):
     )
     assert r.status_code == 201
     secret = r.json()["webhook"]["secret"]
+    # results can only be published once judging is closed (integrity guard)
+    assert client.post(f"{S}/actions/publish_results", headers=auth("organizer")).status_code == 409
+    assert client.post(f"{S}/actions/close_judging", headers=auth("organizer")).status_code == 200
     assert client.post(f"{S}/actions/publish_results", headers=auth("organizer")).status_code == 200
     sent = []
 
@@ -76,12 +79,17 @@ def test_webhook_emit_sign_and_retry(client, auth):
     r = client.get(f"{S}/webhooks/deliveries", headers=auth("organizer"))
     assert r.json()["deliveries"][0]["status"] == "delivered"
     client.post(f"{S}/actions/unpublish_results", headers=auth("organizer"))
+    client.post(f"{S}/actions/open_judging", headers=auth("organizer"))
     assert client.get(f"{S}/webhooks", headers=auth("judge_a")).status_code == 403
 
 
 def test_certificates_issue_verify_revoke_and_tamper(client, auth):
+    # other tests may have issued records already; the invariant is one record per judge, ever
     r = client.post(f"{S}/certificates/issue/judge", headers=auth("organizer"))
-    assert r.status_code == 200 and r.json()["issued"] == 30
+    assert r.status_code == 200 and 0 <= r.json()["issued"] <= 30
+    records = client.get(f"{S}/certificates", headers=auth("organizer"), params={"kind": "judge"})
+    judge_records = [c for c in records.json()["certificates"] if c["kind"] == "judge"]
+    assert len({c["payload"]["recipient"]["id"] for c in judge_records}) == len(judge_records) == 30
     assert (
         client.post(f"{S}/certificates/issue/judge", headers=auth("organizer")).json()["issued"]
         == 0
@@ -112,7 +120,16 @@ def test_certificates_issue_verify_revoke_and_tamper(client, auth):
 
 def test_participation_certificates_cover_members_once(client, auth):
     r = client.post(f"{S}/certificates/issue/participation", headers=auth("organizer"))
-    assert r.status_code == 200 and r.json()["issued"] == 91
+    assert r.status_code == 200 and 0 <= r.json()["issued"] <= 91
+    certs = client.get(f"{S}/certificates", headers=auth("organizer")).json()["certificates"]
+    participation = [c for c in certs if c["kind"] == "participation"]
+    assert len({c["payload"]["recipient"]["id"] for c in participation}) == len(participation) == 91
+    assert (
+        client.post(f"{S}/certificates/issue/participation", headers=auth("organizer")).json()[
+            "issued"
+        ]
+        == 0
+    )
 
 
 def test_embed_is_frameable_and_gallery_api_has_cors(client):

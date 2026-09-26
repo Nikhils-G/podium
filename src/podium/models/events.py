@@ -1,5 +1,6 @@
 import enum
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     JSON,
@@ -16,6 +17,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from podium.models.base import Base, TimestampMixin, UTCDateTime, public_id_column, utcnow
 from podium.models.users import User
+
+if TYPE_CHECKING:
+    from podium.models.projects import Project
 
 
 class Role(enum.StrEnum):
@@ -158,9 +162,11 @@ class Prize(Base):
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
     track_id: Mapped[int | None] = mapped_column(ForeignKey("tracks.id", ondelete="SET NULL"))
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
 
     event: Mapped[Event] = relationship(back_populates="prizes")
     track: Mapped[Track | None] = relationship()
+    project: Mapped["Project | None"] = relationship()
 
 
 class RubricCriterion(Base):
