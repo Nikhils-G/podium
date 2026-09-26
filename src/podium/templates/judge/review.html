@@ -1,0 +1,68 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import badge, alert, when %}
+{% block content %}
+<div class="page-header">
+  <div><p class="page-header__eyebrow"><a href="/e/{{ event.slug }}/judge">Queue</a> · {{ position }} of {{ count }}</p>
+    <h1>{{ project.title }}</h1>
+    <div class="page-header__meta">{% if project.track %}<span class="chip t-{{ (project.track.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ project.track.name }}</span>{% endif %}<span>by {{ project.team.name }}</span>{% if submitted %}{{ badge('Submitted ' ~ review.submitted_at.strftime('%-d %b, %H:%M') ~ ' UTC', 'good') }}{% endif %}</div></div>
+  <div class="cluster">
+    {% if prev_item %}<a class="btn btn--ghost btn--sm" href="/e/{{ event.slug }}/judge/review/{{ prev_item.project.public_id }}">← Previous</a>{% endif %}
+    {% if next_item %}<a class="btn btn--ghost btn--sm" href="/e/{{ event.slug }}/judge/review/{{ next_item.project.public_id }}">Next →</a>{% endif %}
+  </div>
+</div>
+{% if error %}{{ alert('critical', error) }}{% endif %}
+{% if not judging_open %}{{ alert('info', 'Judging is closed. This review is read-only.') }}{% endif %}
+<div class="review-layout">
+  <aside class="review-project stack">
+    {% if project.summary %}<p class="text-lg ink-2">{{ project.summary }}</p>{% endif %}
+    {% if project.description %}<div class="prose text-sm">{% for para in project.description.split('\n\n') %}<p>{{ para|replace('\n', ' ') }}</p>{% endfor %}</div>{% endif %}
+    <div class="cluster">
+      {% if project.repo_url %}<a class="btn btn--secondary btn--sm" href="{{ project.repo_url }}" rel="noopener" target="_blank">Repository ↗</a>{% endif %}
+      {% if project.demo_url %}<a class="btn btn--secondary btn--sm" href="{{ project.demo_url }}" rel="noopener" target="_blank">Demo ↗</a>{% endif %}
+      {% if project.video_url %}<a class="btn btn--secondary btn--sm" href="{{ project.video_url }}" rel="noopener" target="_blank">Video ↗</a>{% endif %}
+    </div>
+    <p class="muted text-sm">Keyboard: <span class="kbd">1</span>–<span class="kbd">5</span> score the focused criterion · <span class="kbd">j</span>/<span class="kbd">k</span> move · <span class="kbd">⌘/Ctrl</span>+<span class="kbd">Enter</span> submit</p>
+  </aside>
+  <form class="review-form stack" method="post" action="/e/{{ event.slug }}/judge/review/{{ project.public_id }}" hx-boost="false" data-review-form
+        hx-post="/e/{{ event.slug }}/judge/review/{{ project.public_id }}" hx-trigger="change delay:400ms, input from:textarea delay:900ms" hx-target="#save-status" hx-swap="innerHTML" hx-vals='{"action": "draft"}' hx-disinherit="*">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if not criteria %}{{ alert('warning', "The organizer hasn't published a rubric yet.") }}{% endif %}
+    <fieldset class="stack" {% if not judging_open or submitted %}disabled{% endif %}>
+      {% for c in criteria %}
+      <div class="criterion{% if errors[c.public_id] %} is-invalid{% endif %}" data-criterion>
+        <div class="criterion__head">
+          <div><span class="criterion__name">{{ c.name }}</span> <span class="muted text-sm">× {{ '%g'|format(c.weight) }}</span>
+            {% if c.description %}<p class="field__help">{{ c.description }}</p>{% endif %}</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-label="{{ c.name }}: {{ c.min_score }} to {{ c.max_score }}">
+          {% for v in range(c.min_score, c.max_score + 1) %}
+          <label class="segmented__option"><input type="radio" name="crt_{{ c.public_id }}" value="{{ v }}" {% if values[c.public_id]|string == v|string %}checked{% endif %}><span>{{ v }}</span></label>
+          {% endfor %}
+        </div>
+        {% if errors[c.public_id] %}<p class="field__error">{{ errors[c.public_id] }}</p>{% endif %}
+      </div>
+      {% endfor %}
+      <div class="field">
+        <label class="field__label" for="f-comment">Comment <span class="muted">(optional, shared with the organizer)</span></label>
+        <textarea class="textarea" id="f-comment" name="comment" rows="5" maxlength="5000">{{ comment }}</textarea>
+        {% if errors.comment %}<p class="field__error">{{ errors.comment }}</p>{% endif %}
+      </div>
+    </fieldset>
+    <div class="review-footer">
+      <div class="score-total" aria-live="polite"><span class="score-total__label">Weighted total</span><span class="score-total__value" data-total>{{ '%.1f'|format(total) if total is not none else '—' }}</span><span class="muted text-sm">/ 100</span></div>
+      <span id="save-status" class="save-status" aria-live="polite">{% if review and not submitted %}Draft saved{% endif %}</span>
+      <div class="cluster">
+        {% if judging_open and criteria %}
+          {% if submitted %}
+            <button class="btn btn--secondary" type="submit" name="action" value="reopen" hx-disable>Edit review</button>
+          {% else %}
+            <button class="btn btn--ghost" type="submit" name="action" value="draft" hx-disable>Save draft</button>
+            <button class="btn btn--primary" type="submit" name="action" value="submit" hx-disable data-submit-review>Submit review</button>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>
+<script nonce="{{ nonce }}" type="application/json" id="rubric-data">{{ criteria|map(attribute='public_id')|list|tojson }}</script>
+{% endblock %}

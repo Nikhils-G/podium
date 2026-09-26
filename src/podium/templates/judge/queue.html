@@ -1,0 +1,30 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import badge, alert, empty %}
+{% block content %}
+<div class="page-header">
+  <div><p class="page-header__eyebrow">Judge</p><h1>Your queue</h1>
+    <div class="page-header__meta"><span>{{ groups.done|length }} of {{ items|length }} reviewed</span></div></div>
+</div>
+{% if not judging_open %}{{ alert('info', 'Judging is not open right now. You can read your assignments; scoring opens when the organizer starts judging.') }}{% endif %}
+{% if not items %}
+  {{ empty("No assignments yet", "The organizer hasn't assigned you any projects. Check back once judging is set up.") }}
+{% else %}
+  {% for key, title, hint in [('todo', 'To review', 'Not started'), ('in_progress', 'In progress', 'Draft saved'), ('done', 'Reviewed', 'Submitted')] %}
+  {% if groups[key] %}
+  <section class="stack mt-6">
+    <h2>{{ title }} <span class="count">{{ groups[key]|length }}</span></h2>
+    <div class="grid-cards">
+      {% for item in groups[key] %}
+      <article class="card">
+        <div class="card__meta">{% if item.project.track %}<span class="chip t-{{ (item.project.track.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ item.project.track.name }}</span>{% endif %}{{ badge(hint, 'good' if key == 'done' else ('warning' if key == 'in_progress' else '')) }}</div>
+        <h3 class="card__title"><a href="/e/{{ event.slug }}/judge/review/{{ item.project.public_id }}">{{ item.project.title }}</a></h3>
+        {% if item.project.summary %}<p class="card__summary">{{ item.project.summary }}</p>{% endif %}
+        <div class="card__meta"><span>by {{ item.project.team.name }}</span></div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% endfor %}
+{% endif %}
+{% endblock %}

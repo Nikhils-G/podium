@@ -1,0 +1,22 @@
+{% from "macros/ui.html" import alert %}
+<div class="stack mt-4">
+  {% if plan.judges == 0 %}{{ alert('warning', 'No judges have accepted yet, so nothing can be assigned.') }}
+  {% elif plan.projects == 0 %}{{ alert('warning', 'No submitted projects to assign.') }}
+  {% else %}
+  <p><strong>{{ plan.entries|length }}</strong> new assignment{{ '' if plan.entries|length == 1 else 's' }} across {{ plan.judges }} judges and {{ plan.projects }} projects to reach {{ plan.reviews_per_project }} reviews each.</p>
+  {% if plan.shortfalls %}{{ alert('warning', plan.shortfalls|length ~ ' project(s) still can\'t reach the target — not enough eligible judges: ' ~ (plan.shortfalls|map(attribute=0)|map(attribute='title')|list|join(', '))) }}{% endif %}
+  {% set fallback = plan.entries|selectattr('fallback')|list %}
+  {% if fallback %}<p class="text-sm ink-2">{{ fallback|length }} assignment(s) go outside the judge's tracks because no track judge was available.</p>{% endif %}
+  {% if plan.entries %}
+  <details><summary class="text-sm">Show plan</summary>
+    <ul class="row-list mt-2 text-sm">{% for e in plan.entries %}<li><span>{{ e.judge.name }}</span><span class="muted">→</span><span>{{ e.project.title }}</span>{% if e.fallback %}<span class="muted">(outside track)</span>{% endif %}</li>{% endfor %}</ul>
+  </details>
+  <form method="post" action="/e/{{ event.slug }}/organizer/assignments/auto/apply" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="reviews_per_project" value="{{ plan.reviews_per_project }}">
+    <input type="hidden" name="seed" value="{{ plan.seed }}">
+    <button class="btn btn--primary" type="submit">Apply {{ plan.entries|length }} assignment{{ '' if plan.entries|length == 1 else 's' }}</button>
+  </form>
+  {% else %}<p class="muted text-sm">Every project already has {{ plan.reviews_per_project }} reviews assigned.</p>{% endif %}
+  {% endif %}
+</div>

@@ -1,0 +1,8 @@
+{% extends "layouts/console.html" %}
+{% block content %}
+<div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Judging progress</h1></div>
+  <span class="live-pill"><span class="live-pill__dot" aria-hidden="true"></span>Live · refreshes every 10 s</span></div>
+<div id="progress-body" hx-get="/e/{{ event.slug }}/organizer/progress" hx-trigger="every 10s [document.visibilityState === 'visible']" hx-swap="innerHTML" hx-boost="false">
+  {% include "partials/progress_body.html" %}
+</div>
+{% endblock %}

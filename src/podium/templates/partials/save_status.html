@@ -1,0 +1,1 @@
+{% if state == 'saved' %}<span class="save-status__ok">{{ message }} · {{ now_utc().strftime('%H:%M:%S') }} UTC</span>{% else %}<span class="save-status__err">{{ message }}</span>{% endif %}

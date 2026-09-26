@@ -1,0 +1,52 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import field, alert, badge, when %}
+{% block content %}
+<div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Judges</h1><p class="ink-2 mt-2">Invite judges with a link. Podium never sends email, so you stay in control of how invitations go out.</p></div></div>
+{% if link %}
+<div class="card card--success stack">
+  <h2>Invitation for {{ invited }} is ready</h2>
+  <p class="text-sm ink-2">Send this link to the judge. It expires in 30 days and works once.</p>
+  <div class="copy-field"><code class="copy-field__value">{{ link }}</code><button class="btn btn--secondary btn--sm" type="button" data-copy="{{ link }}">Copy link</button></div>
+</div>
+{% endif %}
+<div class="two-col two-col--wide mt-4">
+  <section class="stack">
+    <h2>Roster <span class="count">{{ judges|length }}</span></h2>
+    {% if judges %}
+    <table class="table table--dense">
+      <thead><tr><th>Judge</th><th>Tracks</th><th class="num">Assigned</th><th class="num">Done</th><th></th></tr></thead>
+      <tbody>
+      {% for row in judges %}
+      <tr>
+        <td><strong>{{ row.user.name }}</strong><br><span class="muted text-sm">{{ row.user.email }} · <code>{{ row.user.public_id }}</code></span></td>
+        <td>
+          <form method="post" action="/e/{{ event.slug }}/organizer/judges/{{ row.user.public_id }}/tracks" hx-boost="false" class="cluster">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            {% for t in event.tracks %}<label class="chip chip--check"><input type="checkbox" name="tracks" value="{{ t.public_id }}" {% if t in row.tracks %}checked{% endif %}><span class="chip__dot t-{{ (t.position % 8) + 1 }}" aria-hidden="true"></span>{{ t.name }}</label>{% endfor %}
+            <button class="btn btn--ghost btn--sm" type="submit">Save</button>
+          </form>
+        </td>
+        <td class="num">{{ row.assigned }}</td><td class="num">{{ row.done }}</td>
+        <td class="nowrap"><form method="post" action="/e/{{ event.slug }}/organizer/judges/{{ row.user.public_id }}/remove" hx-boost="false" data-confirm="Remove {{ row.user.name }} as a judge? Their pending assignments are deleted."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form>
+          {% if errors['judge_' ~ row.user.public_id] %}<p class="field__error">{{ errors['judge_' ~ row.user.public_id] }}</p>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">No judges yet. Invite the first one.</p>{% endif %}
+    {% if invites %}
+    <h3 class="mt-4">Pending invitations <span class="count">{{ invites|length }}</span></h3>
+    <ul class="row-list">{% for row in invites %}<li><span>{{ row.invite.email }}</span><span class="text-sm ink-2">{% for t in row.tracks %}{{ t.name }}{{ ', ' if not loop.last }}{% endfor %}</span><span class="grow"></span><span class="muted text-sm">expires {{ when(row.invite.expires_at) }}</span></li>{% endfor %}</ul>
+    {% endif %}
+  </section>
+  <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/judges/invite" hx-boost="false">
+    <h2>Invite a judge</h2>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ field('email', 'Email', type='email', required=True, error=errors.email, autocomplete='off') }}
+    <div class="field"><span class="field__label">Tracks they can judge</span>
+      <div class="cluster">{% for t in event.tracks %}<label class="chip chip--check"><input type="checkbox" name="tracks" value="{{ t.public_id }}"><span class="chip__dot t-{{ (t.position % 8) + 1 }}" aria-hidden="true"></span>{{ t.name }}</label>{% else %}<span class="muted text-sm">No tracks yet — the judge can be assigned any project.</span>{% endfor %}</div>
+      <p class="field__help">Leave all unchecked to allow any track.</p></div>
+    <div><button class="btn btn--primary" type="submit">Create invite link</button></div>
+  </form>
+</div>
+{% endblock %}

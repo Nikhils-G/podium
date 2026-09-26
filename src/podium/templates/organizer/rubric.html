@@ -1,0 +1,40 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import field, alert, badge %}
+{% block content %}
+<div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Rubric</h1>
+  <p class="ink-2 mt-2">Judges score every criterion on its scale; totals are weighted and shown out of 100. {% if locked %}Judging has opened, so the structure is locked — weights can still change and re-weight every review consistently.{% else %}Structure locks when judging opens; weights stay editable.{% endif %}</p></div>
+  {% if locked %}{{ badge('Structure locked', 'warning') }}{% endif %}</div>
+{% if errors.name %}{{ alert('critical', errors.name) }}{% endif %}
+{% if criteria %}
+<table class="table table--dense mt-4">
+  <thead><tr><th>Criterion</th><th>Description</th><th class="num">Weight</th><th class="num">Scale</th><th></th></tr></thead>
+  <tbody>
+  {% for c in criteria %}
+  <tr class="{% if c.archived_at %}is-archived{% endif %}">
+    <form method="post" action="/e/{{ event.slug }}/organizer/rubric/{{ c.public_id }}" hx-boost="false" id="row-{{ c.public_id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"></form>
+    <td><input class="input input--inline" form="row-{{ c.public_id }}" name="name" value="{{ c.name }}" aria-label="Name" {% if c.archived_at %}disabled{% endif %}>{% if c.archived_at %}<span class="muted text-sm">archived</span>{% endif %}</td>
+    <td><input class="input input--inline" form="row-{{ c.public_id }}" name="description" value="{{ c.description }}" aria-label="Description" {% if c.archived_at %}disabled{% endif %}></td>
+    <td class="num"><input class="input input--inline input--num" form="row-{{ c.public_id }}" name="weight" type="number" step="0.1" min="0.1" max="100" value="{{ '%g'|format(c.weight) }}" aria-label="Weight" {% if c.archived_at %}disabled{% endif %}></td>
+    <td class="num nowrap">{{ c.min_score }}–{{ c.max_score }}</td>
+    <td class="nowrap">{% if not c.archived_at %}<button class="btn btn--secondary btn--sm" form="row-{{ c.public_id }}" type="submit">Save</button>
+      {% if not locked %}<form method="post" action="/e/{{ event.slug }}/organizer/rubric/{{ c.public_id }}/archive" hx-boost="false" class="inline" data-confirm="Remove “{{ c.name }}”? If it has scores it is archived, otherwise deleted."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form>{% endif %}{% endif %}
+      {% if errors['row_' ~ c.public_id] %}<p class="field__error">{{ errors['row_' ~ c.public_id] }}</p>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="muted mt-4">No criteria yet. Add the first one below.</p>{% endif %}
+{% if not locked %}
+<form class="card stack mt-6 form-narrow" method="post" action="/e/{{ event.slug }}/organizer/rubric" hx-boost="false">
+  <h2>Add a criterion</h2>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {{ field('name', 'Name', required=True, placeholder='e.g. Functionality', maxlength=120) }}
+  {{ field('description', 'Description (shown to judges)', placeholder='What a 5 looks like, what a 1 looks like.') }}
+  <div class="field-grid">
+    {{ field('weight', 'Weight', value='1', type='number', error=errors.weight, help='Relative importance. 2 counts twice as much as 1.') }}
+    <div class="field"><span class="field__label">Scale</span><div class="cluster"><input class="input input--num" name="min_score" type="number" value="1" aria-label="Minimum"><span>to</span><input class="input input--num" name="max_score" type="number" value="5" aria-label="Maximum"></div>{% if errors.scale %}<p class="field__error">{{ errors.scale }}</p>{% endif %}</div>
+  </div>
+  <div><button class="btn btn--primary" type="submit">Add criterion</button></div>
+</form>
+{% endif %}
+{% endblock %}

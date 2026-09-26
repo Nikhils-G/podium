@@ -1,0 +1,49 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import alert, badge %}
+{% block content %}
+<div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Assignments</h1><p class="ink-2 mt-2">Who reviews what. Auto-assign balances load across judges inside their tracks and never places a judge on their own team's project.</p></div></div>
+{% if request.query_params.get('applied') %}{{ alert('success', request.query_params.get('applied') ~ ' assignment(s) created.') }}{% endif %}
+{% if errors.manual %}{{ alert('critical', errors.manual) }}{% endif %}
+<div class="two-col two-col--wide mt-4">
+  <section class="stack">
+    <h2>By judge</h2>
+    {% if loads %}
+    <div class="stack">
+      {% for load in loads %}
+      <details class="card card--flat" {% if loop.index <= 3 %}open{% endif %}>
+        <summary class="cluster"><strong>{{ load.judge.name }}</strong><span class="muted text-sm">{% for t in load.tracks %}{{ t.name }}{{ ', ' if not loop.last }}{% else %}any track{% endfor %}</span><span class="grow"></span>{{ badge(load.assignments|length ~ ' assigned', 'plain') }}</summary>
+        {% if load.assignments %}
+        <ul class="row-list mt-2">
+          {% for a in load.assignments %}
+          <li><a href="/e/{{ event.slug }}/projects/{{ a.project.public_id }}">{{ a.project.title }}</a>{{ badge(a.status.value.replace('_', ' '), 'good' if a.status.value == 'done' else ('warning' if a.status.value == 'in_progress' else 'plain')) }}<span class="muted text-sm">{{ a.method.value }}</span><span class="grow"></span>
+            {% if a.status.value != 'done' %}<form method="post" action="/e/{{ event.slug }}/organizer/assignments/{{ a.id }}/remove" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form>{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% else %}<p class="muted text-sm mt-2">Nothing assigned yet.</p>{% endif %}
+      </details>
+      {% endfor %}
+    </div>
+    {% else %}<p class="muted">Invite judges first.</p>{% endif %}
+  </section>
+  <aside class="stack">
+    <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/assignments/auto/preview" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/assignments/auto/preview" hx-target="#assign-preview" hx-swap="innerHTML">
+      <h2>Auto-assign</h2>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field-grid">
+        <div class="field"><label class="field__label" for="f-rpp">Reviews per project</label><input class="input" id="f-rpp" name="reviews_per_project" type="number" min="1" max="20" value="{{ reviews_per_project }}"></div>
+        <div class="field"><label class="field__label" for="f-seed">Seed</label><input class="input" id="f-seed" name="seed" type="number" min="0" value="{{ seed }}"><p class="field__help">Same seed, same plan — reproducible.</p></div>
+      </div>
+      <div><button class="btn btn--secondary" type="submit">Preview plan</button></div>
+      <div id="assign-preview">{% if plan %}{% include "partials/assign_preview.html" %}{% endif %}</div>
+    </form>
+    <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/assignments/manual" hx-boost="false">
+      <h2>Assign manually</h2>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field"><label class="field__label" for="f-judge">Judge</label><select class="select" id="f-judge" name="judge" required><option value="">— Choose —</option>{% for load in loads %}<option value="{{ load.judge.public_id }}">{{ load.judge.name }}</option>{% endfor %}</select></div>
+      <div class="field"><span class="field__label">Projects</span>
+        <div class="checklist">{% for p in projects %}<label><input type="checkbox" name="projects" value="{{ p.public_id }}"> <span>{{ p.title }}</span> <span class="muted text-sm">{{ p.track.name if p.track else '' }}</span></label>{% endfor %}</div></div>
+      <div><button class="btn btn--primary" type="submit">Assign</button></div>
+    </form>
+  </aside>
+</div>
+{% endblock %}

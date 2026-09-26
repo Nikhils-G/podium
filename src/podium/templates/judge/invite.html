@@ -1,0 +1,22 @@
+{% extends "layouts/public.html" %}
+{% block content %}
+<div class="auth-card stack">
+  <div>
+    <p class="page-header__eyebrow">Judge invitation</p>
+    <h1 class="serif">{{ event.name }}</h1>
+    <p class="ink-2 mt-2">You've been invited to judge{% if tracks %} the {% for t in tracks %}<strong>{{ t.name }}</strong>{{ ', ' if not loop.last }}{% endfor %} track{{ 's' if tracks|length > 1 }}{% endif %}. Invitation for <code>{{ invite.email }}</code>.</p>
+  </div>
+  {% if accepted %}
+    <p>This invitation has been accepted.</p><a class="btn btn--primary" href="/e/{{ event.slug }}/judge">Open the judge console</a>
+  {% elif user %}
+    <form method="post" action="/judge-invite/{{ token }}" hx-boost="false" class="stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <p class="text-sm ink-2">Signed in as {{ user.name }} ({{ user.email }}). Judges can't also compete in this event.</p>
+      <button class="btn btn--primary btn--block" type="submit">Accept and start judging</button>
+    </form>
+  {% else %}
+    <p>Sign in or create an account to accept.</p>
+    <div class="cluster"><a class="btn btn--primary" href="/login?next={{ next|urlencode }}">Sign in</a><a class="btn btn--secondary" href="/register?next={{ next|urlencode }}">Create account</a></div>
+  {% endif %}
+</div>
+{% endblock %}
