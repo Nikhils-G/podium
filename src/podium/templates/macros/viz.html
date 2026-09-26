@@ -1,0 +1,54 @@
+{# Inline-SVG charts. Marks carry colour; text wears ink tokens; hairline gridlines; hover titles. #}
+
+{% macro calibration(judges, mu_g, sigma_g) -%}
+{% set rows = judges|length %}
+{% set h = 14 + rows * 20 + 24 %}
+{% set left = 150 %}{% set width = 680 %}{% set plot = width - left - 24 %}
+<figure class="viz">
+  <figcaption class="viz__caption">Judge calibration — each judge's mean score (dot) and ± one spread (bar) against the event mean (dashed line at {{ '%.1f'|format(mu_g) }})</figcaption>
+  <svg class="viz__svg" viewBox="0 0 {{ width }} {{ h }}" role="img" aria-label="Judge calibration chart: per-judge mean and spread of raw scores" preserveAspectRatio="xMinYMin meet">
+    {% for tick in [0, 25, 50, 75, 100] %}
+      <line class="viz__grid" x1="{{ left + tick / 100 * plot }}" y1="8" x2="{{ left + tick / 100 * plot }}" y2="{{ h - 20 }}"/>
+      <text class="viz__tick" x="{{ left + tick / 100 * plot }}" y="{{ h - 6 }}" text-anchor="middle">{{ tick }}</text>
+    {% endfor %}
+    <line class="viz__ref" x1="{{ left + mu_g / 100 * plot }}" y1="8" x2="{{ left + mu_g / 100 * plot }}" y2="{{ h - 20 }}"/>
+    {% for j in judges %}
+      {% set y = 18 + loop.index0 * 20 %}
+      {% set lo = [0, j.mean - j.std]|max %}{% set hi = [100, j.mean + j.std]|min %}
+      <g class="viz__row{% if j.flat %} viz__row--flat{% endif %}">
+        <title>{{ j.judge.name }}: {{ j.n }} reviews, mean {{ '%.1f'|format(j.mean) }}, spread {{ '%.1f'|format(j.std) }}{% if j.flat %} — flat scorer{% endif %}</title>
+        <text class="viz__label" x="{{ left - 10 }}" y="{{ y + 4 }}" text-anchor="end">{{ j.judge.name[:22] }}{% if j.flat %} ⚑{% endif %}</text>
+        <line class="viz__range" x1="{{ left + lo / 100 * plot }}" y1="{{ y }}" x2="{{ left + hi / 100 * plot }}" y2="{{ y }}"/>
+        <circle class="viz__dot" cx="{{ left + j.mean / 100 * plot }}" cy="{{ y }}" r="4"/>
+        <circle class="viz__dot viz__dot--shrunk" cx="{{ left + j.shrunk_mean / 100 * plot }}" cy="{{ y }}" r="3"/>
+      </g>
+    {% endfor %}
+  </svg>
+  <p class="viz__legend"><span class="viz__key viz__key--dot"></span> raw mean <span class="viz__key viz__key--hollow"></span> shrunk mean <span class="viz__key viz__key--bar"></span> ± spread <span>⚑ flat scorer (neutralised)</span></p>
+</figure>
+{%- endmacro %}
+
+{% macro rank_shift(projects) -%}
+{% set ranked = projects|selectattr('rank_norm')|list %}
+{% set rows = ranked|length %}
+{% set h = 24 + rows * 16 + 20 %}
+{% set width = 680 %}{% set lx = 220 %}{% set rx = 460 %}
+<figure class="viz">
+  <figcaption class="viz__caption">Rank shift — raw mean rank (left) to normalized rank (right); projects that move three or more places are highlighted</figcaption>
+  <svg class="viz__svg" viewBox="0 0 {{ width }} {{ h }}" role="img" aria-label="Slope chart of raw versus normalized ranks" preserveAspectRatio="xMinYMin meet">
+    <text class="viz__tick" x="{{ lx }}" y="14" text-anchor="end">raw rank</text>
+    <text class="viz__tick" x="{{ rx }}" y="14" text-anchor="start">normalized rank</text>
+    {% for p in ranked %}
+      {% set y1 = 24 + (p.rank_raw - 1) * 16 %}{% set y2 = 24 + (p.rank_norm - 1) * 16 %}
+      {% set mover = (p.rank_delta or 0)|abs >= 3 %}
+      <g class="viz__slope{% if mover %} viz__slope--mover{% endif %}">
+        <title>{{ p.project.title }}: raw #{{ p.rank_raw }} → normalized #{{ p.rank_norm }}</title>
+        <line x1="{{ lx + 8 }}" y1="{{ y1 }}" x2="{{ rx - 8 }}" y2="{{ y2 }}"/>
+        <circle cx="{{ lx + 8 }}" cy="{{ y1 }}" r="3"/><circle cx="{{ rx - 8 }}" cy="{{ y2 }}" r="3"/>
+        {% if mover %}<text class="viz__label" x="{{ lx - 2 }}" y="{{ y1 + 4 }}" text-anchor="end">{{ p.project.title[:26] }}</text>
+        <text class="viz__label" x="{{ rx + 2 }}" y="{{ y2 + 4 }}" text-anchor="start">{{ '+' if p.rank_delta > 0 }}{{ p.rank_delta }}</text>{% endif %}
+      </g>
+    {% endfor %}
+  </svg>
+</figure>
+{%- endmacro %}

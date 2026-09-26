@@ -1,0 +1,35 @@
+{% from "macros/ui.html" import alert, empty %}
+<div id="compare" data-compare>
+  {% if error %}{{ alert('critical', error) }}{% endif %}
+  <p class="count">{{ state.done }} of {{ state.total }} pairs compared</p>
+  {% if state.projects < 2 %}
+    {{ empty("Compare needs two projects", "You have " ~ state.projects ~ " assigned project(s). Comparisons open up once you have at least two.") }}
+  {% elif state.pair is none %}
+    {{ empty("All pairs compared", "You've compared every pair of your assigned projects — " ~ state.total ~ " in total. Thank you.") }}
+    <form method="post" action="/e/{{ event.slug }}/judge/compare" hx-boost="false" hx-post="/e/{{ event.slug }}/judge/compare" hx-target="#compare" hx-swap="outerHTML" class="cluster mt-4"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit" name="action" value="undo" data-compare-undo>Undo last</button></form>
+  {% else %}
+  <form method="post" action="/e/{{ event.slug }}/judge/compare" hx-boost="false" hx-post="/e/{{ event.slug }}/judge/compare" hx-target="#compare" hx-swap="outerHTML" class="compare">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="a" value="{{ state.pair[0].public_id }}"><input type="hidden" name="b" value="{{ state.pair[1].public_id }}">
+    <p class="compare__question">Which is stronger overall?</p>
+    <div class="compare__grid">
+      {% for side, p in [('left', state.pair[0]), ('right', state.pair[1])] %}
+      <article class="card compare__card">
+        <div class="card__meta">{% if p.track %}<span class="chip t-{{ (p.track.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ p.track.name }}</span>{% endif %}</div>
+        <h2 class="card__title">{{ p.title }}</h2>
+        {% if p.summary %}<p class="card__summary">{{ p.summary }}</p>{% endif %}
+        <div class="card__meta"><span>by {{ p.team.name }}</span></div>
+        <div class="card__links">{% if p.repo_url %}<a href="{{ p.repo_url }}" rel="noopener" target="_blank">Repo</a>{% endif %}{% if p.demo_url %}<a href="{{ p.demo_url }}" rel="noopener" target="_blank">Demo</a>{% endif %}<a href="/e/{{ event.slug }}/judge/review/{{ p.public_id }}" target="_blank">My review</a></div>
+        <button class="btn btn--primary btn--block mt-2" type="submit" name="winner" value="{{ p.public_id }}" data-compare-pick="{{ side }}" {% if not judging_open %}disabled{% endif %}>{{ 'This one ←' if side == 'left' else '→ This one' }}</button>
+      </article>
+      {% endfor %}
+    </div>
+    <div class="cluster mt-4">
+      <button class="btn btn--ghost btn--sm" type="submit" name="action" value="skip" data-compare-skip {% if not judging_open %}disabled{% endif %}>Skip (can't decide)</button>
+      <select class="select select--inline" name="skip_reason" aria-label="Skip reason"><option value="cannot_decide">Can't decide</option><option value="not_enough_info">Not enough information</option><option value="conflict">Conflict of interest</option></select>
+      <span class="grow"></span>
+      {% if state.done %}<button class="btn btn--ghost btn--sm" type="submit" name="action" value="undo" data-compare-undo>Undo last</button>{% endif %}
+    </div>
+  </form>
+  {% endif %}
+</div>
