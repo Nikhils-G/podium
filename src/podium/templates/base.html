@@ -4,6 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{% if title %}{{ title }} · {% endif %}Podium{% endblock %}</title>
+  <meta name="description" content="{{ meta_description }}">
+  <meta property="og:title" content="{{ title or 'Podium' }}">
+  <meta property="og:description" content="{{ meta_description }}">
+  <meta property="og:type" content="website">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"globalViewTransitions":true,"scrollBehavior":"instant","responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"422","swap":true,"error":false},{"code":"[45]..","swap":false,"error":true},{"code":"...","swap":false}]}'>
   <link rel="icon" href="/static/img/podium.svg" type="image/svg+xml">

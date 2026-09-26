@@ -18,36 +18,36 @@
 {% if saved == 'prize' %}{{ alert('success', 'Prize award saved. Winner certificates are issued from these awards.') }}{% elif saved %}{{ alert('success', 'Ranking settings saved.') }}{% endif %}
 {% if r.judges|length < 2 %}{{ alert('info', 'Normalization needs at least two judges with reviews; with fewer, rankings use raw means.') }}{% endif %}
 {% if r.judges|length >= 2 and r.global_mean is not none %}
-<div class="two-col two-col--wide mt-6">
-  {{ rank_shift(r.projects) }}
+<div class="stack mt-6">
+  {{ rank_shift(r.projects, event) }}
   {{ calibration(r.judges, r.global_mean, r.global_std) }}
 </div>
 {% endif %}
-<section class="stack mt-6">
+<section class="stack mt-6" id="ranking">
   <h2>Ranking</h2>
   <p class="text-sm ink-2">Disagreement is the spread (standard deviation) of the normalized scores a project received: 0 means every judge agreed, above 1 means judges saw it very differently and it deserves a look.</p>
-  <table class="table table--dense">
+  <div class="table-wrap"><table class="table table--dense">
     <thead><tr><th class="num">Rank</th><th>Project</th><th>Track</th><th class="num">Reviews</th><th class="num">Raw mean</th><th class="num">Normalized</th><th class="num">Δ rank</th><th class="num">Disagreement</th></tr></thead>
     <tbody>{% for p in r.projects %}
     <tr class="{% if p.n == 0 %}is-muted{% endif %}">
       <td class="num">{% set rk = p.rank_norm if r.basis.value == 'normalized' else p.rank_raw %}{% if rk %}{% if (p.tied_norm if r.basis.value == 'normalized' else p.tied_raw) %}T-{% endif %}{{ rk }}{% else %}—{% endif %}</td>
       <td><a href="/e/{{ event.slug }}/projects/{{ p.project.public_id }}">{{ p.project.title }}</a>{% if p.project.duplicate_of_id %} {{ badge('duplicate?', 'warning') }}{% endif %}</td>
       <td class="text-sm">{{ p.track.name if p.track else '' }}</td>
-      <td class="num">{{ p.n }}</td>
+      <td class="num">{{ p.n }}{% if p.n and p.n < event.reviews_per_project %} <span class="badge badge--warning" title="Below the target of {{ event.reviews_per_project }} reviews — treat this score with caution">thin</span>{% endif %}</td>
       <td class="num">{{ '%.1f'|format(p.raw_mean) if p.raw_mean is not none else '—' }}</td>
       <td class="num"><span class="score score-{{ ((p.normalized or 0) / 20)|round(0, 'floor')|int + 1 if p.normalized is not none else 0 }}">{{ '%.1f'|format(p.normalized) if p.normalized is not none else '—' }}</span></td>
       <td class="num">{% if p.rank_delta is not none and p.rank_delta != 0 %}<span class="{{ 'delta-up' if p.rank_delta > 0 else 'delta-down' }}">{{ '+' if p.rank_delta > 0 }}{{ p.rank_delta }}</span>{% else %}·{% endif %}</td>
       <td class="num">{{ '%.2f'|format(p.disagreement) if p.disagreement is not none else '—' }}</td>
     </tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </section>
-<section class="stack mt-6">
+<section class="stack mt-6" id="calibration">
   <h2>Judge calibration</h2>
   <p class="text-sm ink-2">Each judge's raw scores are standardised against their own mean and spread, shrunk toward the event's (k = {{ '%g'|format(r.k) }}) so judges with few reviews aren't over-corrected. A judge who gives every project the same total carries no ranking information and is neutralised.</p>
-  <table class="table table--dense">
+  <div class="table-wrap"><table class="table table--dense">
     <thead><tr><th>Judge</th><th class="num">Reviews</th><th class="num">Mean</th><th class="num">Spread</th><th class="num">Shrunk mean</th><th class="num">Shrunk spread</th><th>Flags</th></tr></thead>
     <tbody>{% for j in r.judges %}<tr><td>{{ j.judge.name }} <span class="muted text-sm"><code>{{ j.judge.public_id }}</code></span></td><td class="num">{{ j.n }}</td><td class="num">{{ '%.1f'|format(j.mean) }}</td><td class="num">{{ '%.1f'|format(j.std) }}</td><td class="num">{{ '%.1f'|format(j.shrunk_mean) }}</td><td class="num">{{ '%.1f'|format(j.shrunk_std) }}</td><td>{% if j.flat %}{{ badge('flat scorer', 'warning') }}{% endif %}{% if j.few %}{{ badge('few reviews', 'plain') }}{% endif %}</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
 </section>
 <section class="stack mt-6" id="prizes">
   <h2>Prizes</h2>
@@ -77,10 +77,10 @@
   <p class="text-sm ink-2">{{ pairwise.comparisons }} comparisons from {{ pairwise.judges }} judges ({{ pairwise.judge_comparisons }} made in the compare tab{% if pairwise.derived_comparisons %}, {{ pairwise.derived_comparisons }} derived from scored reviews for demonstration{% endif %}; {{ pairwise.skipped }} skipped). Strengths fitted by minorization-maximization with a virtual reference; {% if pairwise.rho is not none %}Spearman ρ against the normalized ranking: <strong>{{ '%.2f'|format(pairwise.rho) }}</strong>.{% endif %}</p>
   {% if pairwise.judge_comparisons == 0 and pairwise.derived_comparisons %}{{ alert('info', 'Demonstration data: no judge has used the compare tab yet, so these comparisons were derived from the scored reviews to show the method working. They carry no weight in the published ranking.') }}
   {% elif pairwise.rho_judges is not none and pairwise.derived_comparisons %}<p class="text-sm ink-2">Judge comparisons alone ({{ pairwise.judge_comparisons }}): Spearman ρ <strong>{{ '%.2f'|format(pairwise.rho_judges) }}</strong> against the normalized ranking.</p>{% endif %}
-  <table class="table table--dense">
+  <div class="table-wrap"><table class="table table--dense">
     <thead><tr><th class="num">BT rank</th><th>Project</th><th class="num">log strength</th><th class="num">Comparisons</th><th class="num">Wins</th><th class="num">Normalized rank</th><th class="num">Δ</th></tr></thead>
     <tbody>{% for row in pairwise.rows %}<tr><td class="num">{{ row.rank }}</td><td><a href="/e/{{ event.slug }}/projects/{{ row.project.public_id }}">{{ row.project.title }}</a> <span class="muted text-sm">{{ row.project.team.name }} · {{ row.project.public_id }}</span></td><td class="num">{{ '%+.2f'|format(row.log_strength) }}</td><td class="num">{{ row.comparisons }}</td><td class="num">{{ row.wins }}</td><td class="num">{{ row.rank_normalized or '—' }}</td><td class="num">{% if row.rank_normalized %}{% set d = row.rank_normalized - row.rank %}{% if d %}<span class="{{ 'delta-up' if d > 0 else 'delta-down' }}">{{ '+' if d > 0 }}{{ d }}</span>{% else %}·{% endif %}{% endif %}</td></tr>{% endfor %}</tbody>
-  </table>
+  </table></div>
   {% else %}<p class="muted">No comparisons yet. Judges make them in the Compare tab of their console.</p>{% endif %}
 </section>
 {% endblock %}

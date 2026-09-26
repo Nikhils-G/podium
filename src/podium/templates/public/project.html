@@ -52,9 +52,9 @@
     {% endif %}
     {% if project.repo_url or project.demo_url or project.video_url %}
     <div class="cluster">
-      {% if project.repo_url %}<a class="btn btn--secondary" href="{{ project.repo_url }}" rel="noopener" target="_blank">Repository ↗</a>{% endif %}
-      {% if project.demo_url %}<a class="btn btn--secondary" href="{{ project.demo_url }}" rel="noopener" target="_blank">Live demo ↗</a>{% endif %}
-      {% if project.video_url %}<a class="btn btn--secondary" href="{{ project.video_url }}" rel="noopener" target="_blank">Video ↗</a>{% endif %}
+      {% if project.repo_url %}<a class="btn btn--secondary" href="{{ project.repo_url }}" rel="noopener nofollow ugc" target="_blank">Repository ↗</a>{% endif %}
+      {% if project.demo_url %}<a class="btn btn--secondary" href="{{ project.demo_url }}" rel="noopener nofollow ugc" target="_blank">Live demo ↗</a>{% endif %}
+      {% if project.video_url %}<a class="btn btn--secondary" href="{{ project.video_url }}" rel="noopener nofollow ugc" target="_blank">Video ↗</a>{% endif %}
     </div>
     {% endif %}
   </article>

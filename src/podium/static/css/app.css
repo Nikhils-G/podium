@@ -312,6 +312,7 @@
   .hero p { font-size: 18px; color: var(--ink-2); margin-top: var(--s-3); }
   .error-page { max-width: 560px; margin: var(--s-8) auto; text-align: center; }
   .error-page h1 { font-family: var(--font-display); font-weight: 500; font-size: 40px; }
+  .error-page .cluster { justify-content: center; }
   .error-page .code { color: var(--ink-muted); font-family: var(--font-mono); margin-bottom: var(--s-3); }
   .check { display: flex; gap: var(--s-2); align-items: flex-start; font-size: 14px; }
   .check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
@@ -456,11 +457,12 @@
   .compare__card .card__title a::after { display: none; }
   .viz { margin: 0; padding: var(--s-4); background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--r-3); }
   .viz__caption { font-size: 13px; color: var(--ink-2); margin-bottom: var(--s-3); }
-  .viz__svg { width: 100%; height: auto; font-family: var(--font-ui); }
+  .viz__scroll { overflow-x: auto; }
+  .viz__svg { width: 100%; min-width: 640px; max-width: 960px; height: auto; font-family: var(--font-ui); }
   .viz__grid { stroke: var(--border); stroke-width: 1; }
   .viz__ref { stroke: var(--ink-muted); stroke-width: 1; stroke-dasharray: 3 3; }
-  .viz__tick { font-size: 11px; fill: var(--ink-muted); font-variant-numeric: tabular-nums; }
-  .viz__label { font-size: 11px; fill: var(--ink-2); }
+  .viz__tick { font-size: 12px; fill: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .viz__label { font-size: 13px; fill: var(--ink-2); }
   .viz__range { stroke: var(--score-2); stroke-width: 2; stroke-linecap: round; }
   .viz__dot { fill: var(--accent); stroke: var(--surface-raised); stroke-width: 2; }
   .viz__dot--shrunk { fill: var(--surface-raised); stroke: var(--accent); stroke-width: 2; }

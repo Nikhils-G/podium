@@ -9,7 +9,7 @@ import random
 import secrets
 from dataclasses import dataclass, field
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session as DbSession
 
 from podium.errors import Closed, Conflict, Forbidden, NotFound, ValidationFailed
@@ -24,7 +24,7 @@ from podium.models import (
     VotingMode,
     utcnow,
 )
-from podium.services import audit
+from podium.services import audit, webhooks
 
 BURST_THRESHOLD = 12  # votes from one ip_hash inside the window before we flag them
 
@@ -275,6 +275,18 @@ def cast(
         meta={"voter": voter.key[:24], "credits": existing.credits, "flagged": existing.flagged},
         ip_hash=ip_hash,
     )
+    total = db.execute(
+        select(func.coalesce(func.sum(Vote.credits), 0)).where(
+            Vote.event_id == event.id, Vote.project_id == project.id, Vote.voided_at.is_(None)
+        )
+    ).scalar_one()
+    webhooks.emit(
+        db,
+        event,
+        "vote.cast",
+        {"project": project.public_id, "votes": int(total)},
+        coalesce_on="project",
+    )
     db.commit()
     return existing
 
@@ -362,7 +374,14 @@ def redeem_code(db: DbSession, event: Event, code: str) -> str:
         raise Forbidden("That code has expired.")
     if row.used_at is not None:
         raise Conflict("That code has already been used.")
-    row.used_at = utcnow()
+    claimed = db.execute(
+        update(VoterCode)
+        .where(VoterCode.id == row.id, VoterCode.used_at.is_(None))
+        .values(used_at=utcnow())
+    ).rowcount
+    if claimed != 1:  # redeemed between our read and this write
+        db.rollback()
+        raise Conflict("That code has already been used.")
     db.commit()
     return row.code_hash[:16]
 

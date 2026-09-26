@@ -20,7 +20,10 @@
         <p class="text-sm">{% if outcome.report.counts %}{% for k, v in outcome.report.counts.items() %}<strong>{{ v }}</strong> {{ k }}{{ ', ' if not loop.last }}{% endfor %} {{ 'would be' if outcome.dry_run else 'were' }} added; existing rows matched by id {{ 'would be' if outcome.dry_run else 'were' }} updated.{% else %}Nothing new — every row already exists (matched by id) and {{ 'would be' if outcome.dry_run else 'was' }} updated in place.{% endif %}</p>
         {% for dup, orig in outcome.report.duplicates %}{{ alert('warning', 'Duplicate submission flagged: ' ~ dup ~ ' duplicates ' ~ orig) }}{% endfor %}
         {% for w in outcome.report.warnings %}{{ alert('warning', w) }}{% endfor %}
-        {% if outcome.dry_run %}<p class="text-sm ink-2">Nothing was written. Re-upload with “Apply” to import.</p>{% endif %}
+        {% if outcome.dry_run %}
+        <p class="text-sm ink-2">Nothing was written yet.</p>
+        {% if import_token is defined and import_token %}<form method="post" action="/e/{{ event.slug }}/organizer/data/import" hx-boost="false" data-confirm="Apply this import? Matching rows are updated in place and new rows are created. This is logged."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="mode" value="apply_saved"><input type="hidden" name="token" value="{{ import_token }}"><button class="btn btn--primary" type="submit">Apply this import</button></form>{% endif %}
+        {% endif %}
       {% endif %}
     </div>
     {% endif %}
@@ -30,7 +33,7 @@
     <p class="text-sm ink-2">Upload a fixtures.json or a Podium export for <code>{{ event.public_id }}</code>. Rows are matched by id, so re-importing is safe. Always dry-run first.</p>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="field"><label class="field__label" for="f-file">JSON file</label><input class="input" id="f-file" type="file" name="file" accept="application/json,.json" required></div>
-    <div class="cluster"><button class="btn btn--secondary" type="submit" name="mode" value="dry_run">Dry run</button><button class="btn btn--primary" type="submit" name="mode" value="apply" data-confirm="Apply this import? Matching rows are updated in place and new rows are created. This is logged.">Apply import</button></div>
+    <div class="cluster"><button class="btn btn--primary" type="submit" name="mode" value="dry_run">Dry run</button><span class="muted text-sm">Nothing is written until you apply the dry run's result.</span></div>
   </form>
 </div>
 {% endblock %}

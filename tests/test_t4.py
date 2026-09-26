@@ -85,6 +85,10 @@ def test_webhook_emit_sign_and_retry(client, auth):
 
 def test_certificates_issue_verify_revoke_and_tamper(client, auth):
     # other tests may have issued records already; the invariant is one record per judge, ever
+    assert (
+        client.post(f"{S}/certificates/issue/judge", headers=auth("organizer")).status_code == 409
+    )
+    client.post(f"{S}/actions/close_judging", headers=auth("organizer"))
     r = client.post(f"{S}/certificates/issue/judge", headers=auth("organizer"))
     assert r.status_code == 200 and 0 <= r.json()["issued"] <= 30
     records = client.get(f"{S}/certificates", headers=auth("organizer"), params={"kind": "judge"})
@@ -116,6 +120,7 @@ def test_certificates_issue_verify_revoke_and_tamper(client, auth):
     assert (
         client.post(f"{S}/certificates/issue/winner", headers=auth("organizer")).status_code == 409
     )
+    client.post(f"{S}/actions/open_judging", headers=auth("organizer"))
 
 
 def test_participation_certificates_cover_members_once(client, auth):

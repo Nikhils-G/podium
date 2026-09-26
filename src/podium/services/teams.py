@@ -182,6 +182,27 @@ def leave_team(db: DbSession, team: Team, user: User, *, ip_hash: str | None = N
     db.commit()
 
 
+def regenerate_invite(
+    db: DbSession, event: Event, user: User, *, ip_hash: str | None = None
+) -> Team:
+    """A new join link for the caller's team; the old one stops working at once."""
+    team = team_for(db, event, user)
+    if team is None:
+        raise NotFound("You're not in a team for this event.")
+    team.invite_code = new_public_id("join", 10)
+    audit.record(
+        db,
+        "team.invite_regenerated",
+        "team",
+        team.public_id,
+        event_id=event.id,
+        actor_id=user.id,
+        ip_hash=ip_hash,
+    )
+    db.commit()
+    return team
+
+
 def rename_team(db: DbSession, team: Team, user: User, name: str) -> Team:
     name = name.strip()
     if not name or len(name) > 120:

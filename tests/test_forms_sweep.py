@@ -198,7 +198,12 @@ def test_organizer_forms_never_500_and_show_their_secrets(app):
         {"mode": "dry_run"},
         files={"file": ("export.json", export, "application/json")},
     )
-    assert r.status_code == 200 and "Dry run" in r.text
+    assert r.status_code == 200 and "Dry run" in r.text and "Apply this import" in r.text
+    token = re.search(r'name="token" value="([^"]+)"', r.text).group(1)
+    r = org.post(f"{base}/data/import", {"mode": "apply_saved", "token": token})
+    assert r.status_code == 200 and "Import applied" in r.text
+    r = org.post(f"{base}/data/import", {"mode": "apply_saved", "token": token})
+    assert r.status_code == 410, "a used dry run can't be applied twice"
 
 
 # --- participant journey + vote control on a fresh open event ---

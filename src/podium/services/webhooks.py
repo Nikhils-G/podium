@@ -27,6 +27,9 @@ EVENT_TYPES = [
     "results.published",
     "results.unpublished",
     "certificate.issued",
+    "vote.cast",
+    "comment.added",
+    "ping",
 ]
 BACKOFF = [timedelta(seconds=30), timedelta(minutes=5), timedelta(minutes=30)]
 TIMEOUT = 5
@@ -107,26 +110,68 @@ def delete_hook(db: DbSession, event: Event, user: User, hook: Webhook) -> None:
     db.commit()
 
 
-def emit(db: DbSession, event: Event, event_type: str, payload: dict) -> int:
-    """Queue a delivery for every active hook subscribed to this type. Caller commits."""
+def emit(
+    db: DbSession,
+    event: Event,
+    event_type: str,
+    payload: dict,
+    *,
+    coalesce_on: str | None = None,
+    only_hook: Webhook | None = None,
+) -> int:
+    """Queue a delivery for every active hook subscribed to this type. Caller commits.
+
+    `coalesce_on` names a payload field: while a delivery of this type with the same value is
+    still waiting for its first attempt, its payload is replaced instead of queueing another
+    (vote.cast sends running totals per project, not one call per vote)."""
     hooks = (
-        db.execute(select(Webhook).where(Webhook.event_id == event.id, Webhook.active.is_(True)))
+        [only_hook]
+        if only_hook is not None
+        else db.execute(
+            select(Webhook).where(Webhook.event_id == event.id, Webhook.active.is_(True))
+        )
         .scalars()
         .all()
     )
     body = {"type": event_type, "event": event.slug, "at": utcnow().isoformat(), "data": payload}
     n = 0
     for hook in hooks:
-        if event_type in hook.event_types:
-            db.add(
-                WebhookDelivery(
-                    webhook_id=hook.id,
-                    event_type=event_type,
-                    payload=body,
-                    next_attempt_at=utcnow(),
+        if event_type not in hook.event_types and only_hook is None:
+            continue
+        if coalesce_on is not None:
+            waiting = (
+                db.execute(
+                    select(WebhookDelivery).where(
+                        WebhookDelivery.webhook_id == hook.id,
+                        WebhookDelivery.event_type == event_type,
+                        WebhookDelivery.status == DeliveryStatus.pending,
+                        WebhookDelivery.attempts == 0,
+                    )
                 )
+                .scalars()
+                .all()
             )
-            n += 1
+            match = next(
+                (
+                    d
+                    for d in waiting
+                    if (d.payload.get("data") or {}).get(coalesce_on) == payload.get(coalesce_on)
+                ),
+                None,
+            )
+            if match is not None:
+                match.payload = body
+                n += 1
+                continue
+        db.add(
+            WebhookDelivery(
+                webhook_id=hook.id,
+                event_type=event_type,
+                payload=body,
+                next_attempt_at=utcnow(),
+            )
+        )
+        n += 1
     return n
 
 

@@ -2,10 +2,22 @@
 {% from "macros/ui.html" import field, alert, badge, when %}
 {% block content %}
 <div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Community voting</h1>
-  <p class="ink-2 mt-2">{% if open %}Voting is open{% if event.voting_close_at %} until {{ when(event.voting_close_at) }}{% endif %}.{% elif closed %}Voting closed {{ when(event.voting_close_at) }}.{% elif event.voting_open_at %}Voting opens {{ when(event.voting_open_at) }}.{% else %}Set a voting window in <a href="/e/{{ event.slug }}/organizer/settings">Settings</a> to enable voting.{% endif %}</p></div></div>
-{% if request.query_params.get('saved') %}{{ alert('success', 'Voting settings saved.') }}{% endif %}
+  <p class="ink-2 mt-2">{% if open %}Voting is open{% if event.voting_close_at %} until {{ when(event.voting_close_at) }}{% endif %}.{% elif closed %}Voting closed {{ when(event.voting_close_at) }}.{% elif event.voting_open_at %}Voting opens {{ when(event.voting_open_at) }}.{% else %}Set a voting window below to enable voting.{% endif %}</p></div></div>
+{% if request.query_params.get('saved') == 'window' %}{{ alert('success', 'Voting window saved.') }}{% elif request.query_params.get('saved') %}{{ alert('success', 'Voting settings saved.') }}{% endif %}
+{% if error %}{{ alert('critical', error) }}{% endif %}
 <div class="two-col two-col--wide">
   <section class="stack">
+    <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/voting/window" hx-boost="false">
+      <h2>Voting window</h2>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="tz_offset_minutes" value="{{ window_values.tz_offset_minutes or '' }}" data-tz-offset>
+      <div class="field-grid" data-tz-fields>
+        {{ field('voting_open_at', 'Voting opens (UTC)', value=window_values.voting_open_at, type='datetime-local', error=errors.voting_open_at) }}
+        {{ field('voting_close_at', 'Voting closes (UTC)', value=window_values.voting_close_at, type='datetime-local', error=errors.voting_close_at) }}
+      </div>
+      <p class="text-sm muted" data-tz-note>Times are in UTC. Leave both empty to keep voting off.</p>
+      <div><button class="btn btn--secondary" type="submit">Save window</button></div>
+    </form>
     <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/voting" hx-boost="false">
       <h2>How people vote</h2>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -25,10 +37,10 @@
       <p class="text-sm ink-2">Votes are flagged when one network address casts more than {{ 12 }} in this event. Voiding a vote keeps it in the audit log with your reason.</p>
       {% if errors.void %}{{ alert('critical', errors.void) }}{% endif %}
       {% if suspicious %}
-      <table class="table table--dense"><thead><tr><th>Project</th><th>When</th><th>Network</th><th></th></tr></thead><tbody>
+      <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Project</th><th>When</th><th>Network</th><th></th></tr></thead><tbody>
       {% for v in suspicious %}<tr><td>{{ v.project.title }}</td><td class="text-sm">{{ when(v.created_at) }}</td><td><code>{{ v.ip_hash[:10] }}</code></td>
         <td><form class="cluster" method="post" action="/e/{{ event.slug }}/organizer/voting/votes/{{ v.id }}/void" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input class="input input--inline" name="reason" placeholder="Reason" required aria-label="Reason"><button class="btn btn--danger btn--sm" type="submit">Void</button></form></td></tr>{% endfor %}
-      </tbody></table>
+      </tbody></table></div>
       {% else %}<p class="muted text-sm">Nothing flagged.</p>{% endif %}
     </section>
   </section>
@@ -37,9 +49,9 @@
       <h2>Tally</h2>
       <p class="text-sm ink-2">{{ tally.total_votes }} votes from {{ tally.total_voters }} voters · {{ tally.voided }} voided · {{ tally.flagged }} flagged. Public only after the window closes and results are published.</p>
       {% if tally.total_votes %}
-      <table class="table table--dense"><thead><tr><th>Project</th><th class="num">Votes</th></tr></thead><tbody>
+      <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Project</th><th class="num">Votes</th></tr></thead><tbody>
       {% for t in tally.projects[:15] %}<tr><td>{{ t.project.title }}</td><td class="num">{{ t.votes }}</td></tr>{% endfor %}
-      </tbody></table>
+      </tbody></table></div>
       {% endif %}
     </section>
     <section class="card stack" id="codes">

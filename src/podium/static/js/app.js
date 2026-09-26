@@ -115,6 +115,12 @@
 
   // ---- copy buttons ------------------------------------------------------------------------------
   document.addEventListener("click", function (e) {
+    var reveal = e.target.closest("[data-reveal]");
+    if (reveal) {
+      var input = document.getElementById(reveal.getAttribute("data-reveal"));
+      if (input) { var show = input.type === "password"; input.type = show ? "text" : "password"; reveal.textContent = show ? "Hide" : "Show"; reveal.setAttribute("aria-pressed", show ? "true" : "false"); }
+      return;
+    }
     var btn = e.target.closest("[data-copy]");
     if (!btn) return;
     var text = btn.getAttribute("data-copy");

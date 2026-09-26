@@ -10,22 +10,22 @@
   <section class="stack">
     <h2>By judge</h2>
     {% if p.judges %}
-    <table class="table table--dense">
+    <div class="table-wrap"><table class="table table--dense">
       <thead><tr><th>Judge</th><th>Progress</th><th class="num">Done</th><th class="num">Draft</th><th class="num">Pending</th></tr></thead>
       <tbody>{% for j in p.judges %}
       <tr><td><strong>{{ j.judge.name }}</strong>{% if j.judge in p.flat_judges %} {{ badge('flat scorer', 'warning') }}{% endif %}<br><span class="muted text-sm">{{ j.tracks|join(', ') or 'any track' }}</span></td>
         <td class="progress-cell"><progress class="meter" value="{{ j.done }}" max="{{ j.assigned or 1 }}" aria-label="{{ j.pct }}%"></progress><span class="text-sm muted">{{ j.pct }}%</span></td>
         <td class="num">{{ j.done }}</td><td class="num">{{ j.in_progress }}</td><td class="num">{{ j.pending }}</td></tr>
       {% endfor %}</tbody>
-    </table>
+    </table></div>
     {% else %}{{ empty("No judges yet", "Invite judges and assign projects to see progress here.", "Invite judges", "/e/" ~ event.slug ~ "/organizer/judges") }}{% endif %}
   </section>
   <aside class="stack">
     <h2>By track</h2>
-    <table class="table table--dense">
+    <div class="table-wrap"><table class="table table--dense">
       <thead><tr><th>Track</th><th class="num">Projects</th><th class="num">Avg reviews</th><th class="num">Below target</th></tr></thead>
       <tbody>{% for t in p.tracks %}<tr><td>{{ t.track.name if t.track else 'No track' }}</td><td class="num">{{ t.projects }}</td><td class="num">{{ '%.1f'|format(t.avg) }}</td><td class="num">{{ t.below_target }}</td></tr>{% endfor %}</tbody>
-    </table>
+    </table></div>
     <h2 class="mt-4">Missing reviews</h2>
     {% if p.below_target %}
     <ul class="row-list text-sm">{% for project, n in p.below_target %}<li><a href="/e/{{ event.slug }}/projects/{{ project.public_id }}">{{ project.title }}</a><span class="grow"></span>{{ badge(n ~ ' of ' ~ event.reviews_per_project, 'warning' if n < event.reviews_per_project - 1 else 'plain') }}</li>{% endfor %}</ul>

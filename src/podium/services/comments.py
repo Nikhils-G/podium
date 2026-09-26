@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from podium.errors import Closed, NotFound, ValidationFailed
 from podium.models import Comment, Event, Project, User, utcnow
-from podium.services import audit
+from podium.services import audit, webhooks
 
 MAX_LENGTH = 2000
 
@@ -39,6 +39,15 @@ def add(
         actor_id=user.id,
         meta={"project": project.public_id},
         ip_hash=ip_hash,
+    )
+    webhooks.emit(
+        db,
+        event,
+        "comment.added",
+        {
+            "project": project.public_id,
+            "comment": {"id": comment.public_id, "author": user.name, "body": body[:280]},
+        },
     )
     db.commit()
     return comment

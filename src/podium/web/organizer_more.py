@@ -1,6 +1,10 @@
 """Integrations (webhooks, embed, API), data (import/export) and certificates for organizers."""
 
 import json
+import re
+import secrets
+import time
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
@@ -96,6 +100,27 @@ def webhook_toggle(
     return RedirectResponse(f"/e/{ctx.event.slug}/organizer/integrations", status_code=303)
 
 
+@router.post("/e/{slug}/organizer/webhooks/{hook_id}/test", dependencies=[Depends(verify_csrf)])
+def webhook_test(
+    hook_id: str,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+):
+    """Queue a `ping` through the normal delivery path so signing and retries are exercised."""
+    hook = webhooks_service.get_hook(db, ctx.event, hook_id)
+    webhooks_service.emit(
+        db,
+        ctx.event,
+        "ping",
+        {"message": "Test delivery from Podium", "webhook": hook.public_id},
+        only_hook=hook,
+    )
+    db.commit()
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/integrations?saved=test#deliveries", status_code=303
+    )
+
+
 @router.post("/e/{slug}/organizer/webhooks/{hook_id}/delete", dependencies=[Depends(verify_csrf)])
 def webhook_delete(
     hook_id: str, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
@@ -136,13 +161,42 @@ def data_page(request: Request, ctx: EventContext = Depends(require_organizer)):
 @router.post("/e/{slug}/organizer/data/import", dependencies=[Depends(verify_csrf)])
 async def data_import(
     request: Request,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
     mode: str = Form("dry_run"),
+    token: str = Form(""),
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
-    raw = await file.read()
+    """Dry run first, always: the uploaded file is kept for an hour so "Apply" imports exactly
+    what was previewed, without a second upload."""
+    saved_path = None
+    if mode == "apply_saved":
+        saved_path = _imports_dir(settings) / f"{token}.json" if IMPORT_TOKEN.match(token) else None
+        if saved_path is None or not saved_path.exists() or _age(saved_path) > 3600:
+            return render(
+                request,
+                "organizer/data.html",
+                status_code=410,
+                title="Import & export",
+                **_console(
+                    ctx,
+                    "data",
+                    outcome=None,
+                    error="That dry run has expired (files are kept for an hour). Upload again.",
+                ),
+            )
+        raw = saved_path.read_bytes()
+    elif file is None:
+        return render(
+            request,
+            "organizer/data.html",
+            status_code=422,
+            title="Import & export",
+            **_console(ctx, "data", outcome=None, error="Choose a JSON file first."),
+        )
+    else:
+        raw = await file.read()
     if len(raw) > 20 * 1024 * 1024:
         return render(
             request,
@@ -180,15 +234,35 @@ async def data_import(
                 "Import it from the events page to create a separate event.",
             ),
         )
+    dry_run = mode == "dry_run"
     outcome = importexport.import_event(
-        db, data, dry_run=(mode != "apply"), default_password=settings.demo_password
+        db, data, dry_run=dry_run, default_password=settings.demo_password
     )
+    import_token = None
+    if dry_run:
+        import_token = secrets.token_urlsafe(24)
+        (_imports_dir(settings) / f"{import_token}.json").write_bytes(raw)
+    elif saved_path is not None:
+        saved_path.unlink(missing_ok=True)
     return render(
         request,
         "organizer/data.html",
         title="Import & export",
-        **_console(ctx, "data", outcome=outcome, error=""),
+        **_console(ctx, "data", outcome=outcome, error="", import_token=import_token),
     )
+
+
+IMPORT_TOKEN = re.compile(r"^[A-Za-z0-9_-]{16,48}$")
+
+
+def _imports_dir(settings: Settings) -> Path:
+    path = Path(settings.data_dir) / "imports"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _age(path: Path) -> float:
+    return time.time() - path.stat().st_mtime
 
 
 # --- certificates ---------------------------------------------------------------------------------

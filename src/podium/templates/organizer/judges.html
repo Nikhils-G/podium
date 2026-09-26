@@ -14,18 +14,21 @@
   <section class="stack">
     <h2>Roster <span class="count">{{ judges|length }}</span></h2>
     {% if judges %}
-    <table class="table table--dense">
+    <div class="table-wrap"><table class="table table--dense">
       <thead><tr><th>Judge</th><th>Tracks</th><th class="num">Assigned</th><th class="num">Done</th><th></th></tr></thead>
       <tbody>
       {% for row in judges %}
       <tr>
         <td><strong>{{ row.user.name }}</strong><br><span class="muted text-sm">{{ row.user.email }} · <code>{{ row.user.public_id }}</code></span></td>
         <td>
-          <form method="post" action="/e/{{ event.slug }}/organizer/judges/{{ row.user.public_id }}/tracks" hx-boost="false" class="cluster">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            {% for t in event.tracks %}<label class="chip chip--check"><input type="checkbox" name="tracks" value="{{ t.public_id }}" {% if t in row.tracks %}checked{% endif %}><span class="chip__dot t-{{ (t.position % 8) + 1 }}" aria-hidden="true"></span>{{ t.name }}</label>{% endfor %}
-            <button class="btn btn--ghost btn--sm" type="submit">Save</button>
-          </form>
+          {% if row.tracks %}<span class="cluster">{% for t in row.tracks %}<span class="chip t-{{ (t.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ t.name }}</span>{% endfor %}</span>{% else %}<span class="muted text-sm">Any track</span>{% endif %}
+          {% if event.tracks %}<details class="more"><summary>Edit tracks</summary>
+            <form method="post" action="/e/{{ event.slug }}/organizer/judges/{{ row.user.public_id }}/tracks" hx-boost="false" class="cluster mt-2">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              {% for t in event.tracks %}<label class="chip chip--check"><input type="checkbox" name="tracks" value="{{ t.public_id }}" {% if t in row.tracks %}checked{% endif %}><span class="chip__dot t-{{ (t.position % 8) + 1 }}" aria-hidden="true"></span>{{ t.name }}</label>{% endfor %}
+              <button class="btn btn--ghost btn--sm" type="submit">Save tracks</button>
+            </form>
+          </details>{% endif %}
         </td>
         <td class="num">{{ row.assigned }}</td><td class="num">{{ row.done }}</td>
         <td class="nowrap"><form method="post" action="/e/{{ event.slug }}/organizer/judges/{{ row.user.public_id }}/remove" hx-boost="false" data-confirm="Remove {{ row.user.name }} as a judge? Their pending assignments are deleted."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form>
@@ -33,7 +36,7 @@
       </tr>
       {% endfor %}
       </tbody>
-    </table>
+    </table></div>
     {% else %}<p class="muted">No judges yet. Invite the first one.</p>{% endif %}
     {% if invites %}
     <h3 class="mt-4" id="invites">Pending invitations <span class="count">{{ invites|length }}</span></h3>

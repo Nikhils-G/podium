@@ -2,6 +2,7 @@
 
 import csv
 import io
+import re
 from collections.abc import Iterable, Iterator
 
 from sqlalchemy import select
@@ -24,11 +25,22 @@ from podium.services import scoring
 NAMES = ("projects", "teams", "assignments", "reviews", "scores", "audit")
 
 
+_NUMBER = re.compile(r"[-+]?\d+(\.\d+)?")
+
+
+def _safe(cell):
+    """Spreadsheets execute cells that start with = + - or @; a leading quote disarms them
+    without touching plain numbers."""
+    if isinstance(cell, str) and cell[:1] in "=+-@" and not _NUMBER.fullmatch(cell):
+        return "'" + cell
+    return cell
+
+
 def _csv(rows: Iterable[Iterable]) -> Iterator[str]:
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     for row in rows:
-        writer.writerow(row)
+        writer.writerow([_safe(c) for c in row])
         yield buffer.getvalue()
         buffer.seek(0)
         buffer.truncate(0)
@@ -171,6 +183,7 @@ def scores(db: DbSession, event: Event) -> Iterator[str]:
                 "rank_raw",
                 "rank_normalized",
                 "disagreement",
+                "confidence",
             ]
         ]
         + [
@@ -186,6 +199,9 @@ def scores(db: DbSession, event: Event) -> Iterator[str]:
                 p.rank_raw or "",
                 p.rank_norm or "",
                 _fmt(p.disagreement),
+                "ok"
+                if p.n >= event.reviews_per_project
+                else f"thin ({p.n} of {event.reviews_per_project} reviews)",
             ]
             for p in results.projects
         ]

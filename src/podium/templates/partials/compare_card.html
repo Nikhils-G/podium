@@ -19,7 +19,7 @@
         <h2 class="card__title">{{ p.title }}</h2>
         {% if p.summary %}<p class="card__summary">{{ p.summary }}</p>{% endif %}
         <div class="card__meta"><span>by {{ p.team.name }}</span></div>
-        <div class="card__links">{% if p.repo_url %}<a href="{{ p.repo_url }}" rel="noopener" target="_blank">Repo</a>{% endif %}{% if p.demo_url %}<a href="{{ p.demo_url }}" rel="noopener" target="_blank">Demo</a>{% endif %}<a href="/e/{{ event.slug }}/judge/review/{{ p.public_id }}" target="_blank">My review</a></div>
+        <div class="card__links">{% if p.repo_url %}<a href="{{ p.repo_url }}" rel="noopener nofollow ugc" target="_blank">Repo</a>{% endif %}{% if p.demo_url %}<a href="{{ p.demo_url }}" rel="noopener nofollow ugc" target="_blank">Demo</a>{% endif %}<a href="/e/{{ event.slug }}/judge/review/{{ p.public_id }}" target="_blank">My review</a></div>
         <button class="btn btn--primary btn--block mt-2" type="submit" name="winner" value="{{ p.public_id }}" data-compare-pick="{{ side }}" {% if not judging_open %}disabled{% endif %}>{{ 'This one ←' if side == 'left' else '→ This one' }}</button>
       </article>
       {% endfor %}

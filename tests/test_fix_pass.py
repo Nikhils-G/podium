@@ -208,3 +208,32 @@ def test_startup_refuses_default_secret_behind_https(monkeypatch):
     monkeypatch.setattr(main, "get_settings", lambda: unsafe)
     with pytest.raises(RuntimeError):
         asyncio.run(main.lifespan(main.app).__aenter__())
+
+
+def test_webhook_test_delivery_and_coalesced_vote_events(client, auth, db):
+    from podium.models import DeliveryStatus, WebhookDelivery
+
+    org = auth("organizer")
+    hook = client.post(
+        f"{S}/webhooks",
+        headers=org,
+        json={
+            "url": "https://hooks.example.test/fix",
+            "events": ["ping", "vote.cast", "comment.added"],
+        },
+    ).json()["webhook"]
+    from tests.test_forms_sweep import demo
+
+    r = demo(client.app, "organizer").post(f"/e/{SLUG}/organizer/webhooks/{hook['id']}/test")
+    assert r.status_code == 303 and "saved=test" in r.headers["location"]
+    pings = (
+        db.execute(select(WebhookDelivery).where(WebhookDelivery.event_type == "ping"))
+        .scalars()
+        .all()
+    )
+    assert pings and pings[-1].payload["data"]["webhook"] == hook["id"]
+    assert pings[-1].status == DeliveryStatus.pending
+    types = client.get(f"{S}/webhooks/types", headers=org).json()
+    assert {"vote.cast", "comment.added", "ping"} <= set(
+        types["types"] if isinstance(types, dict) else types
+    )

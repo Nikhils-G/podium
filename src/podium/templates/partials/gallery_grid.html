@@ -17,9 +17,9 @@
       <div class="card__meta"><span>by {{ card.team_name }}</span></div>
       {% if card.repo_url or card.demo_url or card.video_url %}
       <div class="card__links">
-        {% if card.repo_url %}<a href="{{ card.repo_url }}" rel="noopener" target="_blank">Repo</a>{% endif %}
-        {% if card.demo_url %}<a href="{{ card.demo_url }}" rel="noopener" target="_blank">Demo</a>{% endif %}
-        {% if card.video_url %}<a href="{{ card.video_url }}" rel="noopener" target="_blank">Video</a>{% endif %}
+        {% if card.repo_url %}<a href="{{ card.repo_url }}" rel="noopener nofollow ugc" target="_blank">Repo</a>{% endif %}
+        {% if card.demo_url %}<a href="{{ card.demo_url }}" rel="noopener nofollow ugc" target="_blank">Demo</a>{% endif %}
+        {% if card.video_url %}<a href="{{ card.video_url }}" rel="noopener nofollow ugc" target="_blank">Video</a>{% endif %}
       </div>
       {% endif %}
     </article>

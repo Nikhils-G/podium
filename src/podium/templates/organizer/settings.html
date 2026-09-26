@@ -6,6 +6,9 @@
 <form class="stack form-narrow" method="post" action="/e/{{ event.slug }}/organizer/settings" hx-boost="false" data-guard>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   {% include "organizer/_event_fields.html" %}
+  {% if confirm_close is defined and confirm_close is not none %}
+  <div class="alert alert--warning" role="alert"><label class="check"><input type="checkbox" name="confirm_close"> <span><strong>This deadline is already in the past.</strong> Saving closes submissions immediately for {{ confirm_close }} team{{ '' if confirm_close == 1 else 's' }}. Tick to confirm, then save again.</span></label></div>
+  {% endif %}
   <div class="cluster form-actions"><button class="btn btn--primary" type="submit">Save settings</button></div>
 </form>
 

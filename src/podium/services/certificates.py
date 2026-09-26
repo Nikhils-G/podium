@@ -210,6 +210,8 @@ def issue_judge_records(
     db: DbSession, settings: Settings, event: Event, issued_by: User
 ) -> IssueReport:
     """A signed participation record for every judge who submitted at least one review."""
+    if event.judging_opened_at is not None and event.judging_closed_at is None:
+        raise Conflict("Close judging before issuing judge records; they certify the final count.")
     report = IssueReport()
     judges = (
         db.execute(

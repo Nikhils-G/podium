@@ -9,7 +9,7 @@ from podium.security.deps import EventContext, require_organizer
 from podium.security.ratelimit import ip_hash
 from podium.services import events as events_service
 from podium.services import voting as voting_service
-from podium.web.organizer import _console
+from podium.web.organizer import _console, _event_form_values
 from podium.web.rendering import render
 
 router = APIRouter(include_in_schema=False)
@@ -25,10 +25,39 @@ def _ctx(ctx, db, **extra):
         "open": voting_service.voting_is_open(ctx.event),
         "closed": voting_service.voting_has_closed(ctx.event),
         "errors": {},
+        "error": "",
         "new_codes": None,
+        "window_values": _event_form_values(ctx.event),
     }
     defaults.update(extra)
     return _console(ctx, "voting", **defaults)
+
+
+@router.post("/e/{slug}/organizer/voting/window", dependencies=[Depends(verify_csrf)])
+async def voting_window(
+    request: Request,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+):
+    """The voting dates are event settings; this form edits just those two."""
+    form = await request.form()
+    data = _event_form_values(ctx.event)
+    data["is_public"] = "on" if ctx.event.is_public else ""
+    data["max_team_size"] = str(ctx.event.max_team_size)
+    window = {k: str(form.get(k, "")) for k in ("voting_open_at", "voting_close_at")}
+    window["tz_offset_minutes"] = str(form.get("tz_offset_minutes", ""))
+    data.update(window)
+    try:
+        events_service.update_event(db, ctx.event, ctx.user, data, ip_hash=ip_hash(request))
+    except ValidationFailed as exc:
+        c = _ctx(ctx, db, errors=exc.errors, window_values=window)
+        return render(request, "organizer/voting.html", status_code=422, title="Voting", **c)
+    except PodiumError as exc:
+        c = _ctx(ctx, db, error=exc.message, window_values=window)
+        return render(
+            request, "organizer/voting.html", status_code=exc.status_code, title="Voting", **c
+        )
+    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/voting?saved=window", status_code=303)
 
 
 @router.get("/e/{slug}/organizer/voting")

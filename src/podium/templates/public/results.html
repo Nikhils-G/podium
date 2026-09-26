@@ -34,17 +34,17 @@
   <section class="stack mt-6">
     <h2>Full ranking</h2>
     <p class="text-sm ink-2">Ranked by {{ 'normalized judge score (each judge standardised against their own scoring pattern)' if results.basis.value == 'normalized' else 'raw mean judge score' }}. Ties share a rank.</p>
-    <table class="table table--dense">
+    <div class="table-wrap"><table class="table table--dense">
       <thead><tr><th class="num">Rank</th><th>Project</th><th>Track</th><th class="num">Score</th><th class="num">Reviews</th>{% if tallies %}<th class="num">Votes</th>{% endif %}</tr></thead>
       <tbody>{% for p in ranked %}
       <tr><td class="num">{% if (p.tied_norm if results.basis.value == 'normalized' else p.tied_raw) %}T-{% endif %}{{ p.rank_norm if results.basis.value == 'normalized' else p.rank_raw }}</td>
         <td><a href="/e/{{ event.slug }}/projects/{{ p.project.public_id }}">{{ p.project.title }}</a><br><span class="muted text-sm">{{ p.project.team.name }}</span></td>
         <td class="text-sm">{{ p.track.name if p.track else '' }}</td>
         <td class="num">{{ '%.1f'|format(p.normalized if results.basis.value == 'normalized' else p.raw_mean) }}</td>
-        <td class="num">{{ p.n }}</td>
+        <td class="num">{{ p.n }}{% if p.n < event.reviews_per_project %} <span class="badge badge--warning" title="Below the target of {{ event.reviews_per_project }} reviews">treat with caution</span>{% endif %}</td>
         {% if tallies %}<td class="num">{{ votes_by_project.get(p.project.id, 0) }}</td>{% endif %}</tr>
       {% endfor %}</tbody>
-    </table>
+    </table></div>
     {% if results.unscored %}<p class="muted text-sm">{{ results.unscored|length }} project(s) received no reviews and aren't ranked.</p>{% endif %}
   </section>
 {% endif %}

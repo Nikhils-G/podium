@@ -10,10 +10,10 @@
   <button class="btn btn--secondary btn--sm" type="submit">Filter</button><span class="count">{{ audit.total }} entries</span>
 </form>
 {% if audit.rows %}
-<table class="table table--dense">
+<div class="table-wrap"><table class="table table--dense">
   <thead><tr><th>When</th><th>Action</th><th>Entity</th><th>Actor</th><th>Details</th></tr></thead>
   <tbody>{% for a in audit.rows %}<tr><td class="nowrap text-sm">{{ when(a.created_at) }}</td><td><code>{{ a.action }}</code></td><td class="text-sm">{{ a.entity_type }} <code>{{ a.entity_id }}</code></td><td class="text-sm">{% set u = audit.actors.get(a.actor_id) %}{% if u %}{{ u.name }} <span class="muted">{{ u.email }}</span>{% else %}<span class="muted">system</span>{% endif %}</td><td class="text-sm">{% if a.meta %}<details><summary>meta</summary><pre class="meta">{{ a.meta|tojson(indent=1) }}</pre></details>{% endif %}</td></tr>{% endfor %}</tbody>
-</table>
+</table></div>
 {% if audit.pages > 1 %}<nav class="pagination" aria-label="Pagination">{% for n in range(1, audit.pages + 1) %}{% if n == audit.page %}<span aria-current="page">{{ n }}</span>{% else %}<a href="?action={{ action }}&page={{ n }}">{{ n }}</a>{% endif %}{% endfor %}</nav>{% endif %}
 {% else %}<p class="muted">Nothing logged yet.</p>{% endif %}
 {% endblock %}

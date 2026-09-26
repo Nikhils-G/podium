@@ -1,6 +1,7 @@
 {% extends "layouts/public.html" %}
 {% from "macros/ui.html" import field, alert, badge, empty, when %}
 {% block content %}
+{% if saved == 'invite' %}{{ alert('success', 'New join link created. The old link no longer works.') }}{% endif %}
 <div class="page-header">
   <div>
     <p class="page-header__eyebrow">{{ event.name }}</p>
@@ -29,6 +30,7 @@
       <code class="copy-field__value">{{ settings.base_url }}/join/{{ view.team.invite_code }}</code>
       <button class="btn btn--secondary btn--sm" type="button" data-copy="{{ settings.base_url }}/join/{{ view.team.invite_code }}">Copy link</button>
     </div>
+    <form method="post" action="/e/{{ event.slug }}/team/invite/regenerate" hx-boost="false" data-confirm="Create a new join link? The current link stops working; teammates who already joined keep their place."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Regenerate link</button></form>
     {% else %}
     <p class="muted mt-4">Your team is full.</p>
     {% endif %}

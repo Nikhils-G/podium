@@ -34,6 +34,12 @@ def render(request: Request, name: str, status_code: int = 200, **context) -> HT
     context.setdefault("event", None)
     context.setdefault("nav", None)
     context["csrf_token"] = csrf_token
+    if not context.get("meta_description"):
+        event_obj = context.get("event")
+        text = (getattr(event_obj, "description", "") or "").strip().replace("\n", " ")
+        context["meta_description"] = (
+            text[:157] + "…" if len(text) > 160 else text
+        ) or "Open-source, self-hostable hackathon submissions and judging."
     context["nonce"] = getattr(request.state, "csp_nonce", "")
     settings = get_settings()
     context["settings"] = settings

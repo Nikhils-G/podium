@@ -17,9 +17,9 @@
     {% if project.summary %}<p class="text-lg ink-2">{{ project.summary }}</p>{% endif %}
     {% if project.description %}<div class="prose text-sm">{% for para in project.description.split('\n\n') %}<p>{{ para|replace('\n', ' ') }}</p>{% endfor %}</div>{% endif %}
     <div class="cluster">
-      {% if project.repo_url %}<a class="btn btn--secondary btn--sm" href="{{ project.repo_url }}" rel="noopener" target="_blank">Repository ↗</a>{% endif %}
-      {% if project.demo_url %}<a class="btn btn--secondary btn--sm" href="{{ project.demo_url }}" rel="noopener" target="_blank">Demo ↗</a>{% endif %}
-      {% if project.video_url %}<a class="btn btn--secondary btn--sm" href="{{ project.video_url }}" rel="noopener" target="_blank">Video ↗</a>{% endif %}
+      {% if project.repo_url %}<a class="btn btn--secondary btn--sm" href="{{ project.repo_url }}" rel="noopener nofollow ugc" target="_blank">Repository ↗</a>{% endif %}
+      {% if project.demo_url %}<a class="btn btn--secondary btn--sm" href="{{ project.demo_url }}" rel="noopener nofollow ugc" target="_blank">Demo ↗</a>{% endif %}
+      {% if project.video_url %}<a class="btn btn--secondary btn--sm" href="{{ project.video_url }}" rel="noopener nofollow ugc" target="_blank">Video ↗</a>{% endif %}
     </div>
     <p class="muted text-sm">Keyboard: <span class="kbd">1</span>–<span class="kbd">5</span> score the focused criterion · <span class="kbd">j</span>/<span class="kbd">k</span> move · <span class="kbd">⌘/Ctrl</span>+<span class="kbd">Enter</span> submit</p>
   </aside>

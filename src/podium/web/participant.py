@@ -41,7 +41,10 @@ def _base(ctx: EventContext, **extra):
 
 @router.get("/e/{slug}/team")
 def team_page(
-    request: Request, ctx: EventContext = Depends(load_event), db: DbSession = Depends(get_db)
+    request: Request,
+    ctx: EventContext = Depends(load_event),
+    db: DbSession = Depends(get_db),
+    saved: str = "",
 ):
     if ctx.user is None:
         return RedirectResponse(f"/login?next=/e/{ctx.event.slug}/team", status_code=303)
@@ -52,8 +55,19 @@ def team_page(
         "participant/team.html",
         title="Your team",
         nav="team",
-        **_base(ctx, view=view, errors={}, values={}, error=""),
+        **_base(ctx, view=view, errors={}, values={}, error="", saved=saved),
     )
+
+
+@router.post("/e/{slug}/team/invite/regenerate", dependencies=[Depends(verify_csrf)])
+def team_invite_regenerate(
+    request: Request,
+    ctx: EventContext = Depends(load_event),
+    user: User = Depends(require_user),
+    db: DbSession = Depends(get_db),
+):
+    teams.regenerate_invite(db, ctx.event, user, ip_hash=ip_hash(request))
+    return RedirectResponse(f"/e/{ctx.event.slug}/team?saved=invite", status_code=303)
 
 
 @router.post("/e/{slug}/team", dependencies=[Depends(verify_csrf)])
@@ -430,6 +444,7 @@ def project_page(
             is_draft=project.status == ProjectStatus.draft,
             is_withdrawn=project.status == ProjectStatus.withdrawn,
             saved_alert=SAVED_MESSAGES.get(saved) if member or ctx.is_organizer else None,
+            meta_description=(project.summary or f"{project.title} by {project.team.name}")[:160],
             role=ctx.role,
             Role=Role,
             vote=vote_context(db, ctx, project, voter),
