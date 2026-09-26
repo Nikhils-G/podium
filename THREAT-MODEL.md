@@ -21,6 +21,7 @@ the code.
 - *Participant* wanting a better result for their team.
 - *Judge* wanting to see peers' scores, or to score projects they were not assigned.
 - *Voter or bot* wanting to stuff the ballot for a project.
+- *Team* trying to game the deadline (edit after close, argue about time zones).
 - *Organizer* making a mistake (rather than acting maliciously) — the system should make mistakes
   visible and reversible, not silently absorbed.
 - *Outsider* probing the HTTP surface with curl.
@@ -39,6 +40,7 @@ the code.
 | Bots posting votes | Honeypot field (silently rejected and logged), per-IP rate limits on vote/comment/login/register, CSRF on every HTML form. | `services/voting.py`, `security/ratelimit.py`, `security/csrf.py` |
 | Position bias in ballots | Ballot order is a deterministic shuffle keyed by voter identity: stable for one voter, different across voters. | `services/voting.ballot_order` |
 | Early leak of vote counts or rankings | Tallies are exposed only when the window has closed **and** results are published; both checks are in the service and apply to the API as well as pages. Organizers see everything, always. | `services/voting.tallies_visible`, `results_visible` |
+| Deadline gaming — submitting or editing after the close via the API, clock/timezone confusion, or begging for "just one more edit" | Every window check compares against the server's UTC clock and runs as a route dependency *before* the body is parsed, for HTML and JSON alike (the API is not a back door). Deadlines are shown in UTC and local time so nobody is surprised. Organizers can unlock one project for a bounded time, and every unlock is audited with who, which project and for how long. What we don't stop: an organizer choosing to unlock — that is a policy call, made visible rather than prevented. | `security/deps.require_submissions_open`, `services/projects.unlock_project` |
 | Late submission after the deadline | The window check is a route dependency that runs before the request body is parsed; a closed event answers 403 to any payload. Organizer "unlock" is per project, time-boxed and audited. | `security/deps.require_submissions_open` |
 | Session theft | Session tokens are random 256-bit values stored only as SHA-256 hashes; cookies are HttpOnly, SameSite=Lax, Secure under HTTPS. Logout revokes server-side. | `security/sessions.py` |
 | Password attacks | argon2id hashing, login rate-limited per address, generic failure message, failed attempts audited. | `security/passwords.py`, `web/auth.py` |
