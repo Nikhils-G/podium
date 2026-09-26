@@ -1,0 +1,17 @@
+services:
+  web:
+    build: .
+    image: podium:local
+    ports:
+      - "8080:8080"
+    environment:
+      PODIUM_SECRET_KEY: ${PODIUM_SECRET_KEY:-podium-dev-secret-change-me}
+      PODIUM_BASE_URL: ${PODIUM_BASE_URL:-http://localhost:8080}
+      PODIUM_SEED_FIXTURES: ${PODIUM_SEED_FIXTURES:-true}
+      PODIUM_DEMO_ACCOUNTS: ${PODIUM_DEMO_ACCOUNTS:-true}
+    volumes:
+      - podium_data:/data
+    restart: unless-stopped
+
+volumes:
+  podium_data:
