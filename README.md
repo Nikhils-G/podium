@@ -103,7 +103,8 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 | `PODIUM_SECRET_KEY` | dev value | signs sessions, CSRF, voter cookies, demo tokens — **set your own** |
 | `PODIUM_BASE_URL` | `http://localhost:8080` | used in links, invites, certificates |
 | `PODIUM_DATA_DIR` | `./data` (`/data` in Docker) | SQLite database and the signing key |
-| `PODIUM_DATABASE_URL` | unset | e.g. `postgresql+psycopg://…` to use Postgres instead of SQLite |
+| `PODIUM_DATABASE_URL` | unset | e.g. `postgresql+psycopg://…` to use Postgres instead of SQLite (driver included) |
+| `PODIUM_OPEN_EVENT_CREATION` | `true` | `false` lets only instance admins create events |
 | `PODIUM_SEED_FIXTURES` | `true` | load `fixtures/fixtures.json` at boot (idempotent) |
 | `PODIUM_DEMO_ACCOUNTS` | `true` | seed the demo identities and their fixed session tokens |
 | `PODIUM_DEMO_PASSWORD` | `demo-pass` | password for seeded users |
@@ -120,8 +121,8 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 - **Production checklist**: set `PODIUM_SECRET_KEY`, `PODIUM_BASE_URL` (https), `PODIUM_DEMO_ACCOUNTS=false`,
   `PODIUM_SEED_FIXTURES=false`; put a reverse proxy (Caddy, nginx) in front for TLS; keep one
   container per instance (rate limits and the webhook worker are in-process).
-- **Postgres**: set `PODIUM_DATABASE_URL`; the schema uses only portable types and the same
-  migrations apply. Export from one instance and import into another to move an event.
+- **Postgres**: set `PODIUM_DATABASE_URL`; the `psycopg` driver is installed, the schema uses only
+  portable types and the same migrations apply. Export from one instance and import into another to move an event.
 - **Email**: Podium never sends email. Judge invitations and voting codes are links and codes the
   organizer distributes; no SMTP configuration is required.
 - **Health**: `GET /healthz` → `{"status":"ok"}`; the Docker image has a healthcheck.

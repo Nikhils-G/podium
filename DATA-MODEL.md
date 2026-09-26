@@ -99,9 +99,15 @@ Duplicate detection runs on import: a second project from the same team with the
 `prj_41` is exactly this.
 
 **Out.** `GET /api/v1/events/{slug}/export.json` returns the same shape (plus the `podium` block);
-`export → import → export` is byte-for-byte stable on the base sections (tested). Per-table CSVs:
-`projects`, `teams`, `assignments`, `reviews` (raw value per criterion), `scores` (aggregated,
-raw and normalized, ranks), `audit`.
+`export → import → export` is byte-for-byte stable on the base sections (tested). The `podium`
+block also carries prize awards (`prizes[].project`), which re-import. Four sections are exported
+for the record only and are ignored on import: `votes` (voter keys are hashed, addresses are never
+exported), `comments`, `certificates` (signed by the exporting instance's key, so they verify
+against that instance's well-known key, not the importer's) and `audit` (append-only by design:
+a re-imported log would be a copy, not a continuation). Per-table CSVs: `projects`, `teams`,
+`assignments`, `reviews` (raw value per criterion), `scores` (aggregated, raw and normalized,
+ranks, a `confidence` column that says `thin` below the review target), `audit`. CSV cells that
+start with `=`, `+`, `-` or `@` are prefixed with a quote so spreadsheets never execute them.
 
 **Between databases.** Point `PODIUM_DATABASE_URL` at Postgres and run the same Alembic
 migrations; move an event by exporting from one instance and importing into another. The

@@ -2,6 +2,7 @@
 that carries everything the base shape can't (rubric, prizes, dates, project fields, assignments).
 The seeder is this importer, so a fixtures.json and an export.json load the same way."""
 
+import hashlib
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
@@ -10,6 +11,9 @@ from sqlalchemy.orm import Session as DbSession
 from podium import __version__
 from podium.models import (
     Assignment,
+    AuditLog,
+    Certificate,
+    Comment,
     Event,
     EventRole,
     JudgeTrack,
@@ -24,6 +28,7 @@ from podium.models import (
     TeamMember,
     Track,
     User,
+    Vote,
     utcnow,
 )
 from podium.seed.fixtures import ImportReport, import_fixtures
@@ -111,6 +116,29 @@ def export_event(db: DbSession, event: Event) -> dict:
     )
     track_public = {t.id: t.public_id for t in tracks}
     team_public = {t.id: t.public_id for t in teams}
+    project_public = {p.id: p.public_id for p in projects}
+    user_public = {u.id: u.public_id for u in db.execute(select(User)).scalars()}
+    votes = list(
+        db.execute(select(Vote).where(Vote.event_id == event.id).order_by(Vote.id)).scalars()
+    )
+    comments = list(
+        db.execute(
+            select(Comment)
+            .join(Project, Project.id == Comment.project_id)
+            .where(Project.event_id == event.id)
+            .order_by(Comment.id)
+        ).scalars()
+    )
+    certificates = list(
+        db.execute(
+            select(Certificate).where(Certificate.event_id == event.id).order_by(Certificate.id)
+        ).scalars()
+    )
+    audit_rows = list(
+        db.execute(
+            select(AuditLog).where(AuditLog.event_id == event.id).order_by(AuditLog.id)
+        ).scalars()
+    )
 
     return {
         "event": {
@@ -226,6 +254,59 @@ def export_event(db: DbSession, event: Event) -> dict:
                     "submitted_at": _iso(r.submitted_at),
                 }
                 for r, u, p in reviews
+            ],
+            # The sections below are exported for the record and are not re-imported: votes
+            # carry hashed voter keys (never an address), certificates are signed by this
+            # instance's key, and the audit log is append-only by design.
+            "votes": [
+                {
+                    "project": project_public.get(v.project_id),
+                    "voter": hashlib.sha256(v.voter_key.encode()).hexdigest()[:24],
+                    "user": user_public.get(v.voter_user_id),
+                    "credits": v.credits,
+                    "flagged": v.flagged,
+                    "flag_reason": v.flag_reason,
+                    "cast_at": _iso(v.created_at),
+                    "voided_at": _iso(v.voided_at),
+                }
+                for v in votes
+            ],
+            "comments": [
+                {
+                    "id": c.public_id,
+                    "project": project_public.get(c.project_id),
+                    "user": user_public.get(c.user_id),
+                    "body": c.body,
+                    "created_at": _iso(c.created_at),
+                    "hidden_at": _iso(c.hidden_at),
+                }
+                for c in comments
+            ],
+            "certificates": [
+                {
+                    "serial": c.serial,
+                    "kind": c.kind.value,
+                    "user": user_public.get(c.user_id),
+                    "payload": c.payload,
+                    "signature": c.signature,
+                    "issued_at": _iso(c.issued_at),
+                    "revoked_at": _iso(c.revoked_at),
+                }
+                for c in certificates
+            ],
+            "audit": [
+                {
+                    "id": a.id,
+                    "at": _iso(a.created_at),
+                    "action": a.action,
+                    "entity_type": a.entity_type,
+                    "entity_id": a.entity_id,
+                    "actor": user_public.get(a.actor_id),
+                    "meta": a.meta,
+                    "prev_hash": a.prev_hash,
+                    "row_hash": a.row_hash,
+                }
+                for a in audit_rows
             ],
         },
     }

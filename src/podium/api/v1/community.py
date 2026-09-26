@@ -17,6 +17,7 @@ from podium.schemas.community import (
     VoidVote,
     VotingSettings,
 )
+from podium.schemas.responses import TallyOut
 from podium.security.deps import EventContext, load_event, require_organizer, require_user
 from podium.security.ratelimit import ip_hash, limiter
 from podium.services import comments as comments_service
@@ -115,7 +116,7 @@ def my_votes(
     }
 
 
-@router.get("/events/{slug}/tally")
+@router.get("/events/{slug}/tally", response_model=TallyOut)
 def tally(ctx: EventContext = Depends(load_event), db: DbSession = Depends(get_db)):
     """Vote counts per project. Hidden until voting has closed and results are published."""
     if not voting_service.tallies_visible(ctx.event, organizer=ctx.is_organizer):

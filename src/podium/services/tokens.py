@@ -4,6 +4,7 @@ The raw token is shown once; only its SHA-256 is stored."""
 
 import hashlib
 import secrets
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
@@ -23,20 +24,47 @@ def list_tokens(db: DbSession, user: User) -> list[ApiToken]:
     )
 
 
-def create_token(db: DbSession, user: User, name: str) -> tuple[ApiToken, str]:
+SCOPES = ("read", "write")
+
+
+def create_token(
+    db: DbSession,
+    user: User,
+    name: str,
+    *,
+    scope: str = "write",
+    expires_in_days: int | None = None,
+) -> tuple[ApiToken, str]:
     name = name.strip()
     if not name or len(name) > 80:
         raise ValidationFailed(errors={"name": "Give the token a name (1–80 characters)."})
+    if scope not in SCOPES:
+        raise ValidationFailed(errors={"scope": "Scope is read or write."})
+    if expires_in_days is not None and not 1 <= expires_in_days <= 3650:
+        raise ValidationFailed(errors={"expires_in_days": "Expiry is 1 to 3,650 days."})
     raw = "pdm_" + secrets.token_urlsafe(32)
     token = ApiToken(
         user_id=user.id,
         name=name,
         token_hash=hashlib.sha256(raw.encode()).hexdigest(),
         prefix=raw[:12],
+        scope=scope,
+        expires_at=utcnow() + timedelta(days=expires_in_days) if expires_in_days else None,
     )
     db.add(token)
     db.flush()
-    audit.record(db, "token.created", "api_token", token.id, actor_id=user.id, meta={"name": name})
+    audit.record(
+        db,
+        "token.created",
+        "api_token",
+        token.id,
+        actor_id=user.id,
+        meta={
+            "name": name,
+            "scope": scope,
+            "expires_at": token.expires_at.isoformat() if token.expires_at else None,
+        },
+    )
     db.commit()
     return token, raw
 

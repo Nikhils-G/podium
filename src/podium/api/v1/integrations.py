@@ -18,6 +18,7 @@ from podium.schemas.integrations import (
     delivery_out,
     webhook_out,
 )
+from podium.schemas.responses import MeOut, TokensOut, VerifyOut
 from podium.security.deps import (
     EventContext,
     is_organizer,
@@ -36,7 +37,7 @@ router = APIRouter(tags=["integrations"])
 # --- me / tokens ----------------------------------------------------------------------------------
 
 
-@router.get("/me")
+@router.get("/me", response_model=MeOut)
 def me(user: User = Depends(require_user)):
     return {
         "user": {
@@ -48,7 +49,7 @@ def me(user: User = Depends(require_user)):
     }
 
 
-@router.get("/me/tokens")
+@router.get("/me/tokens", response_model=TokensOut)
 def list_tokens(user: User = Depends(require_user), db: DbSession = Depends(get_db)):
     return {
         "tokens": [
@@ -56,6 +57,8 @@ def list_tokens(user: User = Depends(require_user), db: DbSession = Depends(get_
                 "id": t.id,
                 "name": t.name,
                 "prefix": t.prefix,
+                "scope": t.scope,
+                "expires_at": t.expires_at,
                 "created_at": t.created_at,
                 "last_used_at": t.last_used_at,
             }
@@ -70,7 +73,9 @@ def create_token(
 ):
     """Create a personal API token.
     The raw token is returned once; send it as `Authorization: Bearer`."""
-    token, raw = tokens_service.create_token(db, user, body.name)
+    token, raw = tokens_service.create_token(
+        db, user, body.name, scope=body.scope, expires_in_days=body.expires_in_days
+    )
     return {"token": {"id": token.id, "name": token.name, "prefix": token.prefix, "secret": raw}}
 
 
@@ -209,7 +214,7 @@ def get_certificate(
     }
 
 
-@router.get("/verify/{serial}")
+@router.get("/verify/{serial}", response_model=VerifyOut)
 def verify_certificate(
     serial: str, db: DbSession = Depends(get_db), settings: Settings = Depends(get_settings)
 ):

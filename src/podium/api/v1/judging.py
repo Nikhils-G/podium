@@ -21,6 +21,7 @@ from podium.schemas.judging import (
     criterion_out,
     review_out,
 )
+from podium.schemas.responses import ResultsOut
 from podium.security.deps import (
     EventContext,
     load_event,
@@ -367,7 +368,7 @@ def remove_assignment(
 # --- results, exports, audit --------------------------------------------------------------------
 
 
-@router.get("/events/{slug}/results")
+@router.get("/events/{slug}/results", response_model=ResultsOut)
 def results(ctx: EventContext = Depends(load_event), db: DbSession = Depends(get_db)):
     """Rankings. Public once results are published; organizers can always see them."""
     if ctx.event.results_published_at is None and not ctx.is_organizer:
@@ -460,7 +461,23 @@ def audit_log(
 def audit_verify(ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)):
     """Recompute the hash chain over the whole log; any edited or deleted row breaks it."""
     report = audit_service.verify_chain(db)
-    return {"entries": report.entries, "ok": report.ok, "first_bad_id": report.first_bad_id}
+    return {
+        "entries": report.entries,
+        "ok": report.ok,
+        "first_bad_id": report.first_bad_id,
+        "head_hash": report.head_hash,
+    }
+
+
+@router.get("/events/{slug}/audit/anchor")
+def audit_anchor(
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """The chain head, signed with the instance key. Publish it externally so that nobody with
+    database access can quietly rewrite history; verify with the well-known signing key."""
+    return audit_service.anchor(db, settings)
 
 
 # --- pairwise (Bradley-Terry) ---------------------------------------------------------------------

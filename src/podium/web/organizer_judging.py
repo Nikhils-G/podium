@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session as DbSession
@@ -470,6 +472,23 @@ def audit_page(
         "organizer/audit.html",
         title="Audit log",
         **_console(ctx, "audit", audit=data, action=action, export_names=exports.NAMES),
+    )
+
+
+@router.get("/e/{slug}/organizer/audit/anchor")
+def audit_anchor_partial(
+    request: Request,
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    anchor = audit_service.anchor(db, settings)
+    return render(
+        request,
+        "partials/audit_anchor.html",
+        anchor=anchor,
+        anchor_json=json.dumps(anchor, sort_keys=True),
+        event=ctx.event,
     )
 
 

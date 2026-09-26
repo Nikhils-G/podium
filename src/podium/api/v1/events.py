@@ -11,6 +11,7 @@ from podium.schemas.events import (
     TrackCreate,
     event_out,
 )
+from podium.schemas.responses import EventEnvelope, EventsOut
 from podium.security.deps import (
     EventContext,
     current_user,
@@ -33,7 +34,7 @@ def _payload(model: EventCreate) -> dict:
     return data
 
 
-@router.get("/events")
+@router.get("/events", response_model=EventsOut)
 def list_events(db: DbSession = Depends(get_db), user: User | None = Depends(current_user)):
     """Events visible to the caller: public ones, plus drafts they organize."""
     return {"events": [event_out(e, stage_of(e).value) for e in list_events_for(db, user)]}
@@ -51,7 +52,7 @@ def create_event(
     return {"event": event_out(event, stage_of(event).value)}
 
 
-@router.get("/events/{slug}")
+@router.get("/events/{slug}", response_model=EventEnvelope)
 def get_event(ctx: EventContext = Depends(load_event)):
     return {"event": event_out(ctx.event, stage_of(ctx.event).value)}
 

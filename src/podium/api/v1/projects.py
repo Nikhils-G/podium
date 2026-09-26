@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session as DbSession
 from podium.db import get_db
 from podium.models import User
 from podium.schemas.projects import ProjectCreate, ProjectOut, ProjectUpdate
+from podium.schemas.responses import GalleryOut
 from podium.security.deps import EventContext, load_event, require_submissions_open, require_user
 from podium.security.ratelimit import ip_hash
 from podium.services import projects
@@ -11,7 +12,7 @@ from podium.services import projects
 router = APIRouter(tags=["projects"])
 
 
-@router.get("/events/{slug}/projects", response_model=dict)
+@router.get("/events/{slug}/projects", response_model=GalleryOut)
 def list_projects(
     response: Response,
     ctx: EventContext = Depends(load_event),

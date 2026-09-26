@@ -237,3 +237,77 @@ def test_webhook_test_delivery_and_coalesced_vote_events(client, auth, db):
     assert {"vote.cast", "comment.added", "ping"} <= set(
         types["types"] if isinstance(types, dict) else types
     )
+
+
+def test_read_only_and_expired_tokens(client, auth, db):
+    from datetime import timedelta
+
+    from podium.models import ApiToken
+
+    org = auth("organizer")
+    r = client.post("/api/v1/me/tokens", headers=org, json={"name": "ro", "scope": "read"})
+    assert r.status_code == 201
+    ro = {"Authorization": f"Bearer {r.json()['token']['secret']}"}
+    assert client.get("/api/v1/me", headers=ro).status_code == 200
+    r = client.post(f"{S}/tracks", headers=ro, json={"name": "Nope", "description": ""})
+    assert r.status_code == 403 and "read-only" in r.json()["error"]["message"]
+    r = client.post("/api/v1/me/tokens", headers=org, json={"name": "short", "expires_in_days": 1})
+    assert r.status_code == 200 or r.status_code == 201
+    raw = r.json()["token"]["secret"]
+    listed = client.get("/api/v1/me/tokens", headers=org).json()["tokens"]
+    mine = [t for t in listed if t["name"] == "short"][0]
+    assert mine["scope"] == "write" and mine["expires_at"] is not None
+    row = db.get(ApiToken, mine["id"])
+    row.expires_at = row.expires_at - timedelta(days=2)
+    db.commit()
+    assert client.get("/api/v1/me", headers={"Authorization": f"Bearer {raw}"}).status_code == 401
+    assert (
+        client.post(
+            "/api/v1/me/tokens", headers=org, json={"name": "bad", "scope": "root"}
+        ).status_code
+        == 422
+    )
+
+
+def test_export_carries_the_record_sections_and_judge_records_carry_a_digest(client, auth):
+    org = auth("organizer")
+    export = client.get(f"{S}/export.json", headers=org).json()["podium"]
+    for key in ("votes", "comments", "certificates", "audit"):
+        assert key in export, key
+    assert export["audit"] and all(len(a["row_hash"]) == 64 for a in export["audit"][:5])
+    assert all("ip" not in v for v in export["votes"])
+    client.post(f"{S}/actions/close_judging", headers=org)
+    try:
+        client.post(f"{S}/certificates/issue/judge", headers=org)
+        record = client.get(f"{S}/judges/me/records", headers=auth("judge_a")).json()["records"][0]
+        assert len(record["payload"]["reviews_digest"]) == 64
+    finally:
+        client.post(f"{S}/actions/open_judging", headers=org)
+
+
+def test_signed_audit_anchor_verifies_with_the_instance_key(client, auth, app):
+    from podium.services import certificates as cert_service
+
+    r = client.get(f"{S}/audit/anchor", headers=auth("organizer"))
+    assert r.status_code == 200
+    anchor = r.json()
+    signature = anchor.pop("signature")
+    assert anchor["ok"] and len(anchor["head_hash"]) == 64
+    assert cert_service.verify_signature(anchor["public_key_hex"], anchor, signature)
+    assert client.get(f"{S}/audit/anchor", headers=auth("judge_a")).status_code == 403
+    page = demo(app, "organizer").get(
+        f"/e/{SLUG}/organizer/audit/anchor", headers={"HX-Request": "true"}
+    )
+    assert page.status_code == 200 and "Copy signed anchor" in page.text
+
+
+def test_openapi_documents_auth_and_errors_on_every_operation(client):
+    schema = client.get("/api/openapi.json").json()
+    assert {"sessionCookie", "bearerToken"} <= set(schema["components"]["securitySchemes"])
+    assert "ErrorResponse" in schema["components"]["schemas"]
+    for path, item in schema["paths"].items():
+        for method, op in item.items():
+            if method in ("get", "post", "patch", "put", "delete"):
+                assert "401" in op["responses"] and "422" in op["responses"], (method, path)
+    results = schema["paths"]["/api/v1/events/{slug}/results"]["get"]["responses"]["200"]
+    assert "ResultsOut" in str(results)

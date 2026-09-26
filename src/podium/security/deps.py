@@ -26,6 +26,10 @@ def current_user(
         ).scalar_one_or_none()
         if row is None or row.revoked_at is not None:
             return None
+        if row.expires_at is not None and row.expires_at <= utcnow():
+            return None
+        if row.scope == "read" and request.method not in ("GET", "HEAD", "OPTIONS"):
+            raise Forbidden("This token is read-only. Create a write token on your account page.")
         row.last_used_at = utcnow()
         db.commit()
         return db.get(User, row.user_id)

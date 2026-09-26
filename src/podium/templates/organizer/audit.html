@@ -2,7 +2,7 @@
 {% from "macros/ui.html" import badge, when %}
 {% block content %}
 <div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Audit log</h1><p class="ink-2 mt-2">Every sensitive action, append-only. Each entry commits to the hash of the previous one, so edits or deletions are detectable.</p></div>
-  <div class="cluster"><span id="audit-verify"><button class="btn btn--secondary btn--sm" hx-get="/e/{{ event.slug }}/organizer/audit/verify" hx-target="#audit-verify" hx-swap="innerHTML" hx-boost="false" type="button">Verify chain</button></span>
+  <div class="cluster"><span id="audit-verify"><button class="btn btn--secondary btn--sm" hx-get="/e/{{ event.slug }}/organizer/audit/verify" hx-target="#audit-verify" hx-swap="innerHTML" hx-boost="false" type="button">Verify chain</button></span><span id="audit-anchor"><a class="btn btn--ghost btn--sm" href="/e/{{ event.slug }}/organizer/audit/anchor" hx-get="/e/{{ event.slug }}/organizer/audit/anchor" hx-target="#audit-anchor" hx-swap="outerHTML" hx-boost="false">Copy signed anchor</a></span>
     <a class="btn btn--ghost btn--sm" href="/api/v1/events/{{ event.slug }}/exports/audit.csv" hx-boost="false">Download CSV</a></div></div>
 <form class="toolbar" method="get" action="/e/{{ event.slug }}/organizer/audit" hx-boost="false">
   <label class="visually-hidden" for="f-action">Action</label>

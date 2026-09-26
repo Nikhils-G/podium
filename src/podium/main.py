@@ -73,6 +73,92 @@ async def lifespan(app: FastAPI):
         await task
 
 
+ERROR_RESPONSES = {
+    "401": "Not signed in (no session cookie or bearer token).",
+    "403": "Signed in, but this role can't do that here — or the token is read-only.",
+    "404": "No such event, project or record visible to you.",
+    "409": "The action conflicts with the event's state (e.g. results published, window closed).",
+    "422": "Validation failed; `error.errors` maps field names to messages.",
+    "429": "Rate limited; retry after a moment.",
+}
+
+
+def _document_api(app: FastAPI) -> None:
+    """One shared error shape and both auth schemes on every operation, so the generated docs
+    tell an integrator the truth without reading the handlers."""
+    from fastapi.openapi.utils import get_openapi
+
+    def custom_openapi():
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+            tags=app.openapi_tags,
+        )
+        components = schema.setdefault("components", {})
+        components.setdefault("schemas", {})["ErrorResponse"] = {
+            "type": "object",
+            "required": ["error"],
+            "properties": {
+                "error": {
+                    "type": "object",
+                    "required": ["code", "message"],
+                    "properties": {
+                        "code": {
+                            "type": "string",
+                            "enum": [
+                                "unauthorized",
+                                "forbidden",
+                                "not_found",
+                                "conflict",
+                                "closed",
+                                "validation_failed",
+                                "rate_limited",
+                                "internal",
+                            ],
+                        },
+                        "message": {"type": "string"},
+                        "errors": {
+                            "type": "object",
+                            "additionalProperties": {"type": "string"},
+                            "description": "Field → message, on 422 only.",
+                        },
+                    },
+                }
+            },
+        }
+        components["securitySchemes"] = {
+            "sessionCookie": {"type": "apiKey", "in": "cookie", "name": "session"},
+            "bearerToken": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "Personal token from /account (`pdm_…`). Read-only tokens get "
+                "403 on anything but GET.",
+            },
+        }
+        schema["security"] = [{"sessionCookie": []}, {"bearerToken": []}]
+        error_ref = {"$ref": "#/components/schemas/ErrorResponse"}
+        for path_item in schema.get("paths", {}).values():
+            for operation in path_item.values():
+                if not isinstance(operation, dict) or "responses" not in operation:
+                    continue
+                for status, text in ERROR_RESPONSES.items():
+                    operation["responses"].setdefault(
+                        status,
+                        {
+                            "description": text,
+                            "content": {"application/json": {"schema": error_ref}},
+                        },
+                    )
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = custom_openapi
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Podium",
@@ -118,6 +204,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
     app.include_router(certificates.router)
     app.include_router(api_router)
+    _document_api(app)
 
     @app.exception_handler(PodiumError)
     async def podium_error(request: Request, exc: PodiumError):

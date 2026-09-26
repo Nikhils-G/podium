@@ -3,6 +3,7 @@ ed25519 key; anyone can verify a serial on /verify/{serial} or offline with the 
 
 import base64
 import contextlib
+import hashlib
 import json
 import secrets
 from dataclasses import dataclass
@@ -21,11 +22,14 @@ from podium.models import (
     Event,
     EventRole,
     InstanceSetting,
+    JudgeTrack,
     Project,
     ProjectStatus,
     Review,
     ReviewStatus,
     Role,
+    RubricCriterion,
+    ScoreItem,
     Team,
     TeamMember,
     Track,
@@ -206,6 +210,24 @@ def issue_participation(
     return report
 
 
+def reviews_digest(db: DbSession, event: Event, judge: User) -> str:
+    """sha256 over the judge's submitted scores, so a record can later be checked against the
+    export: sorted (project id, criterion key, value) triples in canonical JSON."""
+    rows = db.execute(
+        select(Project.public_id, RubricCriterion.key, ScoreItem.value)
+        .join(Review, Review.id == ScoreItem.review_id)
+        .join(Project, Project.id == Review.project_id)
+        .join(RubricCriterion, RubricCriterion.id == ScoreItem.criterion_id)
+        .where(
+            Review.event_id == event.id,
+            Review.judge_id == judge.id,
+            Review.status == ReviewStatus.submitted,
+        )
+    ).all()
+    triples = sorted((pid, key, value) for pid, key, value in rows)
+    return hashlib.sha256(canonical([list(t) for t in triples])).hexdigest()
+
+
 def issue_judge_records(
     db: DbSession, settings: Settings, event: Event, issued_by: User
 ) -> IssueReport:
@@ -239,15 +261,13 @@ def issue_judge_records(
         if existing(db, event, CertificateKind.judge, judge.id):
             report.skipped += 1
             continue
-        tracks = (
-            [
-                t
-                for t in db.execute(
-                    select(Track.name).join(Track.event).where(Track.event_id == event.id)
-                ).scalars()
-            ]
-            if False
-            else []
+        tracks = list(
+            db.execute(
+                select(Track.name)
+                .join(JudgeTrack, JudgeTrack.track_id == Track.id)
+                .where(JudgeTrack.event_id == event.id, JudgeTrack.user_id == judge.id)
+                .order_by(Track.position)
+            ).scalars()
         )
         issue(
             db,
@@ -256,7 +276,11 @@ def issue_judge_records(
             CertificateKind.judge,
             user=judge,
             team=None,
-            details={"reviews_submitted": int(n), "tracks": tracks},
+            details={
+                "reviews_submitted": int(n),
+                "tracks": tracks,
+                "reviews_digest": reviews_digest(db, event, judge),
+            },
             issued_by=issued_by,
         )
         report.issued += 1

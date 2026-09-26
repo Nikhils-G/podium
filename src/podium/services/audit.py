@@ -66,6 +66,7 @@ class ChainReport:
     entries: int
     ok: bool
     first_bad_id: int | None = None
+    head_hash: str = GENESIS
 
 
 def verify_chain(db: DbSession) -> ChainReport:
@@ -75,9 +76,25 @@ def verify_chain(db: DbSession) -> ChainReport:
         count += 1
         expected = hashlib.sha256((prev + _canonical(row)).encode()).hexdigest()
         if row.prev_hash != prev or row.row_hash != expected:
-            return ChainReport(entries=count, ok=False, first_bad_id=row.id)
+            return ChainReport(entries=count, ok=False, first_bad_id=row.id, head_hash=prev)
         prev = row.row_hash
-    return ChainReport(entries=count, ok=True)
+    return ChainReport(entries=count, ok=True, head_hash=prev)
+
+
+def anchor(db: DbSession, settings) -> dict:
+    """A signed statement of the chain head. Publish it anywhere public (a tweet, a wiki page,
+    a mailing list) and any later rewrite of earlier rows becomes provable."""
+    from podium.services import certificates
+
+    report = verify_chain(db)
+    payload = {
+        "entries": report.entries,
+        "head_hash": report.head_hash,
+        "ok": report.ok,
+        "at": utcnow().isoformat(),
+        "public_key_hex": certificates.public_key_hex(db, settings),
+    }
+    return {**payload, "signature": certificates.sign(settings, payload)}
 
 
 if TYPE_CHECKING:

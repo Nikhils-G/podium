@@ -1,0 +1,5 @@
+<div class="card stack-sm" id="audit-anchor">
+  <p class="text-sm"><strong>Signed anchor</strong> · {{ anchor.entries }} entries · head <code>{{ anchor.head_hash[:16] }}…</code> · {{ 'chain intact' if anchor.ok else 'CHAIN BROKEN' }}</p>
+  <div class="copy-field"><code class="copy-field__value">{{ anchor_json }}</code><button class="btn btn--secondary btn--sm" type="button" data-copy="{{ anchor_json }}">Copy signed anchor</button></div>
+  <p class="text-sm muted">Post this somewhere public (a channel, a wiki page, an email to the judges). Anyone can verify it later with <code>/.well-known/podium-signing-key.json</code>; a rewritten log can no longer produce this head.</p>
+</div>
