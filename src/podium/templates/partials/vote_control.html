@@ -1,0 +1,36 @@
+{% from "macros/ui.html" import when %}
+<div id="vote-{{ project.public_id }}" class="vote{% if mine %} vote--cast{% endif %}">
+  {% if error %}<p class="field__error">{{ error }}</p>{% endif %}
+  {% if count is not none %}<p class="vote__count"><strong>{{ count }}</strong> vote{{ '' if count == 1 else 's' }}</p>{% endif %}
+  {% if open %}
+    {% if voter is none and mode == 'account' %}
+      <a class="btn btn--secondary btn--sm" href="/login?next=/e/{{ event.slug }}/projects/{{ project.public_id }}">Sign in to vote</a>
+    {% elif voter is none and mode == 'email' %}
+      <a class="btn btn--secondary btn--sm" href="/e/{{ event.slug }}/vote/code">Enter your voting code</a>
+    {% else %}
+      <form method="post" action="/e/{{ event.slug }}/projects/{{ project.public_id }}/vote" hx-boost="false"
+            hx-post="/e/{{ event.slug }}/projects/{{ project.public_id }}/vote" hx-target="#vote-{{ project.public_id }}" hx-swap="outerHTML" class="vote__form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input class="vote__hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        {% if event.quadratic_enabled %}
+          <button class="btn {{ 'btn--secondary' if mine else 'btn--primary' }} btn--sm" type="submit" {% if status.credits_left < cost %}disabled{% endif %}>{{ '+1 vote' if mine else 'Vote' }} <span class="muted">· {{ cost }} credit{{ '' if cost == 1 else 's' }}</span></button>
+        {% elif not mine %}
+          <button class="btn btn--primary btn--sm" type="submit">Vote for this project</button>
+        {% endif %}
+      </form>
+      {% if mine %}
+        <form method="post" action="/e/{{ event.slug }}/projects/{{ project.public_id }}/unvote" hx-boost="false"
+              hx-post="/e/{{ event.slug }}/projects/{{ project.public_id }}/unvote" hx-target="#vote-{{ project.public_id }}" hx-swap="outerHTML" class="vote__form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <span class="vote__mine">✓ You voted{% if event.quadratic_enabled and mine > 1 %} ×{{ mine }}{% endif %}</span>
+          <button class="btn btn--ghost btn--sm" type="submit">{{ '−1' if event.quadratic_enabled and mine > 1 else 'Remove vote' }}</button>
+        </form>
+      {% endif %}
+      {% if event.quadratic_enabled %}<p class="muted text-sm">{{ status.credits_left }} of {{ status.credits_total }} credits left · each extra vote on one project costs more</p>{% endif %}
+    {% endif %}
+  {% elif closed %}
+    <p class="muted text-sm">Voting closed {{ when(event.voting_close_at) }}.</p>
+  {% elif event.voting_open_at %}
+    <p class="muted text-sm">Voting opens {{ when(event.voting_open_at) }}.</p>
+  {% endif %}
+</div>

@@ -1,0 +1,35 @@
+{% from "macros/ui.html" import when %}
+<section id="comments" class="comments stack">
+  <h2>Comments <span class="count">{{ comments|length }}</span></h2>
+  {% if comments %}
+  <ul class="comment-list">
+    {% for c in comments %}
+    <li class="comment{% if c.hidden_at %} comment--hidden{% endif %}">
+      <span class="avatar" aria-hidden="true">{{ c.user.name[:1]|upper }}</span>
+      <div class="grow">
+        <p class="comment__meta"><strong>{{ c.user.name }}</strong> <span class="muted">· {{ when(c.created_at) }}</span>{% if c.hidden_at %} <span class="badge badge--warning">hidden</span>{% endif %}</p>
+        <p class="comment__body">{{ c.body }}</p>
+      </div>
+      {% if ctx.is_organizer %}
+      <form method="post" action="/e/{{ event.slug }}/projects/{{ project.public_id }}/comments/{{ c.public_id }}/hide" hx-boost="false" hx-post="/e/{{ event.slug }}/projects/{{ project.public_id }}/comments/{{ c.public_id }}/hide" hx-target="#comments" hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="hidden" value="{{ '0' if c.hidden_at else '1' }}">
+        <button class="btn btn--ghost btn--sm" type="submit">{{ 'Unhide' if c.hidden_at else 'Hide' }}</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">No comments yet. Start the discussion.</p>{% endif %}
+  {% if not enabled %}<p class="muted text-sm">Comments are turned off for this event.</p>
+  {% elif user %}
+  <form class="stack" method="post" action="/e/{{ event.slug }}/projects/{{ project.public_id }}/comments" hx-boost="false" hx-post="/e/{{ event.slug }}/projects/{{ project.public_id }}/comments" hx-target="#comments" hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field{% if errors.body %} is-invalid{% endif %}">
+      <label class="field__label" for="f-comment-body">Add a comment</label>
+      <textarea class="textarea" id="f-comment-body" name="body" rows="3" maxlength="2000" required>{{ body }}</textarea>
+      {% if errors.body %}<p class="field__error">{{ errors.body }}</p>{% endif %}
+    </div>
+    <div><button class="btn btn--secondary btn--sm" type="submit" hx-disabled-elt="this">Post comment</button></div>
+  </form>
+  {% else %}<p class="text-sm"><a href="/login?next=/e/{{ event.slug }}/projects/{{ project.public_id }}">Sign in</a> to comment.</p>{% endif %}
+</section>

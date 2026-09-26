@@ -1,0 +1,64 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import field, alert, badge, when %}
+{% block content %}
+<div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Community voting</h1>
+  <p class="ink-2 mt-2">{% if open %}Voting is open{% if event.voting_close_at %} until {{ when(event.voting_close_at) }}{% endif %}.{% elif closed %}Voting closed {{ when(event.voting_close_at) }}.{% elif event.voting_open_at %}Voting opens {{ when(event.voting_open_at) }}.{% else %}Set a voting window in <a href="/e/{{ event.slug }}/organizer/settings">Settings</a> to enable voting.{% endif %}</p></div></div>
+{% if request.query_params.get('saved') %}{{ alert('success', 'Voting settings saved.') }}{% endif %}
+<div class="two-col two-col--wide">
+  <section class="stack">
+    <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/voting" hx-boost="false">
+      <h2>How people vote</h2>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field{% if errors.voting_mode %} is-invalid{% endif %}">
+        <span class="field__label">Who can vote</span>
+        <label class="radio"><input type="radio" name="voting_mode" value="account" {% if event.voting_mode.value == 'account' %}checked{% endif %}> <span><strong>Signed-in accounts</strong> — one vote per account. Strongest against ballot stuffing.</span></label>
+        <label class="radio"><input type="radio" name="voting_mode" value="email" {% if event.voting_mode.value == 'email' %}checked{% endif %}> <span><strong>Voting codes</strong> — you issue single-use codes (optionally tied to emails) and send them yourself.</span></label>
+        <label class="radio"><input type="radio" name="voting_mode" value="link" {% if event.voting_mode.value == 'link' %}checked{% endif %}> <span><strong>Open link</strong> — anyone with the link, one vote per browser. Easiest, weakest; suspicious bursts are flagged for review.</span></label>
+      </div>
+      <label class="check"><input type="checkbox" name="quadratic_enabled" {% if event.quadratic_enabled %}checked{% endif %}> <span><strong>Quadratic voting</strong> — voters spread a credit budget; the n-th vote on one project costs 2n−1 credits (1, 3, 5…).</span></label>
+      {{ field('voting_credits', 'Credits per voter (quadratic)', value=event.voting_credits, type='number', error=errors.voting_credits) }}
+      <label class="check"><input type="checkbox" name="comments_enabled" {% if event.comments_enabled %}checked{% endif %}> <span>Allow comments on projects</span></label>
+      <div><button class="btn btn--primary" type="submit">Save voting settings</button></div>
+    </form>
+    <section class="card stack" id="abuse">
+      <h2>Suspicious votes <span class="count">{{ suspicious|length }}</span></h2>
+      <p class="text-sm ink-2">Votes are flagged when one network address casts more than {{ 12 }} in this event. Voiding a vote keeps it in the audit log with your reason.</p>
+      {% if errors.void %}{{ alert('critical', errors.void) }}{% endif %}
+      {% if suspicious %}
+      <table class="table table--dense"><thead><tr><th>Project</th><th>When</th><th>Network</th><th></th></tr></thead><tbody>
+      {% for v in suspicious %}<tr><td>{{ v.project.title }}</td><td class="text-sm">{{ when(v.created_at) }}</td><td><code>{{ v.ip_hash[:10] }}</code></td>
+        <td><form class="cluster" method="post" action="/e/{{ event.slug }}/organizer/voting/votes/{{ v.id }}/void" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input class="input input--inline" name="reason" placeholder="Reason" required aria-label="Reason"><button class="btn btn--danger btn--sm" type="submit">Void</button></form></td></tr>{% endfor %}
+      </tbody></table>
+      {% else %}<p class="muted text-sm">Nothing flagged.</p>{% endif %}
+    </section>
+  </section>
+  <aside class="stack">
+    <section class="card stack">
+      <h2>Tally</h2>
+      <p class="text-sm ink-2">{{ tally.total_votes }} votes from {{ tally.total_voters }} voters · {{ tally.voided }} voided · {{ tally.flagged }} flagged. Public only after the window closes and results are published.</p>
+      {% if tally.total_votes %}
+      <table class="table table--dense"><thead><tr><th>Project</th><th class="num">Votes</th></tr></thead><tbody>
+      {% for t in tally.projects[:15] %}<tr><td>{{ t.project.title }}</td><td class="num">{{ t.votes }}</td></tr>{% endfor %}
+      </tbody></table>
+      {% endif %}
+    </section>
+    <section class="card stack" id="codes">
+      <h2>Voting codes</h2>
+      <p class="text-sm ink-2">{{ codes_used }} of {{ codes_total }} codes used.</p>
+      {% if new_codes %}
+      <div class="stack">
+        <p class="text-sm"><strong>{{ new_codes|length }} new codes.</strong> Copy them now — they are not shown again.</p>
+        <textarea class="textarea mono" rows="6" readonly>{% for code, email in new_codes %}{{ code }}{% if email %},{{ email }}{% endif %}
+{% endfor %}</textarea>
+      </div>
+      {% endif %}
+      <form class="stack" method="post" action="/e/{{ event.slug }}/organizer/voting/codes" hx-boost="false">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {{ field('count', 'How many', value=10, type='number', error=errors.count) }}
+        {{ field('emails', 'Emails (optional, one per line — attaches a code to each)', type='textarea', rows=3) }}
+        <div><button class="btn btn--secondary" type="submit">Generate codes</button></div>
+      </form>
+    </section>
+  </aside>
+</div>
+{% endblock %}

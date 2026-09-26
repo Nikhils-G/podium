@@ -1,0 +1,292 @@
+"""T3: voting modes, windows, dedupe, quadratic budgets, hidden tallies, stable ballots, abuse
+handling and comments — on a fresh event created through the API."""
+
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from fastapi.testclient import TestClient
+
+from podium.security.sessions import create_session
+from podium.services import voting
+from podium.services.auth import register
+from tests.conftest import get_sessionmaker
+
+
+def _cookie(db, email):
+    user = register(db, email=email, name=email.split("@")[0].title(), password="password123")
+    token = create_session(db, user, days=1)
+    db.commit()
+    return {"Cookie": f"session={token}"}
+
+
+@pytest.fixture(scope="module")
+def world(app):
+    client = TestClient(app)
+    with get_sessionmaker()() as db:
+        org = _cookie(db, "org-t3@example.test")
+        voters = [_cookie(db, f"voter{i}-t3@example.test") for i in range(3)]
+        maker = _cookie(db, "maker-t3@example.test")
+    now = datetime.now(UTC)
+    r = client.post(
+        "/api/v1/events",
+        headers=org,
+        json={
+            "name": "Vote Hack",
+            "is_public": True,
+            "submissions_open_at": (now - timedelta(days=2)).isoformat(),
+            "submissions_close_at": (now + timedelta(days=1)).isoformat(),
+            "voting_open_at": (now - timedelta(hours=1)).isoformat(),
+            "voting_close_at": (now + timedelta(hours=1)).isoformat(),
+        },
+    )
+    slug = r.json()["event"]["slug"]
+    client.post(f"/api/v1/events/{slug}/teams", headers=maker, json={"name": "Makers"})
+    pids = []
+    for i in range(3):
+        # one team can hold one project, so make a team per project
+        h = maker if i == 0 else _cookie(get_sessionmaker()(), f"maker{i}-t3@example.test")
+        if i:
+            client.post(f"/api/v1/events/{slug}/teams", headers=h, json={"name": f"Makers {i}"})
+        r = client.post(
+            f"/api/v1/events/{slug}/projects",
+            headers=h,
+            json={"title": f"Entry {i}", "submit": True},
+        )
+        assert r.status_code == 201, r.text
+        pids.append(r.json()["project"]["id"])
+    return {"client": client, "slug": slug, "org": org, "voters": voters, "pids": pids, "now": now}
+
+
+def test_account_mode_one_vote_per_account_and_retract(world):
+    c, slug, pid = world["client"], world["slug"], world["pids"][0]
+    v = world["voters"][0]
+    assert c.post(f"/api/v1/events/{slug}/projects/{pid}/votes").status_code == 401, (
+        "account mode needs a login"
+    )
+    r = c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v)
+    assert r.status_code == 201 and r.json()["vote"]["my_votes"] == 1
+    assert c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v).status_code == 409
+    assert c.get(f"/api/v1/events/{slug}/votes/me", headers=v).json()["votes"]
+    assert c.delete(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v).status_code == 200
+    assert c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v).status_code == 201
+
+
+def test_tally_hidden_until_closed_and_published(world):
+    c, slug = world["client"], world["slug"]
+    assert c.get(f"/api/v1/events/{slug}/tally").status_code == 404
+    assert c.get(f"/api/v1/events/{slug}/tally", headers=world["org"]).status_code == 200
+    assert (
+        c.get(f"/e/{slug}/results").status_code == 200
+        and "aren't published" in c.get(f"/e/{slug}/results").text
+    )
+    assert (
+        c.post(f"/api/v1/events/{slug}/actions/publish_results", headers=world["org"]).status_code
+        == 200
+    )
+    assert c.get(f"/api/v1/events/{slug}/tally").status_code == 404, (
+        "still voting → counts stay hidden"
+    )
+    c.post(f"/api/v1/events/{slug}/actions/unpublish_results", headers=world["org"])
+
+
+def test_quadratic_budget(world):
+    c, slug, org = world["client"], world["slug"], world["org"]
+    r = c.patch(
+        f"/api/v1/events/{slug}/voting",
+        headers=org,
+        json={"quadratic_enabled": True, "voting_credits": 4},
+    )
+    assert r.status_code == 200 and r.json()["quadratic_enabled"]
+    v, pid = world["voters"][1], world["pids"][1]
+    assert (
+        c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v).json()["vote"][
+            "credits_spent"
+        ]
+        == 1
+    )
+    assert (
+        c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v).json()["vote"][
+            "credits_spent"
+        ]
+        == 4
+    )
+    r = c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v)
+    assert r.status_code == 409 and "credits" in r.json()["error"]["message"]
+    r = c.delete(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v)
+    assert r.json()["vote"]["my_votes"] == 1 and r.json()["vote"]["credits_spent"] == 1
+    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"quadratic_enabled": False})
+
+
+def test_link_mode_uses_signed_anonymous_cookie(world):
+    c, slug, org, pid = world["client"], world["slug"], world["org"], world["pids"][2]
+    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"voting_mode": "link"})
+    anon = TestClient(c.app)
+    r = anon.post(f"/api/v1/events/{slug}/projects/{pid}/votes")
+    assert r.status_code == 201 and "voter" in r.cookies
+    assert anon.post(f"/api/v1/events/{slug}/projects/{pid}/votes").status_code == 409, (
+        "same browser, one vote"
+    )
+    forged = TestClient(c.app)
+    forged.cookies.set("voter", r.cookies["voter"][:-4] + "zzzz")
+    r2 = forged.post(f"/api/v1/events/{slug}/projects/{pid}/votes")
+    assert r2.status_code == 201 and r2.cookies["voter"] != r.cookies["voter"], (
+        "tampered cookie is ignored"
+    )
+    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"voting_mode": "account"})
+
+
+def test_code_mode(world):
+    c, slug, org, pid = world["client"], world["slug"], world["org"], world["pids"][0]
+    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"voting_mode": "email"})
+    codes = c.post(
+        f"/api/v1/events/{slug}/voting/codes",
+        headers=org,
+        json={"count": 2, "emails": ["a@x.test"]},
+    ).json()["codes"]
+    assert len(codes) == 2 and codes[0]["email"] == "a@x.test"
+    guest = TestClient(c.app)
+    assert guest.post(f"/api/v1/events/{slug}/projects/{pid}/votes").status_code == 401
+    assert (
+        guest.post(
+            f"/api/v1/events/{slug}/voting/codes/redeem", params={"code": "NOPE-NOPE"}
+        ).status_code
+        == 404
+    )
+    assert (
+        guest.post(
+            f"/api/v1/events/{slug}/voting/codes/redeem", params={"code": codes[0]["code"]}
+        ).status_code
+        == 200
+    )
+    assert guest.post(f"/api/v1/events/{slug}/projects/{pid}/votes").status_code == 201
+    again = TestClient(c.app)
+    assert (
+        again.post(
+            f"/api/v1/events/{slug}/voting/codes/redeem", params={"code": codes[0]["code"]}
+        ).status_code
+        == 409
+    )
+    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"voting_mode": "account"})
+
+
+def test_ballot_order_is_stable_per_voter_and_differs_between_voters():
+    class P:
+        def __init__(self, i):
+            self.id = i
+            self.public_id = f"prj_{i}"
+
+    projects = [P(i) for i in range(20)]
+    a1 = [p.id for p in voting.ballot_order(projects, "usr:a", 1)]
+    a2 = [p.id for p in voting.ballot_order(projects, "usr:a", 1)]
+    b = [p.id for p in voting.ballot_order(projects, "usr:b", 1)]
+    assert a1 == a2 and a1 != b and sorted(a1) == list(range(20))
+
+
+def test_void_requires_reason_and_removes_from_tally(world):
+    c, slug, org, pid = world["client"], world["slug"], world["org"], world["pids"][0]
+    v = world["voters"][2]
+    c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=v)
+    with get_sessionmaker()() as db:
+        from sqlalchemy import select
+
+        from podium.models import Event, Vote
+
+        event = db.execute(select(Event).where(Event.slug == slug)).scalar_one()
+        vote = db.execute(
+            select(Vote).where(
+                Vote.event_id == event.id,
+                Vote.voter_key
+                == f"usr:{c.get('/api/v1/events/' + slug + '/votes/me', headers=v).json() and 'x'}",
+            )
+        ).scalar_one_or_none()
+        vote = (
+            db.execute(select(Vote).where(Vote.event_id == event.id).order_by(Vote.id.desc()))
+            .scalars()
+            .first()
+        )
+        vote_id = vote.id
+    before = c.get(f"/api/v1/events/{slug}/tally", headers=org).json()["total_votes"]
+    assert (
+        c.post(
+            f"/api/v1/events/{slug}/votes/{vote_id}/void", headers=org, json={"reason": ""}
+        ).status_code
+        == 422
+    )
+    assert (
+        c.post(
+            f"/api/v1/events/{slug}/votes/{vote_id}/void",
+            headers=org,
+            json={"reason": "duplicate person"},
+        ).status_code
+        == 200
+    )
+    after = c.get(f"/api/v1/events/{slug}/tally", headers=org).json()
+    assert after["total_votes"] == before - 1 and after["voided"] >= 1
+    assert (
+        c.post(
+            f"/api/v1/events/{slug}/votes/{vote_id}/void", headers=v, json={"reason": "x"}
+        ).status_code
+        == 403
+    )
+
+
+def test_voting_closed_refuses(world):
+    c, slug, org, pid = world["client"], world["slug"], world["org"], world["pids"][1]
+    now = world["now"]
+    c.patch(
+        f"/api/v1/events/{slug}",
+        headers=org,
+        json={
+            "name": "Vote Hack",
+            "is_public": True,
+            "voting_open_at": (now - timedelta(hours=3)).isoformat(),
+            "voting_close_at": (now - timedelta(hours=2)).isoformat(),
+        },
+    )
+    r = c.post(f"/api/v1/events/{slug}/projects/{pid}/votes", headers=world["voters"][0])
+    assert r.status_code == 403 and r.json()["error"]["code"] == "closed"
+    assert c.post(f"/api/v1/events/{slug}/actions/publish_results", headers=org).status_code == 200
+    assert c.get(f"/api/v1/events/{slug}/tally").status_code == 200, "closed + published → public"
+    page = c.get(f"/e/{slug}/results").text
+    assert "Full ranking" in page or "no reviews" in page
+
+
+def test_comments_add_hide_and_limits(world):
+    c, slug, org, pid = world["client"], world["slug"], world["org"], world["pids"][0]
+    v = world["voters"][0]
+    assert (
+        c.post(f"/api/v1/events/{slug}/projects/{pid}/comments", json={"body": "hi"}).status_code
+        == 401
+    )
+    r = c.post(
+        f"/api/v1/events/{slug}/projects/{pid}/comments", headers=v, json={"body": "Love the idea."}
+    )
+    assert r.status_code == 201
+    cid = r.json()["comment"]["id"]
+    assert (
+        c.post(
+            f"/api/v1/events/{slug}/projects/{pid}/comments", headers=v, json={"body": "   "}
+        ).status_code
+        == 422
+    )
+    assert len(c.get(f"/api/v1/events/{slug}/projects/{pid}/comments").json()["comments"]) == 1
+    assert (
+        c.post(f"/api/v1/events/{slug}/projects/{pid}/comments/{cid}/hide", headers=v).status_code
+        == 403
+    )
+    assert (
+        c.post(f"/api/v1/events/{slug}/projects/{pid}/comments/{cid}/hide", headers=org).status_code
+        == 200
+    )
+    assert c.get(f"/api/v1/events/{slug}/projects/{pid}/comments").json()["comments"] == []
+    assert (
+        len(c.get(f"/api/v1/events/{slug}/projects/{pid}/comments", headers=org).json()["comments"])
+        == 1
+    )
+    c.patch(f"/api/v1/events/{slug}/voting", headers=org, json={"comments_enabled": False})
+    assert (
+        c.post(
+            f"/api/v1/events/{slug}/projects/{pid}/comments", headers=v, json={"body": "x"}
+        ).status_code
+        == 403
+    )
