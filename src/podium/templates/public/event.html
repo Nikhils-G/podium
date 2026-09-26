@@ -1,0 +1,32 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import stage_badge, when %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="page-header__eyebrow">Event</p>
+    <h1 class="serif">{{ event.name }}</h1>
+    <div class="page-header__meta">
+      {{ stage_badge(stage, stage_label) }}
+      <span>Submissions {{ 'closed' if stage in ('closed', 'judging', 'voting', 'published', 'archived') else 'close' }} {{ when(event.submissions_close_at) }}</span>
+    </div>
+  </div>
+  <a class="btn btn--primary" href="/e/{{ event.slug }}/projects">Browse {{ project_count }} project{{ '' if project_count == 1 else 's' }}</a>
+</div>
+{% if event.description %}<p class="text-lg ink-2">{{ event.description }}</p>{% endif %}
+<section class="stack mt-6">
+  <h2>Tracks</h2>
+  <div class="cluster">
+    {% for track in event.tracks %}
+      <a class="chip t-{{ (track.position % 8) + 1 }}" href="/e/{{ event.slug }}/projects?track={{ track.public_id }}"><span class="chip__dot" aria-hidden="true"></span>{{ track.name }}</a>
+    {% else %}
+      <span class="muted">No tracks defined yet.</span>
+    {% endfor %}
+  </div>
+</section>
+{% if event.prizes %}
+<section class="stack mt-6">
+  <h2>Prizes</h2>
+  <ul>{% for prize in event.prizes %}<li><strong>{{ prize.name }}</strong>{% if prize.amount_text %} — {{ prize.amount_text }}{% endif %}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+{% endblock %}

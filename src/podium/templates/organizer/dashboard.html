@@ -1,0 +1,59 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import badge, when %}
+{% block content %}
+<div class="page-header">
+  <div><p class="page-header__eyebrow">Organizer</p><h1>{{ event.name }}</h1></div>
+  <a class="btn btn--secondary" href="/e/{{ event.slug }}/organizer/settings">Event settings</a>
+</div>
+
+<ol class="stepper" aria-label="Run of show">
+  {% for stg, label, hint in steps %}
+    {% set i = loop.index0 %}
+    <li class="stepper__step{% if i < step_index %} is-done{% elif i == step_index %} is-current{% endif %}" {% if i == step_index %}aria-current="step"{% endif %}>
+      <span class="stepper__dot" aria-hidden="true"></span>
+      <span class="stepper__label">{{ label }}</span>
+      <span class="stepper__hint">{{ hint }}</span>
+    </li>
+  {% endfor %}
+</ol>
+
+<section class="kpis" aria-label="Key numbers">
+  <div class="kpi"><span class="kpi__label">Projects submitted</span><span class="kpi__value">{{ overview.projects_submitted }}</span><span class="kpi__sub">{{ overview.projects_draft }} draft · {{ overview.projects_withdrawn }} withdrawn</span></div>
+  <div class="kpi"><span class="kpi__label">Teams</span><span class="kpi__value">{{ overview.teams }}</span><span class="kpi__sub">{{ overview.participants }} participants</span></div>
+  <div class="kpi"><span class="kpi__label">Judges</span><span class="kpi__value">{{ overview.judges }}</span><span class="kpi__sub">{{ overview.tracks }} tracks</span></div>
+  <div class="kpi"><span class="kpi__label">Submissions close</span><span class="kpi__value kpi__value--sm">{% if event.submissions_close_at %}{{ event.submissions_close_at.strftime('%-d %b') }}{% else %}—{% endif %}</span><span class="kpi__sub">{% if event.submissions_close_at %}{{ event.submissions_close_at.strftime('%H:%M') }} UTC{% else %}not set{% endif %}</span></div>
+</section>
+
+<div class="two-col two-col--wide mt-6">
+  <section class="stack">
+    <h2>Attention</h2>
+    {% if overview.attention %}
+    <ul class="attention">
+      {% for item in overview.attention %}
+      <li class="attention__item attention__item--{{ item.kind }}">
+        <span class="attention__icon" aria-hidden="true">{{ '!' if item.kind != 'info' else 'i' }}</span>
+        <div class="grow"><strong>{{ item.title }}</strong><p class="text-sm ink-2">{{ item.detail }}</p></div>
+        <a class="btn btn--secondary btn--sm" href="{{ item.href }}">{{ item.action }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Nothing needs your attention right now.</p>
+    {% endif %}
+  </section>
+  <section class="stack">
+    <h2>Actions</h2>
+    <ul class="action-list">
+      {% for key, label, consequence in actions %}
+      <li>
+        <form method="post" action="/e/{{ event.slug }}/organizer/actions/{{ key }}" hx-boost="false" data-confirm="{{ label }}? {{ consequence }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn {{ 'btn--primary' if loop.first else ('btn--danger' if key == 'archive' else 'btn--secondary') }} btn--sm" type="submit">{{ label }}</button>
+        </form>
+        <span class="text-sm ink-2">{{ consequence }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

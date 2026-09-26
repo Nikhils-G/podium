@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block shell %}
+<header class="topbar">
+  <div class="container topbar__inner">
+    <a class="brand" href="/"><img class="brand__mark" src="/static/img/podium.svg" alt="">Podium</a>
+    <nav class="topnav" aria-label="Main">
+      {% if event %}
+        <a class="topnav__event" href="/e/{{ event.slug }}" {% if nav == 'event' %}aria-current="page"{% endif %}>{{ event.name }}</a>
+        <a href="/e/{{ event.slug }}/projects" {% if nav == 'gallery' %}aria-current="page"{% endif %}>Gallery</a>
+      {% endif %}
+      {% if user %}
+        <a href="/account" {% if nav == 'account' %}aria-current="page"{% endif %}>{{ user.name }}</a>
+        <form method="post" action="/logout" hx-boost="false">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">Sign out</button>
+        </form>
+      {% else %}
+        <a href="/login" {% if nav == 'login' %}aria-current="page"{% endif %}>Sign in</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+<main id="main" class="container">
+  {% block content %}{% endblock %}
+</main>
+<footer class="site">
+  <div class="container cluster">
+    <span>Powered by Podium — open-source hackathon judging.</span>
+    <span class="grow"></span>
+    <span class="theme-menu" role="group" aria-label="Colour theme">
+      <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+      <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+    </span>
+  </div>
+</footer>
+{% endblock %}

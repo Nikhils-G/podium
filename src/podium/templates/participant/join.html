@@ -1,0 +1,26 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import badge %}
+{% block content %}
+<div class="auth-card stack">
+  <div>
+    <p class="page-header__eyebrow">{{ event.name }}</p>
+    <h1 class="serif">Join {{ team.name }}</h1>
+    <p class="ink-2 mt-2">{{ view.members|length }} member{{ '' if view.members|length == 1 else 's' }} so far: {% for m, r in view.members %}{{ m.name }}{{ ', ' if not loop.last }}{% endfor %}.</p>
+  </div>
+  {% if already %}
+    <p>You're already in this team.</p>
+    <a class="btn btn--primary" href="/e/{{ event.slug }}/team">Go to your team</a>
+  {% elif user %}
+    <form method="post" action="/join/{{ code }}" hx-boost="false" class="stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="btn btn--primary btn--block" type="submit">Join {{ team.name }}</button>
+    </form>
+  {% else %}
+    <p>Sign in or create an account to join.</p>
+    <div class="cluster">
+      <a class="btn btn--primary" href="/login?next={{ next|urlencode }}">Sign in</a>
+      <a class="btn btn--secondary" href="/register?next={{ next|urlencode }}">Create account</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

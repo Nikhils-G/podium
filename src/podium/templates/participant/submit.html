@@ -1,0 +1,55 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import field, alert, badge, when %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="page-header__eyebrow">{{ event.name }}</p>
+    <h1>{{ 'Your project' if project else 'Submit a project' }}</h1>
+    <div class="page-header__meta">
+      {% if project %}{{ badge(project.status.value|capitalize, 'good' if project.status.value == 'submitted' else ('critical' if project.status.value == 'withdrawn' else 'warning')) }}{% endif %}
+      {% if event.submissions_close_at %}<span>Submissions {{ 'close' if open else 'closed' }} {{ when(event.submissions_close_at) }}</span>{% endif %}
+    </div>
+  </div>
+  {% if project %}<a class="btn btn--secondary" href="/e/{{ event.slug }}/projects/{{ project.public_id }}">View public page</a>{% endif %}
+</div>
+{% if error %}{{ alert('critical', error) }}{% endif %}
+{% if not view %}
+  {{ alert('info', 'Create or join a team first — projects belong to teams.') }}
+  <p class="mt-4"><a class="btn btn--primary" href="/e/{{ event.slug }}/team">Set up your team</a></p>
+{% else %}
+  {% if not editable %}
+    {{ alert('warning', 'Submissions are closed, so this project is locked. Contact the organizers if something needs to change.') }}
+  {% endif %}
+  <form class="stack mt-4 form-narrow" method="post" action="/e/{{ event.slug }}/submit" hx-boost="false" data-guard>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <fieldset class="stack" {% if not editable %}disabled{% endif %}>
+      {{ field('title', 'Project title', value=values.title, required=True, error=errors.title, maxlength=140) }}
+      {{ field('summary', 'One-line summary', value=values.summary, error=errors.summary, maxlength=280, help='Shown on the gallery card. Up to 280 characters.') }}
+      <div class="field{% if errors.track %} is-invalid{% endif %}">
+        <label class="field__label" for="f-track">Track</label>
+        <select class="select" id="f-track" name="track">
+          <option value="">— Choose a track —</option>
+          {% for track in event.tracks %}<option value="{{ track.public_id }}" {% if values.track == track.public_id %}selected{% endif %}>{{ track.name }}</option>{% endfor %}
+        </select>
+        {% if errors.track %}<p class="field__error">{{ errors.track }}</p>{% endif %}
+      </div>
+      {{ field('description', 'Description', value=values.description, type='textarea', rows=8, error=errors.description, help='What it does, how it works, what you would do next.') }}
+      {{ field('repo_url', 'Repository URL', value=values.repo_url, type='url', error=errors.repo_url, placeholder='https://github.com/…') }}
+      {{ field('demo_url', 'Demo URL', value=values.demo_url, type='url', error=errors.demo_url, placeholder='https://…') }}
+      {{ field('video_url', 'Video URL', value=values.video_url, type='url', error=errors.video_url, placeholder='https://…') }}
+    </fieldset>
+    {% if editable %}
+    <div class="cluster form-actions">
+      {% if not project or project.status.value == 'draft' %}
+        <button class="btn btn--primary" type="submit" name="action" value="submit">Submit project</button>
+        <button class="btn btn--secondary" type="submit" name="action" value="save">Save draft</button>
+      {% else %}
+        <button class="btn btn--primary" type="submit" name="action" value="save">Save changes</button>
+        <button class="btn btn--ghost" type="submit" name="action" value="unsubmit">Return to draft</button>
+      {% endif %}
+      <span class="muted text-sm">Drafts are visible only to your team.</span>
+    </div>
+    {% endif %}
+  </form>
+{% endif %}
+{% endblock %}

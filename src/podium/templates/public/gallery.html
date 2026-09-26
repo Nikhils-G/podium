@@ -1,0 +1,30 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import stage_badge, track_chip %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="page-header__eyebrow">{{ event.name }}</p>
+    <h1>Projects</h1>
+    <div class="page-header__meta">{{ stage_badge(stage, stage_label) }}<span class="count">{{ page.total }} project{{ '' if page.total == 1 else 's' }}</span></div>
+  </div>
+</div>
+<form class="toolbar" method="get" action="/e/{{ event.slug }}/projects" role="search" hx-boost="false">
+  <label class="visually-hidden" for="gallery-q">Search projects</label>
+  <div class="toolbar__search">
+    <input class="input input--search" id="gallery-q" type="search" name="q" value="{{ page.q }}" placeholder="Search projects, teams… (press /)" data-search
+      hx-get="/e/{{ event.slug }}/projects" hx-trigger="input changed delay:300ms, search" hx-target="#gallery-results" hx-swap="outerHTML" hx-push-url="true" hx-include="closest form" autocomplete="off">
+  </div>
+  <input type="hidden" name="track" value="{{ page.track }}">
+  <label class="visually-hidden" for="gallery-sort">Sort</label>
+  <select class="select" id="gallery-sort" name="sort" hx-get="/e/{{ event.slug }}/projects" hx-target="#gallery-results" hx-swap="outerHTML" hx-push-url="true" hx-include="closest form">
+    <option value="newest" {% if page.sort == 'newest' %}selected{% endif %}>Newest first</option>
+    <option value="title" {% if page.sort == 'title' %}selected{% endif %}>Title A–Z</option>
+  </select>
+  <noscript><button class="btn btn--secondary" type="submit">Search</button></noscript>
+</form>
+<div class="cluster" aria-label="Filter by track">
+  <a class="chip{% if not page.track %} is-selected{% endif %}" href="/e/{{ event.slug }}/projects?q={{ page.q|urlencode }}&sort={{ page.sort }}" hx-boost="false" hx-get="/e/{{ event.slug }}/projects?q={{ page.q|urlencode }}&sort={{ page.sort }}" hx-target="#gallery-results" hx-swap="outerHTML" hx-push-url="true">All tracks</a>
+  {% for track in page.tracks %}{{ track_chip(track, "/e/" ~ event.slug ~ "/projects?track=" ~ track.public_id ~ "&q=" ~ (page.q|urlencode) ~ "&sort=" ~ page.sort, selected=(page.track == track.public_id)) }}{% endfor %}
+</div>
+{% include "partials/gallery_grid.html" %}
+{% endblock %}

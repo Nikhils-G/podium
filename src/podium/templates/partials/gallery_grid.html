@@ -1,0 +1,39 @@
+{% from "macros/ui.html" import empty, badge %}
+<section id="gallery-results" class="mt-4" aria-live="polite" aria-busy="false">
+  {% if ballot %}<p class="text-sm ink-2">Voting is open. Projects are shown in a random order that stays fixed for you, so no entry benefits from being first.</p>{% endif %}
+  {% if page.cards %}
+  <p class="visually-hidden">{{ page.total }} projects shown</p>
+  <div class="grid-cards">
+    {% for card in page.cards %}
+    <article class="card">
+      <div class="card__meta">
+        {% if card.track_name %}<span class="chip t-{{ ((card.track_position or 0) % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ card.track_name }}</span>{% endif %}
+        {% if card.status == 'withdrawn' %}{{ badge('Withdrawn', 'critical') }}{% endif %}
+        {% if card.public_id in voted %}{{ badge('You voted', 'accent') }}{% endif %}
+      </div>
+      <h2 class="card__title"><a href="/e/{{ event.slug }}/projects/{{ card.public_id }}">{{ card.title }}</a></h2>
+      {% if card.summary %}<p class="card__summary">{{ card.summary }}</p>{% endif %}
+      <div class="card__meta"><span>by {{ card.team_name }}</span></div>
+      {% if card.repo_url or card.demo_url or card.video_url %}
+      <div class="card__links">
+        {% if card.repo_url %}<a href="{{ card.repo_url }}" rel="noopener" target="_blank">Repo</a>{% endif %}
+        {% if card.demo_url %}<a href="{{ card.demo_url }}" rel="noopener" target="_blank">Demo</a>{% endif %}
+        {% if card.video_url %}<a href="{{ card.video_url }}" rel="noopener" target="_blank">Video</a>{% endif %}
+      </div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% if page.pages > 1 %}
+  <nav class="pagination" aria-label="Pagination">
+    {% for n in range(1, page.pages + 1) %}
+      {% if n == page.page %}<span aria-current="page">{{ n }}</span>{% else %}<a href="/e/{{ event.slug }}/projects?q={{ page.q|urlencode }}&track={{ page.track }}&sort={{ page.sort }}&page={{ n }}">{{ n }}</a>{% endif %}
+    {% endfor %}
+  </nav>
+  {% endif %}
+  {% elif page.q or page.track %}
+  {{ empty("No matching projects", "Try a different search or clear the filters.", "Clear filters", "/e/" ~ event.slug ~ "/projects") }}
+  {% else %}
+  {{ empty("No projects yet", "Submitted projects will appear here once teams submit them.") }}
+  {% endif %}
+</section>

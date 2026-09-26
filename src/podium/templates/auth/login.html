@@ -1,0 +1,32 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import field, alert %}
+{% block content %}
+<div class="auth-card stack">
+  <div>
+    <h1>Sign in</h1>
+    <p class="ink-2 mt-2">New here? <a href="/register{% if next %}?next={{ next|urlencode }}{% endif %}">Create an account</a>.</p>
+  </div>
+  {% if error %}{{ alert('critical', error) }}{% endif %}
+  <form method="post" action="/login" hx-boost="false" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    {{ field('email', 'Email', value=email, type='email', required=True, autocomplete='email') }}
+    {{ field('password', 'Password', type='password', required=True, autocomplete='current-password') }}
+    <button class="btn btn--primary btn--block" type="submit">Sign in</button>
+  </form>
+  {% if demo_roles %}
+  <div class="demo-panel">
+    <h3>Demo accounts</h3>
+    <p>This install ships with demo identities so you can explore every role. Password for all of them: <code>{{ demo_password }}</code>.</p>
+    <div class="cluster mt-2">
+      {% for role in demo_roles %}
+      <form method="post" action="/login/demo/{{ role }}" hx-boost="false">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn--secondary btn--sm" type="submit">Sign in as {{ role.replace('_', ' ') }}</button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

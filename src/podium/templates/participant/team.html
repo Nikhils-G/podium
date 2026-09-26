@@ -1,0 +1,73 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import field, alert, badge, empty, when %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="page-header__eyebrow">{{ event.name }}</p>
+    <h1>Your team</h1>
+  </div>
+  {% if view and view.project %}<a class="btn btn--secondary" href="/e/{{ event.slug }}/projects/{{ view.project.public_id }}">View project</a>{% endif %}
+</div>
+{% if error %}{{ alert('critical', error) }}{% endif %}
+{% if view %}
+<section class="stack-lg">
+  <div class="card">
+    <div class="cluster">
+      <h2 class="grow">{{ view.team.name }}</h2>
+      {{ badge(view.members|length ~ ' of ' ~ event.max_team_size ~ ' members', 'plain') }}
+    </div>
+    <h3 class="mt-2">Members</h3>
+    <ul class="member-list">
+      {% for member, role in view.members %}
+        <li><span class="avatar" aria-hidden="true">{{ member.name[:1]|upper }}</span><span>{{ member.name }}</span>{% if role == 'lead' %}{{ badge('Lead', 'accent') }}{% endif %}{% if user and member.id == user.id %}<span class="muted text-sm">(you)</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% if view.members|length < event.max_team_size %}
+    <h3 class="mt-4">Invite teammates</h3>
+    <p class="ink-2 text-sm">Anyone with this link can join your team{% if event.submissions_close_at %} until submissions close {{ when(event.submissions_close_at) }}{% endif %}.</p>
+    <div class="copy-field">
+      <code class="copy-field__value">{{ settings.base_url }}/join/{{ view.team.invite_code }}</code>
+      <button class="btn btn--secondary btn--sm" type="button" data-copy="{{ settings.base_url }}/join/{{ view.team.invite_code }}">Copy link</button>
+    </div>
+    {% else %}
+    <p class="muted mt-4">Your team is full.</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <h2>Project</h2>
+    {% if view.project %}
+      <p><strong>{{ view.project.title }}</strong> — {{ badge(view.project.status.value|capitalize, 'good' if view.project.status.value == 'submitted' else ('critical' if view.project.status.value == 'withdrawn' else 'warning')) }}</p>
+      <div class="cluster"><a class="btn btn--primary" href="/e/{{ event.slug }}/submit">{{ 'Edit project' if open else 'View submission' }}</a></div>
+    {% elif open %}
+      <p class="ink-2">Your team hasn't started a project yet.</p>
+      <div class="cluster"><a class="btn btn--primary" href="/e/{{ event.slug }}/submit">Start your submission</a></div>
+    {% else %}
+      <p class="ink-2">Submissions closed {{ when(event.submissions_close_at) }} before your team submitted.</p>
+    {% endif %}
+  </div>
+  {% if not (view.project and view.project.submitted_at) %}
+  <form method="post" action="/e/{{ event.slug }}/team/leave" hx-boost="false" class="cluster">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn btn--ghost" type="submit">Leave team</button>
+  </form>
+  {% endif %}
+</section>
+{% else %}
+<div class="two-col">
+  <form class="card stack" method="post" action="/e/{{ event.slug }}/team" hx-boost="false">
+    <h2>Create a team</h2>
+    <p class="ink-2 text-sm">You'll get an invite link to share with up to {{ event.max_team_size - 1 }} teammate{{ '' if event.max_team_size == 2 else 's' }}. Solo is fine too.</p>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ field('name', 'Team name', value=values.name or '', required=True, error=errors.name, maxlength=120) }}
+    <button class="btn btn--primary" type="submit">Create team</button>
+  </form>
+  <form class="card stack" method="post" action="/e/{{ event.slug }}/team/join" hx-boost="false">
+    <h2>Join with an invite</h2>
+    <p class="ink-2 text-sm">Paste the invite link or code a teammate sent you.</p>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ field('code', 'Invite link or code', value=values.code or '', required=True, placeholder='join_…') }}
+    <button class="btn btn--secondary" type="submit">Join team</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% if title %}{{ title }} · {% endif %}Podium{% endblock %}</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"globalViewTransitions":true,"scrollBehavior":"instant","responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"422","swap":true,"error":false},{"code":"[45]..","swap":false,"error":true},{"code":"...","swap":false}]}'>
+  <link rel="icon" href="/static/img/podium.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script nonce="{{ nonce }}">try{var t=localStorage.getItem("podium-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}</script>
+  <script src="/static/js/htmx.min.js" defer></script>
+  <script src="/static/js/app.js" defer></script>
+</head>
+<body hx-boost="true">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="nav-progress" aria-hidden="true"></div>
+  {% block shell %}{% endblock %}
+  <div id="alerts" class="alerts"></div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+</body>
+</html>

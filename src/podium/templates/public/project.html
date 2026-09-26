@@ -1,0 +1,67 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import badge, alert, when %}
+{% block content %}
+{% if is_draft %}{{ alert('info', 'Draft — only your team and the organizers can see this page.') }}{% endif %}
+{% if is_withdrawn %}{{ alert('warning', 'This project was withdrawn on ' ~ project.withdrawn_at.strftime('%-d %b %Y') ~ '.') }}{% endif %}
+<div class="page-header">
+  <div>
+    <p class="page-header__eyebrow"><a href="/e/{{ event.slug }}/projects">{{ event.name }} · Projects</a></p>
+    <h1 class="serif">{{ project.title }}</h1>
+    <div class="page-header__meta">
+      {% if project.track %}<span class="chip t-{{ (project.track.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ project.track.name }}</span>{% endif %}
+      <span>by <strong>{{ project.team.name }}</strong></span>
+      {% if project.submitted_at %}<span>Submitted {{ when(project.submitted_at) }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="cluster">
+    {% if editable %}<a class="btn btn--primary" href="/e/{{ event.slug }}/submit">Edit project</a>{% endif %}
+    {% if member or ctx.is_organizer %}
+      {% if is_withdrawn %}
+      <form method="post" action="/e/{{ event.slug }}/projects/{{ project.public_id }}/restore" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--secondary" type="submit">Restore project</button></form>
+      {% else %}
+      <form method="post" action="/e/{{ event.slug }}/projects/{{ project.public_id }}/withdraw" hx-boost="false" data-confirm="Withdraw this project? It leaves the gallery and the judging pool. You can restore it later."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost" type="submit">Withdraw</button></form>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+<div class="two-col two-col--wide">
+  <article class="stack">
+    {% if project.summary %}<p class="text-lg ink-2">{{ project.summary }}</p>{% endif %}
+    {% if project.description %}
+      <div class="prose">{% for para in project.description.split('\n\n') %}<p>{{ para|replace('\n', ' ') }}</p>{% endfor %}</div>
+    {% elif not project.summary %}
+      <p class="muted">The team hasn't written a description yet.</p>
+    {% endif %}
+    {% if project.repo_url or project.demo_url or project.video_url %}
+    <div class="cluster">
+      {% if project.repo_url %}<a class="btn btn--secondary" href="{{ project.repo_url }}" rel="noopener" target="_blank">Repository ↗</a>{% endif %}
+      {% if project.demo_url %}<a class="btn btn--secondary" href="{{ project.demo_url }}" rel="noopener" target="_blank">Live demo ↗</a>{% endif %}
+      {% if project.video_url %}<a class="btn btn--secondary" href="{{ project.video_url }}" rel="noopener" target="_blank">Video ↗</a>{% endif %}
+    </div>
+    {% endif %}
+  </article>
+  <aside class="stack">
+    {% if event.voting_open_at or ctx.is_organizer %}
+    <div class="card">
+      <h3>Community vote</h3>
+      {% with %}{% set _v = vote %}{% include "partials/vote_control.html" with context %}{% endwith %}
+    </div>
+    {% endif %}
+    <div class="card">
+      <h3>Team</h3>
+      <ul class="member-list">
+        {% for m, r in team_view.members %}<li><span class="avatar" aria-hidden="true">{{ m.name[:1]|upper }}</span><span>{{ m.name }}</span>{% if r == 'lead' %}{{ badge('Lead', 'accent') }}{% endif %}</li>{% endfor %}
+      </ul>
+    </div>
+    {% if ctx.is_organizer and project.duplicate_of %}
+    <div class="card card--attention">
+      <h3>Organizer note</h3>
+      <p class="text-sm">Flagged as a possible duplicate of <a href="/e/{{ event.slug }}/projects/{{ project.duplicate_of.public_id }}">{{ project.duplicate_of.title }}</a> ({{ project.duplicate_of.public_id }}) — same team and repository. Withdraw one if it's a re-submission.</p>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+<div class="mt-6">
+{% with %}{% set comments = comments_ctx.comments %}{% set enabled = comments_ctx.enabled %}{% set errors = comments_ctx.errors %}{% set body = comments_ctx.body %}{% include "partials/comments.html" %}{% endwith %}
+</div>
+{% endblock %}

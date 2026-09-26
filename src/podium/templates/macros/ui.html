@@ -1,0 +1,40 @@
+{% macro field(name, label, value='', type='text', error='', help='', required=False, autocomplete='', placeholder='', maxlength=None, rows=None) -%}
+<div class="field{% if error %} is-invalid{% endif %}">
+  <label class="field__label" for="f-{{ name }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+  {%- if type == 'textarea' %}
+  <textarea class="textarea" id="f-{{ name }}" name="{{ name }}"{% if required %} required{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}{% if rows %} rows="{{ rows }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if error %} aria-invalid="true" aria-describedby="e-{{ name }}"{% elif help %} aria-describedby="h-{{ name }}"{% endif %}>{{ value }}</textarea>
+  {%- else %}
+  <input class="input" id="f-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"{% if required %} required{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}{% if type == 'email' %} inputmode="email"{% endif %}{% if error %} aria-invalid="true" aria-describedby="e-{{ name }}"{% elif help %} aria-describedby="h-{{ name }}"{% endif %}>
+  {%- endif %}
+  {%- if error %}<p class="field__error" id="e-{{ name }}">{{ error }}</p>{% elif help %}<p class="field__help" id="h-{{ name }}">{{ help }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro alert(kind, text) -%}
+<div class="alert alert--{{ kind }}" role="{{ 'alert' if kind == 'critical' else 'status' }}">{{ text }}</div>
+{%- endmacro %}
+
+{% macro badge(text, kind='') -%}
+<span class="badge{% if kind %} badge--{{ kind }}{% endif %}">{{ text }}</span>
+{%- endmacro %}
+
+{% macro stage_badge(stage, label) -%}
+{% set kinds = {'open': 'good', 'voting': 'accent', 'judging': 'warning', 'published': 'accent', 'closed': '', 'draft': '', 'upcoming': '', 'archived': ''} %}
+<span class="badge{% if kinds[stage] %} badge--{{ kinds[stage] }}{% endif %}">{{ label }}</span>
+{%- endmacro %}
+
+{% macro empty(title, text, action_label='', action_href='') -%}
+<div class="empty">
+  <p class="empty__title">{{ title }}</p>
+  <p>{{ text }}</p>
+  {% if action_label %}<a class="btn btn--primary" href="{{ action_href }}">{{ action_label }}</a>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro when(value) -%}
+{% if value %}<time datetime="{{ value.isoformat() }}" data-local>{{ value.strftime('%-d %b %Y, %H:%M') }} UTC</time>{% else %}—{% endif %}
+{%- endmacro %}
+
+{% macro track_chip(track, href, selected=False) -%}
+<a class="chip t-{{ (track.position % 8) + 1 }}{% if selected %} is-selected{% endif %}" href="{{ href }}" hx-boost="false" hx-get="{{ href }}" hx-target="#gallery-results" hx-push-url="true" hx-swap="outerHTML" {% if selected %}aria-current="true"{% endif %}><span class="chip__dot" aria-hidden="true"></span>{{ track.name }}</a>
+{%- endmacro %}

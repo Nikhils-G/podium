@@ -1,0 +1,19 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import field, alert %}
+{% block content %}
+<div class="auth-card stack">
+  <div>
+    <h1>Create your account</h1>
+    <p class="ink-2 mt-2">Already have one? <a href="/login{% if next %}?next={{ next|urlencode }}{% endif %}">Sign in</a>.</p>
+  </div>
+  {% if error %}{{ alert('critical', error) }}{% endif %}
+  <form method="post" action="/register" hx-boost="false" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    {{ field('name', 'Name', value=values.name, required=True, autocomplete='name', error=errors.name, maxlength=120) }}
+    {{ field('email', 'Email', value=values.email, type='email', required=True, autocomplete='email', error=errors.email) }}
+    {{ field('password', 'Password', type='password', required=True, autocomplete='new-password', error=errors.password, help='At least 8 characters.') }}
+    <button class="btn btn--primary btn--block" type="submit">Create account</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import field, alert, badge %}
+{% block content %}
+<div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Event settings</h1></div></div>
+{% if request.query_params.get('saved') %}{{ alert('success', 'Settings saved.') }}{% endif %}
+<form class="stack form-narrow" method="post" action="/e/{{ event.slug }}/organizer/settings" hx-boost="false" data-guard>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% include "organizer/_event_fields.html" %}
+  <div class="cluster form-actions"><button class="btn btn--primary" type="submit">Save settings</button></div>
+</form>
+
+<section class="stack mt-6" id="tracks">
+  <h2>Tracks</h2>
+  {% if event.tracks %}
+  <ul class="row-list">
+    {% for track in event.tracks %}
+    <li><span class="chip t-{{ (track.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ track.name }}</span><span class="grow text-sm ink-2">{{ track.description }}</span>
+      <form method="post" action="/e/{{ event.slug }}/organizer/tracks/{{ track.public_id }}/delete" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form></li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">No tracks yet.</p>{% endif %}
+  <form class="cluster align-end" method="post" action="/e/{{ event.slug }}/organizer/tracks" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grow">{{ field('name', 'New track', required=True, error=errors.track_name, maxlength=120, placeholder='e.g. Developer tools') }}</div>
+    <button class="btn btn--secondary" type="submit">Add track</button>
+  </form>
+</section>
+
+<section class="stack mt-6" id="prizes">
+  <h2>Prizes</h2>
+  {% if event.prizes %}
+  <ul class="row-list">
+    {% for prize in event.prizes %}
+    <li><strong>{{ prize.name }}</strong><span class="text-sm ink-2">{{ prize.amount_text }}{% if prize.track %} · {{ prize.track.name }}{% endif %}</span><span class="grow"></span>
+      <form method="post" action="/e/{{ event.slug }}/organizer/prizes/{{ prize.public_id }}/delete" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form></li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">No prizes yet.</p>{% endif %}
+  <form class="field-grid align-end" method="post" action="/e/{{ event.slug }}/organizer/prizes" hx-boost="false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {{ field('name', 'Prize name', required=True, error=errors.prize_name, placeholder='1st place') }}
+    {{ field('amount', 'Amount or description', placeholder='$800', maxlength=60) }}
+    <div class="field"><label class="field__label" for="f-prize-track">Track (optional)</label><select class="select" id="f-prize-track" name="track"><option value="">Overall</option>{% for track in event.tracks %}<option value="{{ track.public_id }}">{{ track.name }}</option>{% endfor %}</select></div>
+    <div class="field"><span class="field__label">&nbsp;</span><button class="btn btn--secondary" type="submit">Add prize</button></div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "layouts/public.html" %}
+{% block content %}
+<div class="error-page stack">
+  <p class="code">{{ status }}</p>
+  <h1>{{ heading }}</h1>
+  <p class="ink-2">{{ message }}</p>
+  <div class="cluster">
+    {% if status == 401 %}<a class="btn btn--primary" href="/login?next={{ request.url.path|urlencode }}">Sign in</a>
+    {% elif status == 403 and user %}<form method="post" action="/logout" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--secondary" type="submit">Sign in as a different account</button></form>
+    {% endif %}
+    <a class="btn btn--ghost" href="/">Back to home</a>
+  </div>
+</div>
+{% endblock %}
