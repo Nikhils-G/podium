@@ -136,6 +136,8 @@ def test_deadline_holds_and_unlock_reopens(world):
 def test_withdraw_and_restore(world):
     c, slug, pid = world["client"], world["slug"], world["pid"]
     r = c.post(f"/api/v1/events/{slug}/projects/{pid}/withdraw", headers=world["alice"])
+    assert r.status_code == 403, "submissions closed in the test above; only organizers now"
+    r = c.post(f"/api/v1/events/{slug}/projects/{pid}/withdraw", headers=world["org"])
     assert r.status_code == 200 and r.json()["project"]["status"] == "withdrawn"
     assert "Quiet Hours" not in c.get(f"/e/{slug}/projects").text
     r = c.post(f"/api/v1/events/{slug}/projects/{pid}/restore", headers=world["org"])
@@ -175,3 +177,96 @@ def test_event_validation(world):
     )
     assert r.status_code == 422 and "submissions_close_at" in r.json()["error"]["errors"]
     assert get_settings().demo_accounts
+
+
+@pytest.fixture(scope="module")
+def locked(app):
+    """A scratch event with its own organizer and a one-member team with a submitted project."""
+    from fastapi.testclient import TestClient
+
+    client = TestClient(app)
+    with get_sessionmaker()() as db:
+        org = _cookie(db, "org-lock@example.test")
+        dana = _cookie(db, "dana-lock@example.test")
+    window = {
+        "name": "Lock Hack",
+        "is_public": True,
+        "submissions_open_at": (datetime.now(UTC) - timedelta(days=1)).isoformat(),
+        "submissions_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
+    }
+    r = client.post("/api/v1/events", headers=org, json=window)
+    assert r.status_code == 201, r.text
+    slug = r.json()["event"]["slug"]
+    r = client.post(f"/api/v1/events/{slug}/teams", headers=dana, json={"name": "Locksmiths"})
+    assert r.status_code == 201, r.text
+    r = client.post(
+        f"/api/v1/events/{slug}/projects",
+        headers=dana,
+        json={"title": "Deadbolt", "summary": "Stays shut.", "submit": True},
+    )
+    assert r.status_code == 201, r.text
+    csrf = client.get("/login").cookies.get("csrf")
+    return {
+        "client": client,
+        "slug": slug,
+        "pid": r.json()["project"]["id"],
+        "org": org,
+        "dana": dana,
+        "window": window,
+        "csrf": csrf,
+    }
+
+
+def _web_post(world, who, path):
+    """An HTML form post (the project page's buttons and the dashboard's "Withdraw duplicate")."""
+    return world["client"].post(
+        path,
+        headers={
+            "X-CSRF-Token": world["csrf"],
+            "Cookie": world[who]["Cookie"] + f"; csrf={world['csrf']}",
+        },
+        follow_redirects=False,
+    )
+
+
+def test_team_withdraws_and_restores_while_submissions_are_open(locked):
+    c, base = locked["client"], f"/api/v1/events/{locked['slug']}/projects/{locked['pid']}"
+    r = c.post(f"{base}/withdraw", headers=locked["dana"])
+    assert r.status_code == 200 and r.json()["project"]["status"] == "withdrawn"
+    r = c.post(f"{base}/restore", headers=locked["dana"])
+    assert r.status_code == 200 and r.json()["project"]["status"] == "submitted"
+
+
+def test_after_the_deadline_only_an_organizer_withdraws_or_restores(locked):
+    c, slug, pid = locked["client"], locked["slug"], locked["pid"]
+    base = f"/api/v1/events/{slug}/projects/{pid}"
+    past = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
+    r = c.patch(
+        f"/api/v1/events/{slug}",
+        headers=locked["org"],
+        json={**locked["window"], "submissions_close_at": past},
+    )
+    assert r.status_code == 200 and r.json()["event"]["stage"] == "closed"
+    r = c.post(f"{base}/withdraw", headers=locked["dana"])
+    assert r.status_code == 403 and r.json()["error"]["code"] == "closed"
+    r = _web_post(locked, "dana", f"/e/{slug}/projects/{pid}/withdraw")
+    assert r.status_code == 403 and "only an organizer can withdraw" in r.text
+    r = c.post(f"{base}/withdraw", headers=locked["org"])
+    assert r.status_code == 200 and r.json()["project"]["status"] == "withdrawn"
+    r = c.post(f"{base}/restore", headers=locked["dana"])
+    assert r.status_code == 403, "a team can't undo an organizer's withdrawal after the deadline"
+    r = c.post(f"{base}/restore", headers=locked["org"])
+    assert r.status_code == 200 and r.json()["project"]["status"] == "submitted"
+
+
+def test_nobody_withdraws_once_results_are_published(locked):
+    c, slug, pid = locked["client"], locked["slug"], locked["pid"]
+    for action in ("open_judging", "close_judging", "publish_results"):
+        r = c.post(f"/api/v1/events/{slug}/actions/{action}", headers=locked["org"])
+        assert r.status_code == 200, (action, r.text)
+    for who in ("org", "dana"):
+        r = c.post(f"/api/v1/events/{slug}/projects/{pid}/withdraw", headers=locked[who])
+        assert r.status_code == 409, who
+        assert r.json()["error"]["message"].startswith("Results are published"), who
+    r = _web_post(locked, "org", f"/e/{slug}/projects/{pid}/withdraw")
+    assert r.status_code == 409 and "Unpublish them before withdrawing" in r.text

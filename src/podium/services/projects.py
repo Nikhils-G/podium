@@ -243,8 +243,21 @@ def withdraw_project(
     organizer: bool = False,
     ip_hash: str | None = None,
 ) -> Project:
+    """After the deadline only organizers withdraw or restore (unless the project is unlocked);
+    once results are published nobody does, since results are computed from submitted projects."""
+    from podium.security.deps import submissions_are_open
+
     if not (organizer or is_member(db, project, user)):
         raise Forbidden("Only the team or an organizer can withdraw this project.")
+    if event.results_published_at is not None:
+        raise Conflict(
+            "Results are published. Unpublish them before withdrawing or restoring a project."
+        )
+    unlocked = project.unlocked_until is not None and utcnow() < project.unlocked_until
+    if not (organizer or unlocked or submissions_are_open(event)):
+        raise Closed(
+            "Submissions are closed, so only an organizer can withdraw or restore this project now."
+        )
     if restore:
         if project.status != ProjectStatus.withdrawn:
             raise Conflict("This project isn't withdrawn.")
