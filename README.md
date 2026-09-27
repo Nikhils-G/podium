@@ -14,15 +14,31 @@ docker compose up
 That boots a fully seeded portal on <http://localhost:8080> — the DOGFOOD fixture event with 41
 projects, 30 judges, 8 tracks and 126 reviews — and prints test logins for every role.
 
+## Check every claim
+
+1. **Run it:** `docker compose up`, then open <http://localhost:8080>. Nothing is fetched at run
+   time; CI boots the same image with `--network none` on every push.
+2. **The official checker:** `python3 tools/run.py .dogfood.toml` prints 7 of 7 checks passing and
+   `claimed T1 T2 T3 T4, verified T1 T2`. [`acceptance-report.txt`](acceptance-report.txt) is its
+   exact output; [CI](https://github.com/Nikhils-G/podium/actions/workflows/ci.yml) rebuilds the
+   image, re-runs the checker and fails if the output differs by a single byte.
+3. **T3 and T4 have no official checks.** They are covered by tier-named CI steps and by
+   [`tests/test_voting.py`](tests/test_voting.py) and [`tests/test_t4.py`](tests/test_t4.py).
+4. **See T3 in 60 seconds on a fresh boot:** sign in as the organizer → **Voting** → set the window
+   from now to an hour from now with *Signed-in accounts* → sign in as the participant → open
+   `/e/sample-hack-2026/vote` → cast a vote. Counts stay hidden until the window closes *and* the
+   results are published.
+5. **The five-minute demo video** is linked here once it is published.
+
 ## What it does
 
-| Tier | Feature | Status |
+| Tier | Feature | Evidence |
 |---|---|---|
-| **T1 Core** | Accounts and sessions; per-event roles (participant, judge, organizer, admin, visitor); events with dates, tracks and prizes; teams by invite link; draft → submit → edit until the deadline; deadline enforced server-side; public gallery with search and filters | ✅ |
-| **T2 Judging** | Judge invitations by link; organizer-weighted rubric; manual and balanced auto-assignment with preview; judge console with autosaving reviews; **role isolation enforced in the backend**; live progress dashboard; per-judge normalization with a documented method; CSV export at every stage | ✅ |
-| **T3 Public** | Community voting (signed-in, single-use codes, or open link), optional quadratic budgets; comments; results and vote counts hidden until the window closes *and* the organizer publishes; per-voter randomized ballots; rate limits, duplicate detection, burst flagging, honeypot, audit trail | ✅ built · human-judged |
-| **T4 Stretch** | REST API covering every console action with OpenAPI docs served offline; webhooks with HMAC-signed, retried deliveries; ed25519-signed certificates and judge records with public verification; embeddable gallery; whole-event JSON import/export | ✅ built · human-judged |
-| **Bonuses** | Normalization proof on the fixture data (Results page + `JUDGING.md`); Bradley-Terry pairwise judging mode; `THREAT-MODEL.md`; API-first design with a full OpenAPI spec | ✅ |
+| **T1 Core** | Accounts and sessions; per-event roles (participant, judge, organizer, admin, visitor); events with dates, tracks and prizes; teams by invite link; draft → submit → edit until the deadline; deadline enforced server-side; public gallery with search and filters | ✅ verified by the organizer's checker |
+| **T2 Judging** | Judge invitations by link; organizer-weighted rubric; manual and balanced auto-assignment with preview; judge console with autosaving reviews; **role isolation enforced in the backend**; live progress dashboard; per-judge normalization with a documented method; CSV export at every stage | ✅ verified by the organizer's checker |
+| **T3 Public** | Community voting (signed-in, single-use codes, or open link), optional quadratic budgets; comments; results and vote counts hidden until the window closes *and* the organizer publishes; per-voter randomized ballots; rate limits, duplicate detection, burst flagging, honeypot, audit trail | ✅ built · `tests/test_voting.py` in CI |
+| **T4 Stretch** | REST API covering every console action with OpenAPI docs served offline; webhooks with HMAC-signed, retried deliveries; ed25519-signed certificates and judge records with public verification; embeddable gallery; whole-event JSON import/export | ✅ built · `tests/test_t4.py` in CI |
+| **Bonuses** | Normalization proof on the fixture data (Results page + [`JUDGING.md`](JUDGING.md)); Bradley-Terry pairwise judging mode; [`THREAT-MODEL.md`](THREAT-MODEL.md); API-first design with a full OpenAPI spec | ✅ |
 
 ## Run it
 
@@ -125,13 +141,28 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 
 ## Operations
 
-- **Backup**: copy the data directory (`docker compose cp web:/data ./backup` or the named volume).
-  It holds the SQLite file and the certificate signing key; that is the entire state.
+- **Backup**: the data volume holds the SQLite file and the certificate signing key (`keys/`); that
+  is the entire state. Either stop first (`docker compose stop web`, copy the volume, start again)
+  or take a consistent hot copy with SQLite's backup API:
+  ```
+  docker compose exec -T web python -c "import sqlite3; sqlite3.connect('/data/podium.db').backup(sqlite3.connect('/data/backup.db'))"
+  docker compose cp web:/data/backup.db ./podium-backup.db
+  docker compose cp web:/data/keys ./podium-keys
+  ```
+  Copying `podium.db` while it runs can tear a WAL database; use one of the two.
+- **Reset**: `docker compose down -v` deletes the volume; the next `up` seeds a fresh instance.
 - **Upgrade**: pull, `docker compose up --build`. Migrations run on boot (`alembic upgrade head`).
 - **First admin**: on an instance with no accounts, the first person to register becomes the admin (audited). Seeded installs already have `admin@podium.local`; an install that seeded fixtures without demo accounts has no admin — set `PODIUM_OPEN_EVENT_CREATION=true` or flip `is_admin` for one user.
 - **Production checklist**: set `PODIUM_SECRET_KEY`, `PODIUM_BASE_URL` (https), leave `PODIUM_DEMO_ACCOUNTS` and `PODIUM_OPEN_EVENT_CREATION` unset (both off),
   `PODIUM_SEED_FIXTURES=false`; put a reverse proxy (Caddy, nginx) in front for TLS; keep one
-  container per instance (rate limits and the webhook worker are in-process).
+  container per instance (rate limits and the webhook worker are in-process). With Caddy on the
+  host, publish the port as `127.0.0.1:8080:8080`, set `FORWARDED_ALLOW_IPS=172.16.0.0/12` (the
+  Docker bridge) and use:
+  ```
+  podium.example.org {
+      reverse_proxy 127.0.0.1:8080
+  }
+  ```
 - **Postgres**: set `PODIUM_DATABASE_URL`; the `psycopg` driver is installed, the schema uses only
   portable types and the same migrations apply. Smoke-tested against PostgreSQL 17 on 2026-09-27:
   migrations, seed (twice), the acceptance checker 7/7 and the organizer pages; CI covers SQLite
@@ -146,6 +177,8 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 - [`DATA-MODEL.md`](DATA-MODEL.md) — schema, invariants, import/export paths.
 - [`JUDGING.md`](JUDGING.md) — assignment strategy, scoring math, normalization defended with the fixture numbers, pairwise mode, isolation matrix.
 - [`THREAT-MODEL.md`](THREAT-MODEL.md) — what is defended, how, and what isn't.
+- [`CHANGELOG.md`](CHANGELOG.md), [`SECURITY.md`](SECURITY.md) (private vulnerability reporting),
+  [`CONTRIBUTING.md`](CONTRIBUTING.md), [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 - `/api/docs` on a running instance — API reference: quick start, who can call what, errors, rate
   limits, webhooks with signature verification, and every endpoint with requests in curl, Python and
   JavaScript plus a response example, all generated from `/api/openapi.json` so the two cannot drift.
@@ -154,7 +187,7 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 ## Development
 
 ```
-make test      # pytest — 173 tests on a temp database seeded from the real fixtures
+make test      # pytest — 228 tests on a temp database seeded from the real fixtures
 make lint      # ruff
 make check     # run the organizer's checker against a running portal → acceptance-report.txt
 make clean-verify   # what a judge does: rebuild without cache, boot, run the checker
@@ -173,12 +206,22 @@ tests grouped by tier on every push.
 - Accounts that an import creates share `PODIUM_DEMO_PASSWORD` (there is no email to send a reset).
   Import people who already have accounts, or set a strong `PODIUM_DEMO_PASSWORD` and have them
   change it at `/account`.
-- English UI; all times are stored and shown in UTC with the viewer's local time alongside.
+- English UI. Times are stored in UTC; the UI shows the viewer's local time with its zone, and
+  deadlines keep UTC beside it.
+- "Email-gated" voting means single-use codes or links the organizer hands out; Podium sends no
+  email.
+- Certificates are print-ready HTML, JSON and a QR code with an offline-verifiable signature, not
+  PDF.
+- The fixture has no assignment records, so each fixture score becomes one completed assignment:
+  the dashboard reads "126 of 126 reviews in", and the brief's unfinished batches show up as
+  "8 projects have fewer than 3 submitted reviews", marked thin in Results.
+- The fixture's duplicate (`prj_41` re-submits `prj_07`) is ranked twice until an organizer
+  withdraws one; the dashboard flags it and offers the action until results are published.
 - The Bradley-Terry ranking on the demo event is computed from comparisons *derived* from the
   fixture scores (clearly labelled) so the feature has data to show; real events use judges' own
   comparisons.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). Fonts are under the SIL Open Font License (see `src/podium/static/fonts/`);
-htmx and Swagger UI are vendored under their own licenses.
+MIT — see [`LICENSE`](LICENSE). The vendored fonts, htmx and Swagger UI keep their own licenses;
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) lists each one.
