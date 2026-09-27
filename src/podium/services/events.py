@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session as DbSession
 from podium.errors import Conflict, Forbidden, NotFound, ValidationFailed
 from podium.models import Event, EventRole, Prize, Project, ProjectStatus, Role, Track, User, utcnow
 from podium.services import audit, webhooks
-from podium.services.text import plural
+from podium.services.text import plural, utc_text
 
 
 class Stage(enum.StrEnum):
@@ -282,6 +282,17 @@ DATE_PRESETS = {"now": timedelta(0), "+15m": timedelta(minutes=15), "+60m": time
 SHIFTABLE = ("submissions_close_at", "voting_open_at", "voting_close_at")
 
 
+def shifted(event: Event, field: str, preset: str, now: datetime | None = None) -> datetime:
+    """Where a quick move puts the date. An extension counts from the later of the current
+    value and now, so "Extend 15 min" never moves a deadline three days out to 15 minutes
+    from now; a past deadline reopens from now."""
+    now = now or utcnow()
+    if preset == "now":
+        return now
+    current = getattr(event, field)
+    return max(current, now) + DATE_PRESETS[preset] if current else now + DATE_PRESETS[preset]
+
+
 def shift_date(
     db: DbSession, event: Event, user: User, field: str, preset: str, *, ip_hash=None
 ) -> Event:
@@ -290,7 +301,7 @@ def shift_date(
         raise Conflict("Archived events can't be edited.")
     if field not in SHIFTABLE or preset not in DATE_PRESETS:
         raise ValidationFailed(errors={"field": "Choose a known date and preset."})
-    value = utcnow() + DATE_PRESETS[preset]
+    value = shifted(event, field, preset)
     if field == "voting_close_at" and event.voting_open_at and value <= event.voting_open_at:
         raise Conflict("Voting must close after it opens.")
     if field == "voting_open_at" and event.voting_close_at and value >= event.voting_close_at:
@@ -324,6 +335,37 @@ ACTIONS = (
 )
 
 
+def publish_blocker(event: Event, now: datetime | None = None) -> tuple[str, str] | None:
+    """Why results can't be published right now, as (short reason, full message), or None.
+    Results are final only when judging is closed and no community vote is still running,
+    and there has to be something to publish: closed judging or a finished vote."""
+    now = now or utcnow()
+    if event.judging_opened_at is not None and event.judging_closed_at is None:
+        return (
+            "close judging first",
+            "Close judging before publishing results, so scores can't change afterwards.",
+        )
+    voting_open = (
+        event.voting_open_at is not None
+        and event.voting_open_at <= now
+        and (event.voting_close_at is None or now < event.voting_close_at)
+    )
+    if voting_open:
+        until = utc_text(event.voting_close_at) or "you close it"
+        return (
+            f"voting is open until {until}",
+            f"Voting is open until {until}. Close it first, so vote counts are final.",
+        )
+    vote_finished = event.voting_close_at is not None and event.voting_close_at <= now
+    if event.judging_closed_at is None and not vote_finished:
+        return (
+            "open and close judging first",
+            "There is nothing to publish yet: open judging and close it (or finish a community "
+            "vote) first.",
+        )
+    return None
+
+
 def apply_action(db: DbSession, event: Event, user: User, action: str, *, ip_hash=None) -> Event:
     now = utcnow()
     if action not in ACTIONS:
@@ -347,10 +389,9 @@ def apply_action(db: DbSession, event: Event, user: User, action: str, *, ip_has
     elif action == "publish_results":
         if event.results_published_at is not None:
             raise Conflict("Results are already published.")
-        if event.judging_opened_at is not None and event.judging_closed_at is None:
-            raise Conflict(
-                "Close judging before publishing results, so scores can't change afterwards."
-            )
+        blocker = publish_blocker(event, now)
+        if blocker:
+            raise Conflict(blocker[1])
         event.results_published_at = now
     elif action == "unpublish_results":
         if event.results_published_at is None:

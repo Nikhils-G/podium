@@ -111,14 +111,11 @@ def test_tally_hidden_until_closed_and_published(world):
         c.get(f"/e/{slug}/results").status_code == 200
         and "aren't published" in c.get(f"/e/{slug}/results").text
     )
-    assert (
-        c.post(f"/api/v1/events/{slug}/actions/publish_results", headers=world["org"]).status_code
-        == 200
-    )
+    r = c.post(f"/api/v1/events/{slug}/actions/publish_results", headers=world["org"])
+    assert r.status_code == 409, "results can't be published while the vote is still running"
     assert c.get(f"/api/v1/events/{slug}/tally").status_code == 404, (
         "still voting → counts stay hidden"
     )
-    c.post(f"/api/v1/events/{slug}/actions/unpublish_results", headers=world["org"])
 
 
 def test_quadratic_budget(world):

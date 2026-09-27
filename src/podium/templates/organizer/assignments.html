@@ -1,5 +1,5 @@
 {% extends "layouts/console.html" %}
-{% from "macros/ui.html" import alert, badge %}
+{% from "macros/ui.html" import alert, badge, empty %}
 {% block content %}
 <div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Assignments</h1><p class="ink-2 mt-2">Who reviews what. Auto-assign balances load across judges inside their tracks and never places a judge on their own team's project.</p></div></div>
 {% if request.query_params.get('applied') %}{{ alert('success', request.query_params.get('applied')|plural('assignment') ~ ' created.') }}{% endif %}
@@ -27,25 +27,35 @@
     {% else %}<p class="muted">Invite judges first.</p>{% endif %}
   </section>
   <aside class="stack" data-sticky>
+    {% set frozen = event.judging_closed_at is not none %}
+    {% if frozen %}{{ alert('info', 'Judging is closed, so assignments can\'t change. Reopen judging from the dashboard to change them.') }}{% endif %}
     <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/assignments/auto/preview" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/assignments/auto/preview" hx-target="#assign-preview" hx-swap="innerHTML">
       <h2>Auto-assign</h2>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <fieldset class="stack" {% if frozen %}disabled{% endif %}>
       <div class="field-grid">
         <div class="field"><label class="field__label" for="f-rpp">Reviews per project</label><input class="input" id="f-rpp" name="reviews_per_project" type="number" min="1" max="20" value="{{ reviews_per_project }}"></div>
         <div class="field"><label class="field__label" for="f-seed">Seed</label><input class="input" id="f-seed" name="seed" type="number" min="0" value="{{ seed }}"><p class="field__help">Same seed, same plan — reproducible.</p></div>
       </div>
       <div class="cluster"><button class="btn btn--secondary" type="submit">Preview plan</button><button class="btn btn--ghost btn--sm" type="submit" formaction="/e/{{ event.slug }}/organizer/assignments/auto/apply" hx-post="/e/{{ event.slug }}/organizer/assignments/auto/apply" hx-target="body" formnovalidate data-confirm="Apply the auto-assignment plan for these settings?">Apply without preview</button></div>
+      </fieldset>
       <div id="assign-preview">{% if plan %}{% include "partials/assign_preview.html" %}{% endif %}</div>
     </form>
+    {% if not projects %}
+    <div class="card">{{ empty('No submitted projects yet', 'Projects appear here once teams submit them; then assign them by hand or with auto-assign.') }}</div>
+    {% else %}
     <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/assignments/manual" hx-boost="false">
       <h2>Assign manually</h2>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <fieldset class="stack" {% if frozen %}disabled{% endif %}>
       <div class="field"><label class="field__label" for="f-judge">Judge</label><select class="select" id="f-judge" name="judge" required><option value="">— Choose —</option>{% for load in loads %}<option value="{{ load.judge.public_id }}">{{ load.judge.name }}</option>{% endfor %}</select></div>
       <fieldset class="field" data-check-group><legend class="field__label">Projects</legend>
         <div class="check-tools" data-js-only hidden><input class="input" type="search" placeholder="Filter projects" aria-label="Filter projects" data-check-filter autocomplete="off"><button class="btn btn--ghost btn--sm" type="button" data-check-all>Select all</button><button class="btn btn--ghost btn--sm" type="button" data-check-none>Clear</button><span class="muted text-sm" data-check-count aria-live="polite"></span></div>
         <div class="check-grid check-grid--compact">{% for p in projects %}<label class="check"><input type="checkbox" name="projects" value="{{ p.public_id }}"> <span>{{ p.title }}{% if p.track %} <span class="muted text-sm">{{ p.track.name }}</span>{% endif %}</span></label>{% endfor %}</div></fieldset>
       <div><button class="btn btn--primary" type="submit">Assign</button></div>
+      </fieldset>
     </form>
+    {% endif %}
   </aside>
 </div>
 {% endblock %}

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from podium.errors import Conflict, NotFound
+from podium.errors import Closed, Conflict, NotFound
 from podium.models import (
     Assignment,
     AssignmentMethod,
@@ -136,7 +136,14 @@ def build_plan(db: DbSession, event: Event, *, reviews_per_project: int, seed: i
     return plan
 
 
+def _assignments_open(event: Event) -> None:
+    """Once judging has closed the reviews are final, so who judges what can't change."""
+    if event.judging_closed_at is not None:
+        raise Closed("Judging is closed, so assignments can't change. Reopen judging first.")
+
+
 def apply_plan(db: DbSession, event: Event, organizer: User, plan: Plan) -> int:
+    _assignments_open(event)
     created = 0
     for entry in plan.entries:
         exists = db.execute(
@@ -189,6 +196,7 @@ def apply_plan(db: DbSession, event: Event, organizer: User, plan: Plan) -> int:
 def assign_manually(
     db: DbSession, event: Event, organizer: User, judge: User, project_public_ids: list[str]
 ) -> int:
+    _assignments_open(event)
     projects = (
         db.execute(
             select(Project).where(

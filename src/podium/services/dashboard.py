@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from podium.models import (
     Assignment,
+    Certificate,
     Event,
     EventRole,
     JudgeInvite,
@@ -23,8 +24,8 @@ from podium.models import (
     User,
 )
 from podium.models.base import utcnow
-from podium.services.events import Stage, stage_of
-from podium.services.text import plural
+from podium.services.events import Stage, publish_blocker, shifted, stage_of
+from podium.services.text import plural, utc_text
 
 
 @dataclass
@@ -153,7 +154,7 @@ def overview(db: DbSession, event: Event) -> Overview:
                     "View calibration",
                 )
             )
-        if prog.below_target:
+        if prog.below_target and event.judging_closed_at is None:
             add(
                 AttentionItem(
                     "warning",
@@ -162,6 +163,17 @@ def overview(db: DbSession, event: Event) -> Overview:
                     "Assign more judges or nudge the ones who haven't finished.",
                     f"{base}/progress",
                     "See which",
+                )
+            )
+        elif prog.below_target:
+            add(
+                AttentionItem(
+                    "warning",
+                    f"{plural(len(prog.below_target), 'project')} were scored on fewer than "
+                    f"{event.reviews_per_project} reviews",
+                    "They are marked thin in Results: their rank is less certain.",
+                    f"{base}/results#ranking",
+                    "See results",
                 )
             )
     pending = db.execute(
@@ -237,7 +249,9 @@ def _still_relevant(item: AttentionItem, event: Event) -> bool:
         return "not public" in title
     judging_closed = event.judging_closed_at is not None
     published = event.results_published_at is not None
-    if "duplicate" in title or "tracks" in title or "deadline" in title:
+    if "duplicate" in title:
+        return not published
+    if "tracks" in title or "deadline" in title:
         return not judging_closed
     if "invitation" in title:
         return not judging_closed
@@ -299,14 +313,56 @@ class NextStep:
     reason: str = ""
     note: str = ""
     secondary: tuple[str, str, str] | None = None  # (action, button label, consequence)
+    at: datetime | None = None  # a date the label ends with, rendered in local time
+    link_label: str = ""  # the button text for href steps when it isn't the label
 
 
 CLOSE_JUDGING = ("close_judging", "Close judging", "Judges can no longer edit or submit reviews.")
 PUBLISH_CONSEQUENCE = "Rankings, scores and vote counts become public. This is logged."
 
 
-def _when(value: datetime | None) -> str:
-    return value.strftime("%d %b %Y, %H:%M UTC") if value else ""
+def certificate_counts(db: DbSession, event: Event) -> tuple[int, int]:
+    """(issued and still valid, revoked) certificates for the event."""
+    rows = dict(
+        db.execute(
+            select(Certificate.revoked_at.is_(None), func.count())
+            .where(Certificate.event_id == event.id)
+            .group_by(Certificate.revoked_at.is_(None))
+        ).all()
+    )
+    return rows.get(True, 0), rows.get(False, 0)
+
+
+def _duplicates_ranked(db: DbSession, event: Event) -> int:
+    return db.execute(
+        select(func.count())
+        .select_from(Project)
+        .where(
+            Project.event_id == event.id,
+            Project.duplicate_of_id.isnot(None),
+            Project.status == ProjectStatus.submitted,
+        )
+    ).scalar_one()
+
+
+def _below_target(db: DbSession, event: Event) -> int:
+    """Submitted projects with fewer submitted reviews than the event's target."""
+    reviewed = (
+        select(Review.project_id, func.count(Review.id).label("n"))
+        .where(Review.event_id == event.id, Review.status == ReviewStatus.submitted)
+        .group_by(Review.project_id)
+        .subquery()
+    )
+    return db.execute(
+        select(func.count())
+        .select_from(Project)
+        .outerjoin(reviewed, reviewed.c.project_id == Project.id)
+        .where(
+            Project.event_id == event.id,
+            Project.status == ProjectStatus.submitted,
+            func.coalesce(reviewed.c.n, 0) < event.reviews_per_project,
+        )
+    ).scalar_one()
 
 
 def _assignment_counts(db: DbSession, event: Event) -> tuple[int, int]:
@@ -360,12 +416,13 @@ def next_step(db: DbSession, event: Event) -> NextStep:
             return NextStep(
                 "Invite judges", "Invitations are links you send yourself.", href=f"{base}/judges"
             )
-        when = _when(event.submissions_close_at) or "no deadline set"
         return NextStep(
-            f"Submissions open until {when}",
-            "Judging opens once the deadline passes.",
+            "Submissions open until" if event.submissions_close_at else "Submissions open",
+            "After the deadline, open judging from here — it does not open by itself.",
             href=f"{base}/progress",
             enabled=False,
+            at=event.submissions_close_at,
+            link_label="View judging progress",
         )
     if stage == Stage.closed:
         return NextStep(
@@ -389,27 +446,37 @@ def next_step(db: DbSession, event: Event) -> NextStep:
                 href=f"{base}/assignments",
                 secondary=CLOSE_JUDGING,
             )
+        below = _below_target(db, event)
+        thin = (
+            f" {plural(below, 'project')} have fewer than {event.reviews_per_project} "
+            "submitted reviews and will be marked thin in Results."
+            if below
+            else ""
+        )
         if pending:
             return NextStep(
                 f"Judging in progress · {plural(pending, 'review')} pending",
                 "Close judging once the reviews you need are in.",
                 href=f"{base}/progress",
                 enabled=False,
-                note=f"{done} of {total} assigned reviews are in.",
+                note=f"{done} of {total} assigned reviews are in." + thin,
                 secondary=pending_close,
+                link_label="View judging progress",
             )
         return NextStep(
             "Close judging",
             CLOSE_JUDGING[2],
             action="close_judging",
-            note="Every assigned review is in.",
+            note="Every assigned review is in." + thin,
         )
     if stage == Stage.voting:
         step = NextStep(
-            f"Voting open until {_when(event.voting_close_at) or 'you close it'}",
+            "Voting open until" if event.voting_close_at else "Voting open until you close it",
             "Results can be published once it closes.",
             href=f"{base}/voting",
             enabled=False,
+            at=event.voting_close_at,
+            link_label="Manage voting",
         )
         if event.judging_opened_at is not None and event.judging_closed_at is None:
             step.note = (
@@ -433,13 +500,21 @@ def next_step(db: DbSession, event: Event) -> NextStep:
             if pending
             else "Every assigned review is in."
         )
+        duplicates = _duplicates_ranked(db, event)
+        if duplicates:
+            note += (
+                f" {plural(duplicates, 'possible duplicate')} still ranked; withdraw it from "
+                "Attention first if it shouldn't be."
+            )
         if event.voting_open_at is not None and event.voting_open_at > utcnow():
             return NextStep(
-                f"Voting opens {_when(event.voting_open_at)}",
+                "Voting opens",
                 "Publish after voting closes so vote counts are final.",
                 href=f"{base}/voting",
                 enabled=False,
                 note=note,
+                at=event.voting_open_at,
+                link_label="Manage voting",
                 secondary=(
                     "publish_results",
                     "Publish results now",
@@ -448,6 +523,15 @@ def next_step(db: DbSession, event: Event) -> NextStep:
                 ),
             )
         return NextStep("Publish results", PUBLISH_CONSEQUENCE, action="publish_results", note=note)
+    issued, _ = certificate_counts(db, event)
+    if issued:
+        return NextStep(
+            f"Event complete — {plural(issued, 'certificate')} issued",
+            "Results are public and every certificate verifies at /verify.",
+            href=f"/e/{event.slug}/results",
+            link_label="View public results",
+            secondary=("archive", "Archive event", "The event becomes read-only for everyone."),
+        )
     return NextStep(
         "Issue certificates",
         "Participation certificates, judge records and winner certificates.",
@@ -522,13 +606,15 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
                     "Extend 15 min",
                     date_field="submissions_close_at",
                     preset="+15m",
-                    consequence="The deadline moves 15 minutes later than now.",
+                    consequence="The deadline moves 15 minutes later, to "
+                    f"{utc_text(shifted(event, 'submissions_close_at', '+15m', now))}.",
                 ),
                 PhaseAction(
                     "Extend 1 h",
                     date_field="submissions_close_at",
                     preset="+60m",
-                    consequence="The deadline moves one hour later than now.",
+                    consequence="The deadline moves one hour later, to "
+                    f"{utc_text(shifted(event, 'submissions_close_at', '+60m', now))}.",
                 ),
             ]
         elif event.submissions_close_at and event.judging_opened_at is None:
@@ -537,7 +623,9 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
                     "Reopen for 1 h",
                     date_field="submissions_close_at",
                     preset="+60m",
-                    consequence="Submissions reopen for one hour; teams can submit and edit again.",
+                    consequence="Submissions reopen until "
+                    f"{utc_text(shifted(event, 'submissions_close_at', '+60m', now))}; teams can "
+                    "submit and edit again.",
                 )
             )
         elif event.submissions_close_at:
@@ -545,7 +633,9 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
                 PhaseAction(
                     "Reopen for 1 h",
                     enabled=False,
-                    reason="judging has opened — reopen judging first if you must",
+                    reason="results are published"
+                    if event.results_published_at
+                    else "judging has started",
                 )
             )
     phases.append(sub)
@@ -571,7 +661,12 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
                 PhaseAction(
                     "Open judging",
                     action="open_judging",
-                    consequence="Judges can start scoring their assigned projects.",
+                    consequence="Judges can start scoring their assigned projects."
+                    + (
+                        " Submissions are still open, so teams can still change what judges score."
+                        if sub_open
+                        else ""
+                    ),
                     kind="primary" if not sub_open else "secondary",
                     enabled=event.is_public,
                     reason="" if event.is_public else "publish the event first",
@@ -635,13 +730,15 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
                     "Extend 15 min",
                     date_field="voting_close_at",
                     preset="+15m",
-                    consequence="Voting closes 15 minutes later than now.",
+                    consequence="Voting closes 15 minutes later, at "
+                    f"{utc_text(shifted(event, 'voting_close_at', '+15m', now))}.",
                 ),
                 PhaseAction(
                     "Extend 1 h",
                     date_field="voting_close_at",
                     preset="+60m",
-                    consequence="Voting closes one hour later than now.",
+                    consequence="Voting closes one hour later, at "
+                    f"{utc_text(shifted(event, 'voting_close_at', '+60m', now))}.",
                 ),
             ]
     phases.append(vot)
@@ -664,24 +761,39 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
     else:
         res = Phase("results", "Results", "scheduled", "Not published")
         if not archived:
-            judging_open = event.judging_opened_at is not None and event.judging_closed_at is None
+            blocker = publish_blocker(event, now)
+            duplicates = _duplicates_ranked(db, event) if blocker is None else 0
             res.actions.append(
                 PhaseAction(
                     "Publish results",
                     action="publish_results",
-                    consequence=PUBLISH_CONSEQUENCE,
-                    enabled=not judging_open,
-                    reason="close judging first" if judging_open else "",
-                    kind="primary",
+                    consequence=PUBLISH_CONSEQUENCE
+                    + (
+                        f" {plural(duplicates, 'possible duplicate')} still ranked."
+                        if duplicates
+                        else ""
+                    ),
+                    enabled=blocker is None,
+                    reason=blocker[0] if blocker else "",
+                    # the obvious next move only once nothing else is still running
+                    kind="primary"
+                    if blocker is None
+                    and (event.voting_open_at is None or voting_has_closed(event))
+                    else "secondary",
                 )
             )
     phases.append(res)
     # -- certificates
+    issued, revoked = certificate_counts(db, event)
     cert = Phase(
         "certificates",
         "Certificates",
         "done" if event.results_published_at else "scheduled",
-        "Issue after publishing" if not event.results_published_at else "Ready to issue",
+        f"{issued} issued · {revoked} revoked"
+        if issued or revoked
+        else "Issue after publishing"
+        if not event.results_published_at
+        else "Ready to issue",
     )
     if not archived:
         cert.actions.append(PhaseAction("Certificates", href=f"{base}/certificates"))

@@ -555,12 +555,16 @@ def test_attention_items_expire_with_their_phase(client, auth, db):
         db.expire_all()
         titles = [a.title for a in dashboard.overview(db, event).attention]
         assert not any("invitation" in t for t in titles)
-        assert not any("duplicate" in t.lower() for t in titles)
+        assert any("duplicate" in t.lower() for t in titles), (
+            "a ranked duplicate matters until publication"
+        )
         assert any("fewer than" in t for t in titles), "still relevant until results are published"
         client.post(f"{S}/actions/publish_results", headers=org)
         db.expire_all()
         titles = [a.title for a in dashboard.overview(db, event).attention]
-        assert not any("fewer than" in t or "identically" in t for t in titles)
+        assert not any(
+            "fewer than" in t or "identically" in t or "duplicate" in t.lower() for t in titles
+        )
     finally:
         client.post(f"{S}/actions/unpublish_results", headers=org)
         client.post(f"{S}/actions/open_judging", headers=org)
@@ -631,10 +635,9 @@ def test_timeline_offers_only_what_the_server_allows(client, auth, db, app):
     closes = client.get(f"/api/v1/events/{slug}", headers=org).json()["event"][
         "submissions_close_at"
     ]
-    assert (
-        closes.startswith(now.strftime("%Y-%m-%dT"))
-        and closes < (now + timedelta(minutes=16)).isoformat()
-    )
+    moved = datetime.fromisoformat(closes.replace("Z", "+00:00"))
+    expected = now + timedelta(hours=5, minutes=15)
+    assert abs(moved - expected) < timedelta(seconds=1), "Extend adds 15 minutes to the deadline"
     r = demo(app, "organizer").post(
         f"/e/{slug}/organizer/dates", {"field": "submissions_close_at", "preset": "now"}
     )

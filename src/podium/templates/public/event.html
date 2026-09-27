@@ -38,7 +38,7 @@
     <div class="card card--action">
       {% if links and links.is_organizer %}
         <h3>You organize this event</h3>
-        {% if next_step %}<p class="text-sm ink-2">Next step: <strong>{{ next_step.label }}</strong></p>{% endif %}
+        {% if next_step %}<p class="text-sm ink-2">Next step: <strong>{{ next_step.label }}{% if next_step.at %} {{ when(next_step.at) }}{% endif %}</strong></p>{% endif %}
         <a class="btn btn--primary btn--block" href="/e/{{ event.slug }}/organizer">Manage event</a>
       {% elif links and links.role == 'judge' %}
         <h3>You judge this event</h3>

@@ -115,9 +115,11 @@ def _participant_next(db, event, user, stage: Stage) -> tuple[str, str]:
 
 def _organizer_next(db, event) -> tuple[str, str]:
     from podium.services.dashboard import next_step
+    from podium.services.text import utc_text
 
     step = next_step(db, event)
-    return step.label, f"/e/{event.slug}/organizer"
+    label = f"{step.label} {utc_text(step.at)}" if step.at else step.label
+    return label, f"/e/{event.slug}/organizer"
 
 
 def memberships(db: DbSession, user: User | None) -> list[Membership]:

@@ -134,7 +134,7 @@ async def new_event_submit(
             values=data,
             errors=exc.errors,
         )
-    return RedirectResponse(f"/e/{event.slug}/organizer", status_code=303)
+    return RedirectResponse(f"/e/{event.slug}/organizer?saved=created", status_code=303)
 
 
 @router.get("/e/{slug}/organizer")
@@ -170,7 +170,9 @@ def shift_date(
     db: DbSession = Depends(get_db),
 ):
     events_service.shift_date(db, ctx.event, ctx.user, field, preset, ip_hash=ip_hash(request))
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer?saved=dates", status_code=303)
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer?saved=dates&field={field}", status_code=303
+    )
 
 
 @router.post("/e/{slug}/organizer/actions/{action}", dependencies=[Depends(verify_csrf)])
@@ -181,7 +183,7 @@ def lifecycle_action(
     db: DbSession = Depends(get_db),
 ):
     events_service.apply_action(db, ctx.event, ctx.user, action, ip_hash=ip_hash(request))
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/organizer?saved={action}", status_code=303)
 
 
 @router.get("/e/{slug}/organizer/settings")

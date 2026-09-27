@@ -6,7 +6,26 @@
   <a class="btn btn--secondary" href="/e/{{ event.slug }}/organizer/settings">Event settings</a>
 </div>
 
-{% if request.query_params.get('saved') == 'dates' %}{{ alert('success', 'Deadline updated. It is logged in the audit trail.') }}{% endif %}
+{% set saved = request.query_params.get('saved') %}
+{% set notices = {
+  'created': 'Event created. Add tracks, a rubric and dates in Settings, then publish it.',
+  'publish_event': 'Event published. It and its gallery are visible to everyone.',
+  'unpublish_event': 'Event unpublished. Only organizers can see it now.',
+  'open_judging': 'Judging opened. Judges can score their assigned projects.',
+  'close_judging': 'Judging closed. Judges can no longer edit reviews.',
+  'unpublish_results': 'Results unpublished. Issued winner certificates were revoked.',
+  'archive': 'Event archived. It is read-only for everyone.',
+} %}
+{% if saved == 'dates' %}
+  {% set moved = {
+    'submissions_close_at': ('Submissions now close', event.submissions_close_at),
+    'voting_open_at': ('Voting now opens', event.voting_open_at),
+    'voting_close_at': ('Voting now closes', event.voting_close_at),
+  }.get(request.query_params.get('field')) %}
+  <div class="alert alert--success" role="status"><p>{% if moved and moved[1] %}{{ moved[0] }} {{ when(moved[1]) }}.{% else %}Deadline updated.{% endif %} The change is logged in the audit trail.</p></div>
+{% elif saved == 'publish_results' %}
+  <div class="alert alert--success" role="status"><p>Results published. <a href="/e/{{ event.slug }}/results">View the public results</a></p></div>
+{% elif saved in notices %}{{ alert('success', notices[saved]) }}{% endif %}
 <ol class="phases" aria-label="Run of show">
   {% for ph in timeline %}
   <li class="phase phase--{{ ph.state }}">
@@ -58,7 +77,7 @@
   <section class="stack stack--aside" data-sticky>
     <div class="card card--next">
       <p class="page-header__eyebrow">Next step</p>
-      <h2>{{ next_step.label }}</h2>
+      <h2>{{ next_step.label }}{% if next_step.at %} {{ when(next_step.at) }}{% endif %}</h2>
       {% if next_step.consequence %}<p class="text-sm ink-2">{{ next_step.consequence }}</p>{% endif %}
       {% if next_step.note %}<p class="text-sm"><strong>{{ next_step.note }}</strong></p>{% endif %}
       {% if next_step.action and next_step.enabled %}
@@ -67,9 +86,9 @@
           <button class="btn btn--primary" type="submit">{{ next_step.label }}</button>
         </form>
       {% elif next_step.href and next_step.enabled %}
-        <a class="btn btn--primary" href="{{ next_step.href }}">{{ next_step.label }}</a>
+        <a class="btn btn--primary" href="{{ next_step.href }}">{{ next_step.link_label or next_step.label }}</a>
       {% elif next_step.href %}
-        <a class="btn btn--secondary btn--sm" href="{{ next_step.href }}">Open</a>
+        <a class="btn btn--secondary btn--sm" href="{{ next_step.href }}">{{ next_step.link_label or 'Open' }}</a>
       {% endif %}
       {% if next_step.reason %}<p class="muted text-sm">{{ next_step.reason }}</p>{% endif %}
       {% if next_step.secondary %}{% set key, label, consequence = next_step.secondary %}

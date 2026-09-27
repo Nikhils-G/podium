@@ -56,7 +56,7 @@ def test_next_step_after_closing_judging_is_publish_not_reopen(app, client, auth
     client.post(f"{S}/actions/close_judging", headers=org)
     try:
         page = demo(app, "organizer").get(f"/e/{SLUG}/organizer").text
-        step = page.split("Next step", 1)[-1][:600] if "Next step" in page else page
+        step = page.split("Next step", 1)[-1].split("More actions", 1)[0]
         assert "Open judging" not in step, "dashboard recommends reopening judging after a close"
         assert "Publish results" in step and "Judging closed" in page
     finally:
