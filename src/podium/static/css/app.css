@@ -783,3 +783,11 @@
   ol.podium { list-style: none; padding: 0; }
   .podium__slot--1 { order: 2; } .podium__slot--2 { order: 1; } .podium__slot--3 { order: 3; }
 }
+
+@layer components {
+  /* C1: sentences inside notices flow as text; side columns measure their natural height */
+  .alert > p { margin: 0; }
+  .two-col > [data-sticky] { align-self: start; }
+  .embed__head { font-size: 15px; font-weight: 400; }
+  fieldset:disabled .segmented__option input:checked + span { opacity: 1; }
+}

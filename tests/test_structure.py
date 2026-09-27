@@ -50,3 +50,18 @@ def test_the_podium_is_read_in_rank_order():
         Path(__file__).resolve().parent.parent / "src/podium/templates/public/results.html"
     ).read_text()
     assert '<ol class="podium"' in html and "{% for i in [0, 1, 2] %}" in html
+
+
+def test_gallery_search_also_matches_track_names(client):
+    page = client.get(f"/e/{SLUG}/projects?q=climate").text
+    assert "No matching projects" not in page and 'id="gallery-count">0 projects' not in page
+
+
+def test_the_ballot_without_an_open_vote_is_just_the_notice(client):
+    page = client.get(f"/e/{SLUG}/vote").text
+    assert (
+        "This event has no community vote" in page
+        or "Voting opens" in page
+        or "Voting closed" in page
+    )
+    assert '<ol class="ballot">' not in page and "Browse the projects" in page

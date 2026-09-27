@@ -84,6 +84,7 @@ def gallery(
                 func.lower(Project.title).like(needle),
                 func.lower(Project.summary).like(needle),
                 func.lower(Team.name).like(needle),
+                func.lower(Track.name).like(needle),
             )
         )
     if track:

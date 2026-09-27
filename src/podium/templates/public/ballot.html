@@ -5,14 +5,15 @@
   <div>
     <p class="page-header__eyebrow">{{ event.name }}</p>
     <h1>Ballot</h1>
-    <div class="page-header__meta">{{ stage_badge(stage, stage_label) }}<span class="count">{{ rows|length|plural('project') }}</span>{% if open and event.voting_close_at %}<span>{{ countdown(event.voting_close_at, 'Voting closes', 'Voting closed') }}</span>{% endif %}</div>
+    <div class="page-header__meta">{{ stage_badge(stage, stage_label) }}{% if open %}<span class="count">{{ rows|length|plural('project') }}</span>{% endif %}{% if open and event.voting_close_at %}<span>{{ countdown(event.voting_close_at, 'Voting closes', 'Voting closed') }}</span>{% endif %}</div>
   </div>
   <a class="btn btn--ghost" href="/e/{{ event.slug }}/projects">Browse the gallery</a>
 </div>
 {% if not open %}
-  {% if closed %}<div class="alert alert--info" role="status">Voting closed {{ when(event.voting_close_at) }}.{% if results_visible %} <a href="/e/{{ event.slug }}/results">See the results</a>.{% endif %}</div>
-  {% elif event.voting_open_at %}<div class="alert alert--info" role="status">Voting opens {{ when(event.voting_open_at) }}. You can already browse the projects.</div>
-  {% else %}<div class="alert alert--info" role="status">This event has no community vote.</div>{% endif %}
+  {% if closed %}<div class="alert alert--info" role="status"><p>Voting closed {{ when(event.voting_close_at) }}.{% if results_visible %} <a href="/e/{{ event.slug }}/results">See the results</a>.{% endif %}</p></div>
+  {% elif event.voting_open_at %}<div class="alert alert--info" role="status"><p>Voting opens {{ when(event.voting_open_at) }}. You can already browse the projects.</p></div>
+  {% else %}<div class="alert alert--info" role="status"><p>This event has no community vote.</p></div>{% endif %}
+  <div class="mt-4">{{ empty("Nothing to vote on right now", "The ballot appears here while a community vote is open.", "Browse the projects", "/e/" ~ event.slug ~ "/projects") }}</div>
 {% elif voter is none and mode == 'account' %}
   <div class="card card--action mb-4"><h3>Sign in to vote</h3><p class="text-sm ink-2">One ballot per account. Your order below is yours alone and never changes.</p><a class="btn btn--primary" href="/login?next=/e/{{ event.slug }}/vote">Sign in</a> <a class="btn btn--secondary" href="/register?next=/e/{{ event.slug }}/vote">Create account</a></div>
 {% elif voter is none and mode == 'email' %}
@@ -24,7 +25,8 @@
   <span class="text-sm ink-2">Each extra vote on the same project costs more (1, 3, 5…). Spread them or stack them.</span>
 </div>
 {% endif %}
-<p class="text-sm ink-2">Projects appear in a random order that is fixed for you, so no entry benefits from being first.</p>
+{% if open %}
+<p class="text-sm ink-2 mb-4">Projects appear in a random order that is fixed for you, so no entry benefits from being first.</p>
 {% if rows %}
 <ol class="ballot">
   {% for r in rows %}
@@ -43,5 +45,6 @@
 </ol>
 {% else %}
 {{ empty("Nothing to vote on yet", "Projects appear here once teams submit them.") }}
+{% endif %}
 {% endif %}
 {% endblock %}

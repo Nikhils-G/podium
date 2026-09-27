@@ -357,7 +357,7 @@ def code_submit(
             code=code,
             error=exc.message,
         )
-    response = RedirectResponse(f"/e/{ctx.event.slug}/projects", status_code=303)
+    response = RedirectResponse(f"/e/{ctx.event.slug}/vote", status_code=303)
     response.set_cookie(
         code_cookie_name(ctx.event),
         f"{key}.{_sign(settings.secret_key, key)}",

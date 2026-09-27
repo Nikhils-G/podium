@@ -5,7 +5,7 @@
   <div><p class="page-header__eyebrow">{{ event.name }}</p><h1>Enter your voting code</h1>
     <p class="ink-2 mt-2">The organizers issued voting codes to eligible voters. A code is one ballot: you can enter it again on another device to keep voting from the same ballot.</p></div>
   {% if error %}{{ alert('critical', error) }}{% endif %}
-  {% if voter %}{{ alert('success', "You're ready to vote — head to the gallery.") }}<a class="btn btn--primary" href="/e/{{ event.slug }}/projects">Go to the ballot</a>
+  {% if voter %}{{ alert('success', "Your code is ready — you can vote now.") }}<a class="btn btn--primary" href="/e/{{ event.slug }}/vote">Go to the ballot</a>
   {% else %}
   <form method="post" action="/e/{{ event.slug }}/vote/code" hx-boost="false" class="stack">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

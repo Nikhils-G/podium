@@ -19,7 +19,7 @@
     </li>
     {% endfor %}
   </ul>
-  {% else %}<p class="muted">No comments yet. Start the discussion.</p>{% endif %}
+  {% else %}<p class="muted">No comments yet.{% if enabled and user %} Start the discussion.{% elif enabled %} Sign in to start the discussion.{% endif %}</p>{% endif %}
   {% if not enabled %}<p class="muted text-sm">Comments are turned off for this event.</p>
   {% elif user %}
   <form class="stack" method="post" action="/e/{{ event.slug }}/projects/{{ project.public_id }}/comments" hx-boost="false" hx-post="/e/{{ event.slug }}/projects/{{ project.public_id }}/comments" hx-target="#comments" hx-swap="outerHTML">

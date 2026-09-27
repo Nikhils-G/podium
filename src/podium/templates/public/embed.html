@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ event.name }} · projects</title>
+  <link rel="icon" href="/static/img/podium.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/app.css">
   <base target="_blank">
 </head>
 <body class="embed">
   <main class="embed__main">
-    <p class="embed__head"><strong>{{ event.name }}</strong> <span class="muted">· {{ page.total }} project{{ '' if page.total == 1 else 's' }}</span></p>
+    <h1 class="embed__head"><strong>{{ event.name }}</strong> <span class="muted">· {{ page.total }} project{{ '' if page.total == 1 else 's' }}</span></h1>
     {% if page.cards %}
     <ul class="embed__list">
       {% for card in page.cards %}

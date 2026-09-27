@@ -16,8 +16,8 @@
       <h2>The rubric</h2>
       <p class="text-sm ink-2">Every judge scored every assigned project on the same criteria. A project's raw score is the weighted mean of its criteria, shown out of 100.</p>
       {% if criteria %}
-      <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Criterion</th><th>What it measures</th><th class="num">Weight</th><th class="num">Scale</th></tr></thead>
-        <tbody>{% for c in criteria %}<tr><td><strong>{{ c.name }}</strong></td><td class="text-sm">{{ c.description or '—' }}</td><td class="num">{{ '%g'|format(c.weight) }}</td><td class="num">{{ c.min_score }}–{{ c.max_score }}</td></tr>{% endfor %}</tbody></table></div>
+      <div class="table-wrap"><table class="table table--dense">{% set described = criteria|selectattr('description')|list %}<thead><tr><th>Criterion</th>{% if described %}<th>What it measures</th>{% endif %}<th class="num">Weight</th><th class="num">Scale</th></tr></thead>
+        <tbody>{% for c in criteria %}<tr><td><strong>{{ c.name }}</strong></td>{% if described %}<td class="text-sm">{{ c.description or '—' }}</td>{% endif %}<td class="num">{{ '%g'|format(c.weight) }}</td><td class="num">{{ c.min_score }}–{{ c.max_score }}</td></tr>{% endfor %}</tbody></table></div>
       {% else %}<p class="muted">No rubric was published.</p>{% endif %}
     </section>
     <section class="stack">
