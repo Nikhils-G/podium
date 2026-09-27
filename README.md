@@ -11,8 +11,8 @@ get their data back out.
 docker compose up
 ```
 
-That boots a fully seeded portal on <http://localhost:8080> — the DOGFOOD fixture event with 41
-projects, 30 judges, 8 tracks and 126 reviews — and prints test logins for every role.
+That boots a fully seeded portal on <http://localhost:8080> with the DOGFOOD fixture event (41
+projects, 30 judges, 8 tracks and 126 reviews) and prints test logins for every role.
 
 ## Check every claim
 
@@ -29,8 +29,8 @@ projects, 30 judges, 8 tracks and 126 reviews — and prints test logins for eve
    from now to an hour from now with *Signed-in accounts* → sign in as the participant → open
    `/e/sample-hack-2026/vote` → cast a vote. Counts stay hidden until the window closes *and* the
    results are published.
-5. **Watch the demo video:** <https://vimeo.com/1230731798> — the full lifecycle (set-up, submission,
-   judging, publishing) shown with the demo accounts.
+5. **Watch the demo video:** <https://vimeo.com/1230731798>. It shows the full lifecycle (set-up, submission,
+   judging, publishing) using the demo accounts.
 
 ## Screenshots
 
@@ -57,7 +57,7 @@ docker compose up
 ```
 
 Wait for `seeded. test logins:` in the log, then open <http://localhost:8080>. The image is built
-once (that needs the network); running it needs nothing external — every font, script and style is
+once (that needs the network); running it needs nothing external. Every font, script and style is
 served from the container.
 
 **Without Docker** (Python 3.12 and [uv](https://docs.astral.sh/uv/)):
@@ -84,7 +84,7 @@ are also what `.dogfood.toml` uses.
 
 Password for every demo and fixture user: **`demo-pass`**. Session tokens are derived from
 `PODIUM_SECRET_KEY`, so with the default secret they are identical on every fresh install (change
-the secret and disable demo accounts before running a real event — see *Operations*).
+the secret and disable demo accounts before running a real event; see *Operations*).
 
 ## A five-minute tour
 
@@ -98,7 +98,7 @@ the secret and disable demo accounts before running a real event — see *Operat
 3. **Progress** → live per-judge and per-track completion, missing reviews.
 4. **Sign in as judge_a** → the queue, then open a project: segmented 1–5 scoring with a live
    weighted total, autosave, keyboard shortcuts; the **Compare** tab for pairwise choices. Try to
-   open `/api/v1/events/sample-hack-2026/judges/jdg_26/reviews` as this judge — **403**.
+   open `/api/v1/events/sample-hack-2026/judges/jdg_26/reviews` as this judge and you get **403**.
 5. **Voting** (organizer → Voting) → set the window and choose a mode on the Voting page, then vote as a
    participant from the gallery; counts stay hidden until you publish.
 6. **Integrations / Data / Certificates** → add a webhook and watch deliveries, download
@@ -133,7 +133,7 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PODIUM_SECRET_KEY` | dev value | signs sessions, CSRF, voter cookies, demo tokens — **set your own** |
+| `PODIUM_SECRET_KEY` | dev value | signs sessions, CSRF, voter cookies, demo tokens. **Set your own** |
 | `PODIUM_BASE_URL` | `http://localhost:8080` | used in links, invites, certificates |
 | `PODIUM_DATA_DIR` | `./data` (`/data` in Docker) | SQLite database and the signing key |
 | `PODIUM_DATABASE_URL` | unset | e.g. `postgresql+psycopg://…` to use Postgres instead of SQLite (driver included; smoke-tested against PostgreSQL 17, CI covers SQLite) |
@@ -160,7 +160,7 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
   Copying `podium.db` while it runs can tear a WAL database; use one of the two.
 - **Reset**: `docker compose down -v` deletes the volume; the next `up` seeds a fresh instance.
 - **Upgrade**: pull, `docker compose up --build`. Migrations run on boot (`alembic upgrade head`).
-- **First admin**: on an instance with no accounts, the first person to register becomes the admin (audited). Seeded installs already have `admin@podium.local`; an install that seeded fixtures without demo accounts has no admin — set `PODIUM_OPEN_EVENT_CREATION=true` or flip `is_admin` for one user.
+- **First admin**: on an instance with no accounts, the first person to register becomes the admin (audited). Seeded installs already have `admin@podium.local`; an install that seeded fixtures without demo accounts has no admin, so set `PODIUM_OPEN_EVENT_CREATION=true` or flip `is_admin` for one user.
 - **Production checklist**: set `PODIUM_SECRET_KEY`, `PODIUM_BASE_URL` (https), leave `PODIUM_DEMO_ACCOUNTS` and `PODIUM_OPEN_EVENT_CREATION` unset (both off),
   `PODIUM_SEED_FIXTURES=false`; put a reverse proxy (Caddy, nginx) in front for TLS; keep one
   container per instance (rate limits and the webhook worker are in-process). With Caddy on the
@@ -181,13 +181,13 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 
 ## Documentation
 
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — layers, decisions and their reasons, trade-offs.
-- [`DATA-MODEL.md`](DATA-MODEL.md) — schema, invariants, import/export paths.
-- [`JUDGING.md`](JUDGING.md) — assignment strategy, scoring math, normalization defended with the fixture numbers, pairwise mode, isolation matrix.
-- [`THREAT-MODEL.md`](THREAT-MODEL.md) — what is defended, how, and what isn't.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): layers, decisions and their reasons, trade-offs.
+- [`DATA-MODEL.md`](DATA-MODEL.md): schema, invariants, import/export paths.
+- [`JUDGING.md`](JUDGING.md): assignment strategy, scoring math, normalization defended with the fixture numbers, pairwise mode, isolation matrix.
+- [`THREAT-MODEL.md`](THREAT-MODEL.md): what is defended, how, and what isn't.
 - [`CHANGELOG.md`](CHANGELOG.md), [`SECURITY.md`](SECURITY.md) (private vulnerability reporting),
   [`CONTRIBUTING.md`](CONTRIBUTING.md), [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
-- `/api/docs` on a running instance — API reference: quick start, who can call what, errors, rate
+- `/api/docs` on a running instance is the API reference: quick start, who can call what, errors, rate
   limits, webhooks with signature verification, and every endpoint with requests in curl, Python and
   JavaScript plus a response example, all generated from `/api/openapi.json` so the two cannot drift.
   `/api/docs/console` is the interactive console.
@@ -195,7 +195,7 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 ## Development
 
 ```
-make test      # pytest — 239 tests on a temp database seeded from the real fixtures
+make test      # pytest, 239 tests on a temp database seeded from the real fixtures
 make lint      # ruff
 make check     # run the organizer's checker against a running portal → acceptance-report.txt
 make clean-verify   # what a judge does: rebuild without cache, boot, run the checker
@@ -231,5 +231,5 @@ tests grouped by tier on every push to main and every pull request.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE). The vendored fonts, htmx and Swagger UI keep their own licenses;
+MIT, see [`LICENSE`](LICENSE). The vendored fonts, htmx and Swagger UI keep their own licenses;
 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) lists each one.
