@@ -6,7 +6,7 @@
 <div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Results &amp; normalization</h1>
   <p class="ink-2 mt-2">{{ r.reviews|length }} submitted reviews from {{ r.judges|length }} judges. {% if r.global_mean is not none %}Event mean {{ '%.1f'|format(r.global_mean) }}, spread {{ '%.1f'|format(r.global_std) }}.{% endif %}</p></div>
   {% if event.results_published_at %}{{ badge('Published', 'accent') }}
-  {% elif judging_open %}<div class="stack-sm"><button class="btn btn--primary" type="button" disabled aria-disabled="true">Publish results</button><span class="muted text-sm">Close judging first (Dashboard → Next step).</span></div>
+  {% elif judging_open %}<div class="publish-note"><button class="btn btn--primary" type="button" disabled aria-disabled="true">Publish results</button><span class="muted text-sm">Close judging first (from the dashboard timeline).</span></div>
   {% else %}<form method="post" action="/e/{{ event.slug }}/organizer/actions/publish_results" hx-boost="false" data-confirm="Publish results? Rankings, scores and vote counts become public. This is logged. Judge names are never shown publicly."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--primary" type="submit">Publish results</button></form>{% endif %}</div>
 <form class="cluster card card--flat settings-bar" method="post" action="/e/{{ event.slug }}/organizer/results/settings" hx-boost="false">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
