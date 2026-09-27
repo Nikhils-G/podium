@@ -36,6 +36,7 @@ from podium.services import exports, scoring
 from podium.services import judges as judges_service
 from podium.services import reviews as reviews_service
 from podium.services import rubric as rubric_service
+from podium.services import voting as voting_service
 from podium.services.authz import assert_can_view_judge_reviews
 
 router = APIRouter(tags=["judging"])
@@ -385,7 +386,7 @@ def remove_assignment(
 @router.get("/events/{slug}/results", response_model=ResultsOut)
 def results(ctx: EventContext = Depends(load_event), db: DbSession = Depends(get_db)):
     """Rankings. Public once results are published; organizers can always see them."""
-    if ctx.event.results_published_at is None and not ctx.is_organizer:
+    if not voting_service.results_visible(ctx.event, organizer=ctx.is_organizer):
         raise NotFound("Results haven't been published yet.")
     r = scoring.compute(db, ctx.event)
     return {
@@ -396,7 +397,7 @@ def results(ctx: EventContext = Depends(load_event), db: DbSession = Depends(get
         "projects": [
             {
                 "rank": p.rank_norm if r.basis.value == "normalized" else p.rank_raw,
-                "tied": p.tied_norm,
+                "tied": p.tied_norm if r.basis.value == "normalized" else p.tied_raw,
                 "project": p.project.public_id,
                 "title": p.project.title,
                 "track": p.track.name if p.track else None,
@@ -546,7 +547,7 @@ def pairwise_results(ctx: EventContext = Depends(load_event), db: DbSession = De
     normalized ranking."""
     from podium.services import pairwise
 
-    if ctx.event.results_published_at is None and not ctx.is_organizer:
+    if not voting_service.results_visible(ctx.event, organizer=ctx.is_organizer):
         raise NotFound("Results haven't been published yet.")
     r = pairwise.results(db, ctx.event)
     return {

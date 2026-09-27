@@ -255,8 +255,16 @@ def remove_assignment(db: DbSession, event: Event, organizer: User, assignment_i
         assignment.id,
         event_id=event.id,
         actor_id=organizer.id,
-        meta={"judge": assignment.judge.public_id, "project": assignment.project.public_id},
+        meta={
+            "judge": assignment.judge.public_id,
+            "project": assignment.project.public_id,
+            "draft_discarded": assignment.review is not None,
+        },
     )
+    # reviews.assignment_id is NOT NULL and has no ORM cascade: drop the draft first (its
+    # score items cascade from the review)
+    if assignment.review is not None:
+        db.delete(assignment.review)
     db.delete(assignment)
     db.commit()
 

@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from podium.config import Settings, get_settings
@@ -181,7 +180,3 @@ def logout(request: Request, db: DbSession = Depends(get_db)):
     response = RedirectResponse("/", status_code=303)
     response.delete_cookie(COOKIE_NAME, path="/")
     return response
-
-
-# keep the import used for type checkers / future use
-_ = select

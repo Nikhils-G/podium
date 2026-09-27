@@ -151,8 +151,9 @@ def leave_team(db: DbSession, team: Team, user: User, *, ip_hash: str | None = N
     ).scalar_one_or_none()
     if member is None:
         raise NotFound("You're not in this team.")
-    project = db.execute(select(Project).where(Project.team_id == team.id)).scalar_one_or_none()
-    if project is not None and project.submitted_at is not None:
+    # imported data can give a team several projects (duplicates), so check them all
+    projects = db.execute(select(Project).where(Project.team_id == team.id)).scalars().all()
+    if any(p.submitted_at is not None for p in projects):
         raise Conflict("You can't leave a team that has submitted a project.")
     others = (
         db.execute(
@@ -167,7 +168,7 @@ def leave_team(db: DbSession, team: Team, user: User, *, ip_hash: str | None = N
         others[0].role = MemberRole.lead
     db.delete(member)
     if not others:
-        if project is not None:
+        for project in projects:
             db.delete(project)
         db.delete(team)
     audit.record(

@@ -26,14 +26,6 @@ class Settings(BaseSettings):
     webhook_interval_seconds: int = 5
     cookie_secure: bool | None = None  # None → derived from base_url scheme
 
-    smtp_host: str | None = None
-    smtp_port: int = 587
-    smtp_user: str | None = None
-    smtp_password: str | None = None
-    smtp_from: str | None = None
-
-    log_level: str = "info"
-
     @property
     def default_secret(self) -> bool:
         return self.secret_key == "podium-dev-secret-change-me"
