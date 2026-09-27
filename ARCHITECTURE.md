@@ -72,6 +72,8 @@ and "Close judging" stays reachable while voting is open.
 | Webhook deliveries as rows + in-process worker | fire-and-forget HTTP, Celery | Retries survive restarts, are visible and re-deliverable in the UI, and need no broker |
 | Signed certificates with a local ed25519 key | PDFs, external issuers | Verifiable by anyone with the published public key; print-ready HTML; no dependency |
 | Strict CSP with nonces, no inline styles | relaxed CSP | Forces the offline rule (nothing external can slip in) and blocks XSS classes by construction. Only `/api/docs/console` relaxes styles for Swagger UI |
+| API reference rendered on the server from the OpenAPI document | Swagger UI as the main docs page | Reads without JavaScript, matches the product's design system, and cannot drift: permissions come from each route's dependency tree, examples from the schemas, code is highlighted in Python |
+| No scroll regions inside a page | sticky side columns with their own scrollbars | Nested scrollbars trap keyboard and magnifier users. A side column sticks only while it fits under the header (a 20-line measure in `app.js`); a taller one scrolls with the page. Only wide tables on phones and the phone menu may scroll sideways or inside themselves |
 
 ## Decisions worth stealing
 
@@ -83,6 +85,8 @@ and "Close judging" stays reachable while voting is open.
 - **Deterministic demo tokens** so a committed config works on a stranger's machine.
 - **Preview → apply** for anything algorithmic that changes many rows (auto-assignment, import).
 - **Per-voter deterministic ballot shuffle**: stable for one voter, different across voters.
+- **A page sweep that proves its own coverage**: every HTML route × every role, plain and htmx,
+  with a guard test that fails if the sweep ever finds too few routes (it once found none).
 
 ## Directory layout
 

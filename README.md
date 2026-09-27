@@ -77,8 +77,9 @@ the secret and disable demo accounts before running a real event — see *Operat
    participant from the gallery; counts stay hidden until you publish.
 6. **Integrations / Data / Certificates** → add a webhook and watch deliveries, download
    `export.json` and re-import it (dry run), issue judge records and verify one at `/verify`.
-7. **API** → `/api/docs` (a reference page rendered from the OpenAPI document, with an interactive
-   console at `/api/docs/console`), create a token on `/account`, and
+7. **API** → `/api/docs`: a three-column reference rendered from the OpenAPI document, with who can
+   call each endpoint, its parameters, curl / Python / JavaScript requests and a response example
+   (Swagger UI stays available at `/api/docs/console`). Create a token on `/account`, and
    `curl -H "Authorization: Bearer pdm_…" http://localhost:8080/api/v1/events/sample-hack-2026/exports/scores.csv`.
 
 ## Acceptance checker
@@ -135,14 +136,15 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 - [`DATA-MODEL.md`](DATA-MODEL.md) — schema, invariants, import/export paths.
 - [`JUDGING.md`](JUDGING.md) — assignment strategy, scoring math, normalization defended with the fixture numbers, pairwise mode, isolation matrix.
 - [`THREAT-MODEL.md`](THREAT-MODEL.md) — what is defended, how, and what isn't.
-- `/api/docs` on a running instance — API reference (who can call what, errors, rate limits,
-  webhooks, every endpoint with an example request); `/api/docs/console` is the interactive console;
-  `/api/openapi.json` is the document both are built from.
+- `/api/docs` on a running instance — API reference: quick start, who can call what, errors, rate
+  limits, webhooks with signature verification, and every endpoint with requests in curl, Python and
+  JavaScript plus a response example, all generated from `/api/openapi.json` so the two cannot drift.
+  `/api/docs/console` is the interactive console.
 
 ## Development
 
 ```
-make test      # pytest — 150 tests on a temp database seeded from the real fixtures
+make test      # pytest — 173 tests on a temp database seeded from the real fixtures
 make lint      # ruff
 make check     # run the organizer's checker against a running portal → acceptance-report.txt
 make clean-verify   # what a judge does: rebuild without cache, boot, run the checker
