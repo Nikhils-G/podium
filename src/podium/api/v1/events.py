@@ -26,11 +26,13 @@ from podium.services.events import list_events_for, stage_of
 router = APIRouter(tags=["events"])
 
 
-def _payload(model: EventCreate) -> dict:
-    data = model.model_dump()
+def _payload(model: EventCreate | EventUpdate, *, only_sent: bool = False) -> dict:
+    data = model.model_dump(exclude_unset=only_sent)
     for key in ("submissions_open_at", "submissions_close_at", "voting_open_at", "voting_close_at"):
-        data[key] = data[key].isoformat() if data[key] else ""
-    data["is_public"] = "true" if data["is_public"] else ""
+        if key in data:
+            data[key] = data[key].isoformat() if data[key] else ""
+    if "is_public" in data:
+        data["is_public"] = "true" if data["is_public"] else ""
     return data
 
 
@@ -67,7 +69,12 @@ def update_event(
 ):
     """Change event settings; the audit log records a dated diff of every field."""
     event = events_service.update_event(
-        db, ctx.event, ctx.user, _payload(body), ip_hash=ip_hash(request)
+        db,
+        ctx.event,
+        ctx.user,
+        _payload(body, only_sent=True),
+        ip_hash=ip_hash(request),
+        partial=True,
     )
     return {"event": event_out(event, stage_of(event).value)}
 

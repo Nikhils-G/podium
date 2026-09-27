@@ -200,9 +200,29 @@ def create_event(db: DbSession, user: User, data: dict, *, ip_hash: str | None =
     return event
 
 
-def update_event(db: DbSession, event: Event, user: User, data: dict, *, ip_hash=None) -> Event:
+def current_values(event: Event) -> dict:
+    """The event as the settings form would submit it (the shape validate_event reads)."""
+    values = {
+        "name": event.name,
+        "description": event.description,
+        "is_public": "true" if event.is_public else "",
+        "max_team_size": str(event.max_team_size),
+    }
+    for field in DATE_FIELDS:
+        value = getattr(event, field)
+        values[field] = value.isoformat() if value else ""
+    return values
+
+
+def update_event(
+    db: DbSession, event: Event, user: User, data: dict, *, ip_hash=None, partial=False
+) -> Event:
+    """Save event settings. With partial=True (API PATCH), fields missing from data keep
+    their current values instead of being cleared."""
     if event.archived_at is not None:
         raise Conflict("Archived events can't be edited.")
+    if partial:
+        data = {**current_values(event), **data}
     clean, errors = validate_event(data)
     if errors:
         raise ValidationFailed(errors=errors)

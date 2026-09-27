@@ -14,8 +14,17 @@ class EventCreate(BaseModel):
     voting_close_at: datetime | None = None
 
 
-class EventUpdate(EventCreate):
-    pass
+class EventUpdate(BaseModel):
+    """PATCH: only the fields you send change; send null to clear a date."""
+
+    name: str | None = Field(None, max_length=160)
+    description: str | None = None
+    is_public: bool | None = None
+    max_team_size: int | None = Field(None, ge=1, le=20)
+    submissions_open_at: datetime | None = None
+    submissions_close_at: datetime | None = None
+    voting_open_at: datetime | None = None
+    voting_close_at: datetime | None = None
 
 
 class TrackCreate(BaseModel):

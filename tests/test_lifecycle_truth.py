@@ -244,3 +244,32 @@ def test_assignments_page_shows_the_freeze(app, client, auth):
         assert page.count('<fieldset class="stack" disabled>') == 2
     finally:
         client.post(f"{S}/actions/open_judging", headers=org)
+
+
+def test_patch_changes_only_the_fields_it_names(client, auth):
+    org, now = auth("organizer"), _now()
+    slug = _new_event(
+        client,
+        org,
+        "Patch Night",
+        submissions_open_at=now - timedelta(days=1),
+        submissions_close_at=now + timedelta(days=1),
+        voting_open_at=now + timedelta(days=2),
+        voting_close_at=now + timedelta(days=3),
+    )
+    later = now + timedelta(days=1, hours=2)
+    r = client.patch(
+        f"/api/v1/events/{slug}", headers=org, json={"submissions_close_at": later.isoformat()}
+    )
+    assert r.status_code == 200, r.text
+    event = _event(slug)
+    assert event.submissions_close_at == later and event.name == "Patch Night"
+    assert event.is_public, "a PATCH that doesn't mention is_public never unpublishes"
+    assert event.submissions_open_at == now - timedelta(days=1)
+    assert event.voting_open_at == now + timedelta(days=2), "unsent dates are kept"
+    r = client.patch(
+        f"/api/v1/events/{slug}",
+        headers=org,
+        json={"voting_open_at": None, "voting_close_at": None},
+    )
+    assert r.status_code == 200 and _event(slug).voting_open_at is None, "null clears a date"
