@@ -10,7 +10,7 @@ import re
 import secrets
 from dataclasses import dataclass, field
 
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session as DbSession
 
 from podium.errors import Closed, Conflict, Forbidden, NotFound, ValidationFailed
@@ -422,19 +422,24 @@ class Tally:
     flagged: int
 
 
-def tally(db: DbSession, event: Event) -> Tally:
-    rows = db.execute(
+def _tally_statement(event_id: int):
+    # CASE, not iif(): the same SQL runs on SQLite and PostgreSQL.
+    return (
         select(
             Project,
             func.coalesce(func.sum(Vote.credits), 0),
             func.count(Vote.id),
-            func.coalesce(func.sum(func.iif(Vote.flagged, 1, 0)), 0),
+            func.coalesce(func.sum(case((Vote.flagged.is_(True), 1), else_=0)), 0),
         )
         .outerjoin(Vote, (Vote.project_id == Project.id) & Vote.voided_at.is_(None))
-        .where(Project.event_id == event.id, Project.status == ProjectStatus.submitted)
+        .where(Project.event_id == event_id, Project.status == ProjectStatus.submitted)
         .group_by(Project.id)
         .order_by(func.coalesce(func.sum(Vote.credits), 0).desc(), Project.title)
-    ).all()
+    )
+
+
+def tally(db: DbSession, event: Event) -> Tally:
+    rows = db.execute(_tally_statement(event.id)).all()
     projects = [
         ProjectTally(project=p, votes=int(v), voters=int(n), flagged=int(f)) for p, v, n, f in rows
     ]

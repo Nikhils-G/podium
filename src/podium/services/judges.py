@@ -6,7 +6,7 @@ import secrets
 from dataclasses import dataclass, field
 from datetime import timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session as DbSession
 
 from podium.errors import Conflict, Forbidden, NotFound, ValidationFailed
@@ -45,6 +45,19 @@ def _hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _assignment_counts_statement(event_id: int):
+    # (judge_id, assigned, done) per judge. CASE, not iif(): portable to PostgreSQL.
+    return (
+        select(
+            Assignment.judge_id,
+            func.count(Assignment.id),
+            func.sum(case((Assignment.status == AssignmentStatus.done, 1), else_=0)),
+        )
+        .where(Assignment.event_id == event_id)
+        .group_by(Assignment.judge_id)
+    )
+
+
 def list_judges(db: DbSession, event: Event) -> list[JudgeRow]:
     users = (
         db.execute(
@@ -66,19 +79,7 @@ def list_judges(db: DbSession, event: Event) -> list[JudgeRow]:
         tracks_by_user.setdefault(user_id, []).append(track)
     counts = {
         judge_id: (assigned, done)
-        for judge_id, assigned, done in db.execute(
-            select(
-                Assignment.judge_id,
-                func.count(Assignment.id),
-                func.sum(
-                    func.iif(Assignment.status == AssignmentStatus.done, 1, 0)
-                    if db.bind.dialect.name == "sqlite"
-                    else func.cast(Assignment.status == AssignmentStatus.done, func.INTEGER)
-                ),
-            )
-            .where(Assignment.event_id == event.id)
-            .group_by(Assignment.judge_id)
-        ).all()
+        for judge_id, assigned, done in db.execute(_assignment_counts_statement(event.id)).all()
     }
     return [
         JudgeRow(
