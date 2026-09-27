@@ -100,7 +100,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Build from the clean clone, as a judge would
-        run: docker compose build
+        run: |
+          # registry pulls occasionally reset; retry before calling the build broken
+          for attempt in 1 2 3; do
+            docker compose build && exit 0
+            echo "::warning::build attempt $attempt failed"
+            sleep 15
+          done
+          exit 1
 
       - name: docker compose up
         run: docker compose up -d
@@ -178,7 +185,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Build the image (the only step that uses the network)
-        run: docker build -t podium:ci .
+        run: |
+          for attempt in 1 2 3; do
+            docker build -t podium:ci . && exit 0
+            echo "::warning::build attempt $attempt failed"
+            sleep 15
+          done
+          exit 1
 
       - name: Start it with no network interface at all
         run: docker run -d --name podium-offline --network none -e PODIUM_DEMO_ACCOUNTS=true podium:ci
