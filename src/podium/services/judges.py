@@ -342,13 +342,24 @@ def remove_judge(db: DbSession, event: Event, organizer: User, judge_public_id: 
         select(JudgeTrack).where(JudgeTrack.event_id == event.id, JudgeTrack.user_id == judge.id)
     ).scalars():
         db.delete(row)
+    drafts = 0
     for row in db.execute(
         select(Assignment).where(Assignment.event_id == event.id, Assignment.judge_id == judge.id)
     ).scalars():
+        # reviews.assignment_id is NOT NULL and has no ORM cascade: drop the draft first
+        if row.review is not None:
+            db.delete(row.review)
+            drafts += 1
         db.delete(row)
     db.delete(role)
     audit.record(
-        db, "judge.removed", "user", judge.public_id, event_id=event.id, actor_id=organizer.id
+        db,
+        "judge.removed",
+        "user",
+        judge.public_id,
+        event_id=event.id,
+        actor_id=organizer.id,
+        meta={"drafts_discarded": drafts},
     )
     db.commit()
 

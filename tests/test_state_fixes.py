@@ -1,12 +1,12 @@
-"""State fixes: removing an assignment with a draft review, leaving a team that owns two
-projects, and the results 'tied' flag on the raw ranking basis."""
+"""State fixes: removing an assignment or a judge with a draft review, leaving a team that
+owns two projects, and the results 'tied' flag on the raw ranking basis."""
 
 import json
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
-from podium.models import Event, EventRole, RankingBasis, Review, Role, User
+from podium.models import Event, EventRole, Project, RankingBasis, Review, Role, Team, User
 from podium.security.sessions import create_session
 from podium.services.auth import register
 from tests.conftest import ROOT, SLUG, get_sessionmaker
@@ -19,25 +19,30 @@ def _cookie(db, email):
     return user, {"Cookie": f"session={token}"}
 
 
-def test_removing_an_assignment_discards_the_draft_review(client):
+def _event(client, org, name):
     now = datetime.now(UTC)
-    with get_sessionmaker()() as db:
-        _, org = _cookie(db, "org-state@example.test")
-        judge, judge_h = _cookie(db, "judge-state@example.test")
-        _, maker = _cookie(db, "maker-state@example.test")
-        judge_public_id = judge.public_id
     r = client.post(
         "/api/v1/events",
         headers=org,
         json={
-            "name": "Draft Removal Hack",
+            "name": name,
             "is_public": True,
             "submissions_open_at": (now - timedelta(days=1)).isoformat(),
             "submissions_close_at": (now + timedelta(days=1)).isoformat(),
         },
     )
     assert r.status_code == 201, r.text
-    slug = r.json()["event"]["slug"]
+    return r.json()["event"]["slug"]
+
+
+def _judge_with_draft(client, tag):
+    """A scratch event where one judge has saved a partial draft (assignment in_progress)."""
+    with get_sessionmaker()() as db:
+        _, org = _cookie(db, f"org-{tag}@example.test")
+        judge, judge_h = _cookie(db, f"judge-{tag}@example.test")
+        _, maker = _cookie(db, f"maker-{tag}@example.test")
+        judge_public_id = judge.public_id
+    slug = _event(client, org, f"Draft Hack {tag}")
     S = f"/api/v1/events/{slug}"
     with get_sessionmaker()() as db:
         event = db.execute(select(Event).where(Event.slug == slug)).scalar_one()
@@ -62,10 +67,50 @@ def test_removing_an_assignment_discards_the_draft_review(client):
     judges = client.get(f"{S}/assignments", headers=org).json()["judges"]
     assignment = [a for j in judges if j["id"] == judge_public_id for a in j["assignments"]][0]
     assert assignment["status"] == "in_progress"
-    r = client.delete(f"{S}/assignments/{assignment['id']}", headers=org)
+    return S, org, judge_public_id, assignment["id"], review_id
+
+
+def _review_gone(review_id):
+    with get_sessionmaker()() as db:
+        return db.execute(select(Review).where(Review.public_id == review_id)).first() is None
+
+
+def test_removing_an_assignment_discards_the_draft_review(client):
+    S, org, _, assignment_id, review_id = _judge_with_draft(client, "state")
+    r = client.delete(f"{S}/assignments/{assignment_id}", headers=org)
+    assert r.status_code == 204, r.text
+    assert _review_gone(review_id)
+
+
+def test_removing_a_judge_discards_their_draft_review(client):
+    S, org, judge_public_id, _, review_id = _judge_with_draft(client, "state-rm-judge")
+    r = client.delete(f"{S}/judges/{judge_public_id}", headers=org)
+    assert r.status_code == 204, r.text
+    assert _review_gone(review_id)
+
+
+def test_last_member_leaving_deletes_every_draft_project(client):
+    with get_sessionmaker()() as db:
+        _, org = _cookie(db, "org-state-leave@example.test")
+        _, maker = _cookie(db, "maker-state-leave@example.test")
+    slug = _event(client, org, "Two Drafts Hack")
+    S = f"/api/v1/events/{slug}"
+    r = client.post(f"{S}/teams", headers=maker, json={"name": "Two Drafts"})
+    assert r.status_code == 201, r.text
+    r = client.post(f"{S}/projects", headers=maker, json={"title": "Draft one", "submit": False})
+    assert r.status_code == 201, r.text
+    with get_sessionmaker()() as db:
+        first = db.execute(select(Project).where(Project.public_id == r.json()["project"]["id"]))
+        first = first.scalar_one()
+        team_id = first.team_id
+        # imports can give a team a second project; the API never does
+        db.add(Project(event_id=first.event_id, team_id=team_id, title="Draft two"))
+        db.commit()
+    r = client.post(f"{S}/teams/leave", headers=maker)
     assert r.status_code == 204, r.text
     with get_sessionmaker()() as db:
-        assert db.execute(select(Review).where(Review.public_id == review_id)).first() is None
+        assert db.get(Team, team_id) is None
+        assert db.execute(select(Project).where(Project.team_id == team_id)).first() is None
 
 
 def test_leaving_a_team_with_two_projects_is_refused_not_a_crash(client):
