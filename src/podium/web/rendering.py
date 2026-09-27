@@ -12,6 +12,7 @@ from podium.config import get_settings
 from podium.models import utcnow
 from podium.security.csrf import COOKIE_NAME as CSRF_COOKIE
 from podium.security.csrf import ensure_csrf_cookie
+from podium.services.text import plural
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 jinja_env = Environment(
@@ -21,6 +22,15 @@ jinja_env = Environment(
 templates = Jinja2Templates(env=jinja_env)
 templates.env.globals["version"] = __version__
 templates.env.globals["now_utc"] = utcnow
+jinja_env.filters["plural"] = plural
+
+
+def wants_partial(request: Request, target: str | None = None) -> bool:
+    """True for an htmx request aimed at a region of the page — never for a boosted navigation,
+    which needs the full page (a boosted rail link once received the bare polling partial)."""
+    if not is_htmx(request) or request.headers.get("HX-Boosted") == "true":
+        return False
+    return target is None or request.headers.get("HX-Target") == target
 
 
 def is_htmx(request: Request) -> bool:

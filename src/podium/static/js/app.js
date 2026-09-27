@@ -48,6 +48,16 @@
     box.appendChild(el);
     setTimeout(function () { el.remove(); }, 6000);
   }
+  // 4xx responses that carry an HTML partial (vote control, comments, save status, re-rendered
+  // forms) swap in place: the message lives inside the control. JSON 4xx and 5xx keep the toast.
+  document.body.addEventListener("htmx:beforeSwap", function (e) {
+    var xhr = e.detail.xhr;
+    if (!xhr || xhr.status < 400 || xhr.status >= 500) return;
+    var type = xhr.getResponseHeader("Content-Type") || "";
+    if (type.indexOf("text/html") === -1) return;
+    e.detail.shouldSwap = true;
+    e.detail.isError = false;
+  });
   document.body.addEventListener("htmx:responseError", function (e) {
     var xhr = e.detail.xhr;
     if (xhr.status === 401) { showAlert("warning", "Your session has expired. Sign in to continue."); return; }
@@ -165,7 +175,7 @@
     var reviewForm = currentReviewForm();
     if (!reviewForm) return;
     if (/input|textarea|select/i.test(document.activeElement.tagName) && document.activeElement.type !== "radio") {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { var s = reviewForm.querySelector("[data-submit-review]"); if (s) s.click(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); var s = reviewForm.querySelector("[data-submit-review]"); if (s) s.click(); }
       return;
     }
     var groups = Array.prototype.slice.call(reviewForm.querySelectorAll("[data-criterion]"));
@@ -179,8 +189,28 @@
       var target = active.querySelector('input[type=radio][value="' + e.key + '"]');
       if (target && !target.disabled) { e.preventDefault(); target.checked = true; target.focus(); target.dispatchEvent(new Event("change", { bubbles: true })); }
     } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();  // otherwise Enter also submits through the first button (Save draft)
       var btn = reviewForm.querySelector("[data-submit-review]"); if (btn) btn.click();
     }
+  });
+  // a scored criterion drops its "score this first" error; a saved draft drops the banner
+  document.addEventListener("change", function (e) {
+    var crit = e.target.closest && e.target.closest("[data-criterion]");
+    if (!crit) return;
+    crit.classList.remove("is-invalid");
+    var err = crit.querySelector(".field__error"); if (err) err.remove();
+    var form = crit.closest("[data-review-form]");
+    if (!form) return;
+    var groups = Array.prototype.slice.call(form.querySelectorAll("[data-criterion]"));
+    var values = groups.map(function (g) { var c = g.querySelector("input[type=radio]:checked"); return c ? c.value : null; });
+    var nudge = form.querySelector("[data-flat-nudge]");
+    if (nudge && groups.length > 1 && values.every(function (v) { return v !== null; }) && values.every(function (v) { return v === values[0]; })) {
+      nudge.textContent = "Every criterion scored " + values[0] + " — sure? Identical scores carry no ranking information."; nudge.hidden = false;
+    } else if (nudge) { nudge.hidden = true; }
+  });
+  document.body.addEventListener("htmx:afterRequest", function (e) {
+    var form = e.target.closest && e.target.closest("[data-review-form]");
+    if (form && e.detail.successful) { var box = document.getElementById("review-errors"); if (box) box.innerHTML = ""; }
   });
 
   // ---- compare mode keyboard -------------------------------------------------------------------
@@ -195,14 +225,43 @@
   });
 
   // ---- confirm-before-submit (destructive actions state their consequence) --------------------
+  // ---- confirmation dialog (an in-app <dialog>, never window.confirm) ---------------------------
+  var confirmDialog = document.getElementById("confirm-dialog");
+  var confirmPending = null;
+  function closeConfirm() { confirmPending = null; if (confirmDialog && confirmDialog.open) confirmDialog.close(); }
   document.addEventListener("submit", function (e) {
     var form = e.target;
-    if (form.hasAttribute("data-confirm") && !window.confirm(form.getAttribute("data-confirm"))) e.preventDefault();
+    if (!(form instanceof HTMLFormElement) || !form.hasAttribute("data-confirm")) return;
+    if (form.dataset.confirmed === "1") { delete form.dataset.confirmed; return; }
+    e.preventDefault();
+    e.stopImmediatePropagation();  // htmx must not send the request until the person confirms
+    var submitter = e.submitter || form.querySelector('button[type="submit"]');
+    var label = submitter ? submitter.textContent.trim() : "Confirm";
+    if (!confirmDialog || typeof confirmDialog.showModal !== "function") {
+      if (window.confirm(form.getAttribute("data-confirm"))) { form.dataset.confirmed = "1"; form.requestSubmit(submitter || undefined); }
+      return;
+    }
+    confirmPending = { form: form, submitter: submitter };
+    confirmDialog.querySelector("[data-confirm-title]").textContent = label;
+    confirmDialog.querySelector("[data-confirm-body]").textContent = form.getAttribute("data-confirm");
+    var ok = confirmDialog.querySelector("[data-confirm-ok]");
+    ok.textContent = label;
+    ok.className = "btn " + (submitter && submitter.classList.contains("btn--danger") ? "btn--danger" : "btn--primary");
+    confirmDialog.showModal();
+    ok.focus();
   }, true);
-
-  // ---- unsaved changes guard --------------------------------------------------------------------
-  var dirty = false;
-  document.addEventListener("input", function (e) { if (e.target.closest("form[data-guard]")) dirty = true; });
+  if (confirmDialog) {
+    confirmDialog.querySelector("[data-confirm-cancel]").addEventListener("click", closeConfirm);
+    confirmDialog.querySelector("[data-confirm-ok]").addEventListener("click", function () {
+      var pending = confirmPending;
+      closeConfirm();
+      if (!pending) return;
+      pending.form.dataset.confirmed = "1";
+      pending.form.requestSubmit(pending.submitter || undefined);
+    });
+    confirmDialog.addEventListener("click", function (e) { if (e.target === confirmDialog) closeConfirm(); });
+    confirmDialog.addEventListener("cancel", function () { confirmPending = null; });
+  }
   document.addEventListener("submit", function () { dirty = false; });
   window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
   document.body.addEventListener("htmx:confirm", function (e) {

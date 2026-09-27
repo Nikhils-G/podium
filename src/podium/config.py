@@ -16,9 +16,9 @@ class Settings(BaseSettings):
 
     seed_fixtures: bool = True
     fixtures_path: Path = Path("fixtures/fixtures.json")
-    demo_accounts: bool = True
+    demo_accounts: bool = False  # docker-compose.yml and `make dev` opt in explicitly
     demo_password: str = "demo-pass"
-    open_event_creation: bool = True  # False → only instance admins create events
+    open_event_creation: bool = False  # True → any signed-in account can create events
 
     session_days: int = 14
     rate_limit_enabled: bool = True

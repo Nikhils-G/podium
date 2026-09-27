@@ -16,6 +16,7 @@
     </nav>
   </aside>
   <main id="main" class="shell__main">
+    {% if archived is defined and archived %}<div class="alert alert--warning" role="status">This event is archived and read-only. Nothing here can be changed any more.</div>{% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>

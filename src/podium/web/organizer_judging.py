@@ -18,7 +18,7 @@ from podium.services import events as events_service
 from podium.services import judges as judges_service
 from podium.services import rubric as rubric_service
 from podium.web.organizer import _console
-from podium.web.rendering import is_htmx, render
+from podium.web.rendering import is_htmx, render, wants_partial
 
 router = APIRouter(include_in_schema=False)
 
@@ -358,7 +358,11 @@ def progress_page(
     db: DbSession = Depends(get_db),
 ):
     data = dashboard.progress(db, ctx.event)
-    template = "partials/progress_body.html" if is_htmx(request) else "organizer/progress.html"
+    template = (
+        "partials/progress_body.html"
+        if wants_partial(request, "progress-body")
+        else "organizer/progress.html"
+    )
     return render(
         request, template, title="Judging progress", **_console(ctx, "progress", progress=data)
     )

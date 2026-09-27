@@ -53,7 +53,8 @@ the code.
 | Malicious import file | Imports are validated for shape, matched by id (no arbitrary writes), refused for another event unless the caller organizes it, dry-run by default inside a rolled-back savepoint, size-capped at 20 MB, and audited. | `services/importexport.py`, `web/organizer_more.py` |
 | Forged certificates | Records are canonical JSON signed with the instance's ed25519 key; `/verify/{serial}` and the published public key let anyone check offline; revocation is explicit and audited. | `services/certificates.py` |
 | Demo session revoked by a visitor signing out | Demo sessions are shared tokens the acceptance checker relies on; signing out of one only drops the cookie. | `security/sessions.py` |
-| Demo credentials left enabled in production | Demo sessions are derived from the instance secret and only seeded when `PODIUM_DEMO_ACCOUNTS=true` (default for evaluation). The README tells operators to disable it and rotate the secret. | `seed/demo.py`, README |
+| Demo credentials left enabled in production | Demo sessions are derived from the instance secret and only seeded when `PODIUM_DEMO_ACCOUNTS=true`; the code default is off and only `docker-compose.yml` / `make dev` turn it on. A banner shows on every page while demo mode or the default secret is active, and the app refuses to boot with the default secret behind https. | `seed/demo.py`, `config.py`, `main.py` |
+| Anyone with an account creates events or takes over an instance | Event creation is limited to instance admins unless `PODIUM_OPEN_EVENT_CREATION=true`. On an empty instance the first registered account becomes admin (audited `user.bootstrap_admin`); seeded installs never reach that branch. API tokens default to read-only and expire after 90 days. | `security/deps.require_can_create_event`, `services/auth.register`, `services/tokens.py` |
 
 ## Residual risks (not mitigated by design)
 

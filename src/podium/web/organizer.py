@@ -64,6 +64,7 @@ def _console(ctx: EventContext, active: str, **extra):
         "stage": stage.value,
         "stage_label": STAGE_LABELS[stage],
         "console": "organizer",
+        "archived": ctx.event.archived_at is not None,
         "nav_items": [(key, label, base + path) for key, label, path in NAV],
         "nav_groups": [
             (group, [(key, label, base + path) for key, label, path in items])
@@ -151,8 +152,8 @@ def dashboard_page(
             ctx,
             "dashboard",
             overview=data,
-            steps=dashboard.STEPS,
-            step_index=dashboard.step_index(data.stage),
+            steps=dashboard.steps_for(ctx.event),
+            step_index=dashboard.step_index(ctx.event),
             next_step=dashboard.next_step(db, ctx.event),
             more_actions=dashboard.more_actions(ctx.event),
         ),
@@ -259,13 +260,21 @@ async def settings_save(
     data = {k: str(v) for k, v in form.items()}
     clean, _ = events_service.validate_event(data)
     new_close = clean.get("submissions_close_at")
+    now = utcnow()
     closing_now = (
         new_close is not None
-        and new_close <= utcnow()
+        and new_close <= now
         and submissions_are_open(ctx.event)
         and data.get("confirm_close") != "on"
     )
-    if closing_now:
+    reopening = (
+        new_close is not None
+        and new_close > now
+        and not submissions_are_open(ctx.event)
+        and ctx.event.judging_opened_at is not None
+        and data.get("confirm_reopen") != "on"
+    )
+    if closing_now or reopening:
         data["is_public"] = data.get("is_public") in ("on", "true", "1")
         return render(
             request,
@@ -279,23 +288,25 @@ async def settings_save(
                 errors={},
                 saved=False,
                 organizers=events_service.organizers(db, ctx.event),
-                confirm_close=dashboard.overview(db, ctx.event).teams,
+                confirm_close=dashboard.overview(db, ctx.event).teams if closing_now else None,
+                confirm_reopen=reopening,
             ),
         )
     try:
         events_service.update_event(db, ctx.event, ctx.user, data, ip_hash=ip_hash(request))
-    except ValidationFailed as exc:
+    except (ValidationFailed, PodiumError) as exc:
         data["is_public"] = data.get("is_public") in ("on", "true", "1")
         return render(
             request,
             "organizer/settings.html",
-            status_code=422,
+            status_code=exc.status_code,
             title="Settings",
             **_console(
                 ctx,
                 "settings",
                 values=data,
-                errors=exc.errors,
+                errors=getattr(exc, "errors", None) or {},
+                error=getattr(exc, "errors", None) and "" or exc.message,
                 saved=False,
                 organizers=events_service.organizers(db, ctx.event),
             ),

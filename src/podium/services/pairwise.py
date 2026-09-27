@@ -211,11 +211,19 @@ def bradley_terry(
 
 
 def spearman(rank_a: dict[int, int], rank_b: dict[int, int]) -> float | None:
+    """Rank correlation over the items both rankings know. Each side is re-ranked densely
+    within that shared set first; comparing global ranks from sets of different sizes is what
+    produced ρ = −251 on a small compare set."""
     common = [i for i in rank_a if i in rank_b]
     n = len(common)
     if n < 3:
         return None
-    d2 = sum((rank_a[i] - rank_b[i]) ** 2 for i in common)
+
+    def dense(rank: dict[int, int]) -> dict[int, int]:
+        return {i: k + 1 for k, i in enumerate(sorted(common, key=lambda i: rank[i]))}
+
+    a, b = dense(rank_a), dense(rank_b)
+    d2 = sum((a[i] - b[i]) ** 2 for i in common)
     return 1 - 6 * d2 / (n * (n * n - 1))
 
 

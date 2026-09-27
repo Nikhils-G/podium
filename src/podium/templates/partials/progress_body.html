@@ -1,7 +1,7 @@
 {% from "macros/ui.html" import badge, empty %}
 {% set p = progress %}
 <section class="kpis">
-  <div class="kpi"><span class="kpi__label">Projects fully reviewed</span><span class="kpi__value">{{ p.projects_reviewed }}<span class="kpi__of">/ {{ p.projects_total }}</span></span><progress class="meter" value="{{ p.projects_reviewed }}" max="{{ p.projects_total or 1 }}" aria-label="Projects at the review target"></progress><span class="kpi__sub">{% if p.below_target %}{{ p.below_target|length }} below the target of {{ event.reviews_per_project }} reviews{% else %}every project has {{ event.reviews_per_project }} or more reviews{% endif %}</span></div>
+  <div class="kpi"><span class="kpi__label">Projects fully reviewed</span><span class="kpi__value">{{ p.projects_reviewed }}<span class="kpi__of">/ {{ p.projects_total }}</span></span><progress class="meter" value="{{ p.projects_reviewed }}" max="{{ p.projects_total or 1 }}" aria-label="Projects at the review target"></progress><span class="kpi__sub">{% if not p.projects_total %}no submitted projects yet{% elif p.below_target %}{{ p.below_target|length }} below the target of {{ event.reviews_per_project }} reviews{% else %}every project has {{ event.reviews_per_project }} or more reviews{% endif %}</span></div>
   <div class="kpi"><span class="kpi__label">Reviews submitted</span><span class="kpi__value">{{ p.total_done }}<span class="kpi__of">/ {{ p.total_assignments }}</span></span><progress class="meter" value="{{ p.total_done }}" max="{{ p.total_assignments or 1 }}" aria-label="Assignments completed"></progress><span class="kpi__sub">{{ p.pct }}% of assignments</span></div>
   <div class="kpi"><span class="kpi__label">Judges</span><span class="kpi__value">{{ p.judges|length }}</span><span class="kpi__sub">{{ p.judges|selectattr('pending', 'gt', 0)|list|length }} with work pending</span></div>
   <div class="kpi"><span class="kpi__label">Flat scorers</span><span class="kpi__value">{{ p.flat_judges|length }}</span><span class="kpi__sub">identical totals everywhere</span></div>
@@ -29,6 +29,7 @@
     <h2 class="mt-4">Missing reviews</h2>
     {% if p.below_target %}
     <ul class="row-list text-sm">{% for project, n in p.below_target %}<li><a href="/e/{{ event.slug }}/projects/{{ project.public_id }}">{{ project.title }}</a><span class="grow"></span>{{ badge(n ~ ' of ' ~ event.reviews_per_project, 'warning' if n < event.reviews_per_project - 1 else 'plain') }}</li>{% endfor %}</ul>
+    {% elif not p.projects_total %}<p class="muted text-sm">Nothing to review until projects are submitted.</p>
     {% else %}<p class="muted text-sm">Every project has reached the target.</p>{% endif %}
   </aside>
 </div>

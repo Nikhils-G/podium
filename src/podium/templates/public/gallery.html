@@ -16,15 +16,14 @@
   </div>
   <input type="hidden" name="track" value="{{ page.track }}">
   <label class="visually-hidden" for="gallery-sort">Sort</label>
+  {% if ballot %}<span class="muted text-sm" id="gallery-sort-note" title="During voting every visitor sees the projects in their own random order that never changes, so no entry benefits from being first.">Ballot order · random, fixed for you</span>{% else %}
   <select class="select" id="gallery-sort" name="sort" hx-get="/e/{{ event.slug }}/projects" hx-target="#gallery-results" hx-swap="outerHTML" hx-push-url="true" hx-include="closest form">
     <option value="newest" {% if page.sort == 'newest' %}selected{% endif %}>Newest first</option>
     <option value="title" {% if page.sort == 'title' %}selected{% endif %}>Title A–Z</option>
   </select>
+  {% endif %}
   <noscript><button class="btn btn--secondary" type="submit">Search</button></noscript>
 </form>
-<div class="cluster" aria-label="Filter by track">
-  <a class="chip{% if not page.track %} is-selected{% endif %}" href="/e/{{ event.slug }}/projects?q={{ page.q|urlencode }}&sort={{ page.sort }}" hx-boost="false" hx-get="/e/{{ event.slug }}/projects?q={{ page.q|urlencode }}&sort={{ page.sort }}" hx-target="#gallery-results" hx-swap="outerHTML" hx-push-url="true">All tracks</a>
-  {% for track in page.tracks %}{{ track_chip(track, "/e/" ~ event.slug ~ "/projects?track=" ~ track.public_id ~ "&q=" ~ (page.q|urlencode) ~ "&sort=" ~ page.sort, selected=(page.track == track.public_id)) }}{% endfor %}
-</div>
+{% with oob=False %}{% include "partials/gallery_tracks.html" %}{% endwith %}
 {% include "partials/gallery_grid.html" %}
 {% endblock %}

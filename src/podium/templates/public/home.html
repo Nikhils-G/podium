@@ -45,7 +45,7 @@
       <div class="cluster">{{ stage_badge(item.stage, item.label) }}</div>
       <h3 class="card__title"><a href="/e/{{ item.event.slug }}">{{ item.event.name }}</a></h3>
       {% if item.event.description %}<p class="card__summary">{{ item.event.description }}</p>{% endif %}
-      <div class="card__meta"><span>Submissions {{ 'closed' if item.stage in ('closed', 'judging', 'voting', 'published', 'archived') else 'close' }} {{ when(item.event.submissions_close_at) }}</span></div>
+      <div class="card__meta"><span>Submissions {{ 'closed' if item.stage in ('closed', 'judging', 'judged', 'voting', 'published', 'archived') else 'close' }} {{ when(item.event.submissions_close_at) }}</span></div>
     </article>
     {% endfor %}
   </div>

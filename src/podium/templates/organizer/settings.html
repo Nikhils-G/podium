@@ -3,13 +3,19 @@
 {% block content %}
 <div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Event settings</h1></div></div>
 {% if request.query_params.get('saved') == 'organizer' %}{{ alert('success', 'Organizers updated.') }}{% elif request.query_params.get('saved') %}{{ alert('success', 'Settings saved.') }}{% endif %}
+{% if error is defined and error %}{{ alert('critical', error) }}{% endif %}
 <form class="stack form-narrow" method="post" action="/e/{{ event.slug }}/organizer/settings" hx-boost="false" data-guard>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <fieldset class="stack" {% if archived %}disabled{% endif %}>
   {% include "organizer/_event_fields.html" %}
+  </fieldset>
   {% if confirm_close is defined and confirm_close is not none %}
-  <div class="alert alert--warning" role="alert"><label class="check"><input type="checkbox" name="confirm_close"> <span><strong>This deadline is already in the past.</strong> Saving closes submissions immediately for {{ confirm_close }} team{{ '' if confirm_close == 1 else 's' }}. Tick to confirm, then save again.</span></label></div>
+  <div class="alert alert--warning" role="alert"><label class="check"><input type="checkbox" name="confirm_close"> <span><strong>This deadline is already in the past.</strong> Saving closes submissions immediately for {{ confirm_close|plural('team') }}. Tick to confirm, then save again.</span></label></div>
   {% endif %}
-  <div class="cluster form-actions"><button class="btn btn--primary" type="submit">Save settings</button></div>
+  {% if confirm_reopen is defined and confirm_reopen %}
+  <div class="alert alert--warning" role="alert"><label class="check"><input type="checkbox" name="confirm_reopen"> <span><strong>Submissions are closed and judging has opened.</strong> Moving the deadline later reopens submissions while judges are scoring — teams could change what is being judged. Tick to confirm, then save again.</span></label></div>
+  {% endif %}
+  <div class="cluster form-actions"><button class="btn btn--primary" type="submit" {% if archived %}disabled{% endif %}>Save settings</button></div>
 </form>
 
 {% include "partials/settings_tracks.html" %}

@@ -87,14 +87,12 @@ def test_judge_review_form_draft_submit_reopen_resubmit(app):
         ).scalar_one()
         assert {i.criterion_id: i.value for i in review.items}[crit.id] == 2
     # submitting with a missing criterion is refused with a field error, values kept
-    r = judge.post(f"/e/{SLUG}/judge/review/{pid}", {"action": "submit", names[0]: "4"})
-    assert r.status_code == 422 and "before submitting" in r.text and 'value="4" checked' in r.text
-    # full submit works
     r = judge.post(
         f"/e/{SLUG}/judge/review/{pid}",
-        {"action": "submit", names[0]: "4", names[1]: "3", names[2]: "5", "comment": "Solid."},
+        {"action": "submit_next", names[0]: "4", names[1]: "3", names[2]: "5", "comment": "Solid."},
     )
     assert r.status_code == 303
+    assert r.headers["location"].startswith(f"/e/{SLUG}/judge"), "Submit & next moves on"
     page = judge.get(f"/e/{SLUG}/judge/review/{pid}")
     assert "Edit review" in page.text and "disabled" in page.text
     with get_sessionmaker()() as db:
@@ -300,6 +298,13 @@ def test_participant_journey_and_vote_button_through_the_web(app):
     assert page.status_code == 200 and "Vote for this project" in page.text
     r = carol.post(f"/e/{slug}/projects/{pid}/vote", {}, htmx=True)
     assert r.status_code == 200 and "You voted" in r.text
+    # a refused vote comes back as the control itself, with the reason inside it (M1)
+    r = carol.post(f"/e/{slug}/projects/{pid}/vote", {}, htmx=True)
+    assert r.status_code == 409 and r.headers["content-type"].startswith("text/html")
+    assert f'id="vote-{pid}"' in r.text and "already voted" in r.text and 'role="alert"' in r.text
+    # a team member sees no button on their own project (M2)
+    own = alice.get(f"/e/{slug}/projects/{pid}").text
+    assert "Your team's project" in own and "Vote for this project" not in own
     assert (
         "You voted" in carol.get(f"/e/{slug}/projects").text
         or "Voted" in carol.get(f"/e/{slug}/projects").text

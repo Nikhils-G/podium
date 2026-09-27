@@ -37,14 +37,14 @@
     </ul>
     {% else %}<p class="muted">Nothing needs your attention right now.</p>{% endif %}
   </section>
-  <section class="stack">
+  <section class="stack stack--aside">
     <div class="card card--next">
       <p class="page-header__eyebrow">Next step</p>
       <h2>{{ next_step.label }}</h2>
       {% if next_step.consequence %}<p class="text-sm ink-2">{{ next_step.consequence }}</p>{% endif %}
       {% if next_step.note %}<p class="text-sm"><strong>{{ next_step.note }}</strong></p>{% endif %}
       {% if next_step.action and next_step.enabled %}
-        <form method="post" action="/e/{{ event.slug }}/organizer/actions/{{ next_step.action }}" hx-boost="false" data-confirm="{{ next_step.label }}? {{ next_step.consequence }}{% if next_step.note %} {{ next_step.note }}{% endif %}">
+        <form method="post" action="/e/{{ event.slug }}/organizer/actions/{{ next_step.action }}" hx-boost="false" data-confirm="{{ next_step.label }}? {{ next_step.consequence }}{% if next_step.note %} {{ next_step.note }}{% endif %}{% if next_step.action == 'publish_results' %} Judge names are never shown publicly.{% endif %}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button class="btn btn--primary" type="submit">{{ next_step.label }}</button>
         </form>
@@ -54,6 +54,13 @@
         <a class="btn btn--secondary btn--sm" href="{{ next_step.href }}">Open</a>
       {% endif %}
       {% if next_step.reason %}<p class="muted text-sm">{{ next_step.reason }}</p>{% endif %}
+      {% if next_step.secondary %}{% set key, label, consequence = next_step.secondary %}
+      <form class="mt-2" method="post" action="/e/{{ event.slug }}/organizer/actions/{{ key }}" hx-boost="false" data-confirm="{{ label }}? {{ consequence }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn--secondary btn--sm" type="submit">{{ label }}</button>
+      </form>
+      <p class="muted text-sm">{{ consequence }}</p>
+      {% endif %}
     </div>
     {% if more_actions %}
     <details class="more">

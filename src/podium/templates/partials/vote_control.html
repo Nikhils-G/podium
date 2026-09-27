@@ -1,9 +1,11 @@
 {% from "macros/ui.html" import when %}
 <div id="vote-{{ project.public_id }}" class="vote{% if mine %} vote--cast{% endif %}">
-  {% if error %}<p class="field__error">{{ error }}</p>{% endif %}
+  {% if error %}<p class="field__error" role="alert">{{ error }}</p>{% endif %}
   {% if count is not none %}<p class="vote__count"><strong>{{ count }}</strong> vote{{ '' if count == 1 else 's' }}</p>{% endif %}
   {% if open %}
-    {% if voter is none and mode == 'account' %}
+    {% if own_team %}
+      <p class="muted text-sm">Your team's project — voting is for the other entries.</p>
+    {% elif voter is none and mode == 'account' %}
       <a class="btn btn--secondary btn--sm" href="/login?next=/e/{{ event.slug }}/projects/{{ project.public_id }}">Sign in to vote</a>
     {% elif voter is none and mode == 'email' %}
       <a class="btn btn--secondary btn--sm" href="/e/{{ event.slug }}/vote/code">Enter your voting code</a>

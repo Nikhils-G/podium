@@ -50,6 +50,19 @@ def current_voter(
     return voting_service.resolve_voter(ctx.event, ctx.user, anon, code_key)
 
 
+def set_voter_cookie(response, value: str, settings: Settings) -> None:
+    """The signed anonymous id: the ballot order key for visitors and, in link mode, the voter."""
+    response.set_cookie(
+        VOTER_COOKIE,
+        value,
+        httponly=True,
+        samesite="lax",
+        secure=settings.secure_cookies,
+        max_age=60 * 60 * 24 * 90,
+        path="/",
+    )
+
+
 def ua_hash(request: Request) -> str:
     return hashlib.sha256(request.headers.get("user-agent", "").encode()).hexdigest()[:32]
 
@@ -76,6 +89,7 @@ def vote_context(db, ctx: EventContext, project, voter: Voter | None) -> dict:
         "count": count,
         "user": ctx.user,
         "mode": event.voting_mode.value,
+        "own_team": projects_service.is_member(db, project, ctx.user),
     }
 
 
@@ -137,15 +151,7 @@ def vote(
         else RedirectResponse(f"/e/{ctx.event.slug}/projects/{pid}", status_code=303)
     )
     if new_cookie:
-        response.set_cookie(
-            VOTER_COOKIE,
-            new_cookie,
-            httponly=True,
-            samesite="lax",
-            secure=settings.secure_cookies,
-            max_age=60 * 60 * 24 * 90,
-            path="/",
-        )
+        set_voter_cookie(response, new_cookie, settings)
     return response
 
 

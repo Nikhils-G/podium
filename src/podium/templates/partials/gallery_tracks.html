@@ -1,0 +1,5 @@
+{% from "macros/ui.html" import track_chip %}
+<div id="gallery-tracks" class="cluster" aria-label="Filter by track"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <a class="chip{% if not page.track %} is-selected{% endif %}" href="/e/{{ event.slug }}/projects?q={{ page.q|urlencode }}&sort={{ page.sort }}" hx-boost="false" hx-get="/e/{{ event.slug }}/projects?q={{ page.q|urlencode }}&sort={{ page.sort }}" hx-target="#gallery-results" hx-swap="outerHTML" hx-push-url="true"{% if not page.track %} aria-current="true"{% endif %}>All tracks</a>
+  {% for track in page.tracks %}{{ track_chip(track, "/e/" ~ event.slug ~ "/projects?track=" ~ track.public_id ~ "&q=" ~ (page.q|urlencode) ~ "&sort=" ~ page.sort, selected=(page.track == track.public_id)) }}{% endfor %}
+</div>

@@ -14,6 +14,7 @@ os.environ.update(
         "PODIUM_RATE_LIMIT_ENABLED": "false",
         "PODIUM_FIXTURES_PATH": str(ROOT / "fixtures" / "fixtures.json"),
         "PODIUM_DEMO_ACCOUNTS": "true",
+        "PODIUM_OPEN_EVENT_CREATION": "true",  # tests create events as ordinary users
         "PODIUM_WEBHOOK_WORKER": "false",
     }
 )

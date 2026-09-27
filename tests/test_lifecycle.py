@@ -52,3 +52,39 @@ def test_voting_window_wins_over_judging():
 def test_published_and_archived_win():
     assert stage_of(make(results_published_at=NOW), NOW) == Stage.published
     assert stage_of(make(results_published_at=NOW, archived_at=NOW), NOW) == Stage.archived
+
+
+def test_judged_between_judging_and_published():
+    e = make(judging_opened_at=NOW - timedelta(days=1), judging_closed_at=NOW - timedelta(hours=1))
+    assert stage_of(e, NOW) == Stage.judged
+    e.voting_open_at, e.voting_close_at = NOW - timedelta(hours=3), NOW - timedelta(hours=2)
+    assert stage_of(e, NOW) == Stage.judged, "a closed voting window does not hide the milestone"
+    e.results_published_at = NOW
+    assert stage_of(e, NOW) == Stage.published
+    e.results_published_at = None
+    e.judging_closed_at = None
+    assert stage_of(e, NOW) == Stage.judging, "reopening judging goes back to judging"
+
+
+def test_step_index_never_walks_backwards():
+    from podium.services.dashboard import step_index, steps_for
+
+    e = make(
+        submissions_open_at=NOW - timedelta(days=3),
+        submissions_close_at=NOW - timedelta(days=1),
+        voting_open_at=NOW + timedelta(hours=1),
+        voting_close_at=NOW + timedelta(hours=3),
+    )
+    seen = [step_index(e, NOW)]
+    e.judging_opened_at = NOW
+    seen.append(step_index(e, NOW + timedelta(minutes=5)))
+    seen.append(step_index(e, NOW + timedelta(hours=2)))  # voting open
+    seen.append(step_index(e, NOW + timedelta(hours=4)))  # voting closed, judging still open
+    e.judging_closed_at = NOW + timedelta(hours=5)
+    seen.append(step_index(e, NOW + timedelta(hours=6)))
+    e.results_published_at = NOW + timedelta(hours=7)
+    seen.append(step_index(e, NOW + timedelta(hours=8)))
+    assert seen == sorted(seen), seen
+    labels = [label for _, label, _ in steps_for(e)]
+    assert "Voting" in labels and labels.index("Voting") < labels.index("Results review")
+    assert "Voting" not in [label for _, label, _ in steps_for(make())]

@@ -120,7 +120,12 @@ def login_demo(
 
 
 @router.get("/register")
-def register_page(request: Request, next: str = "", user: User | None = Depends(current_user)):
+def register_page(
+    request: Request,
+    next: str = "",
+    user: User | None = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
     if user is not None:
         return RedirectResponse(safe_next(next), status_code=303)
     return render(
@@ -131,6 +136,7 @@ def register_page(request: Request, next: str = "", user: User | None = Depends(
         values={"name": "", "email": ""},
         errors={},
         error="",
+        bootstrap=auth_service.instance_is_empty(db),
     )
 
 

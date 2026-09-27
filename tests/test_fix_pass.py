@@ -2,6 +2,7 @@
 publish guard on the results page, htmx section swaps, and the safe-defaults startup guard."""
 
 import asyncio
+import re
 from datetime import UTC, datetime
 
 import pytest
@@ -256,7 +257,7 @@ def test_read_only_and_expired_tokens(client, auth, db):
     raw = r.json()["token"]["secret"]
     listed = client.get("/api/v1/me/tokens", headers=org).json()["tokens"]
     mine = [t for t in listed if t["name"] == "short"][0]
-    assert mine["scope"] == "write" and mine["expires_at"] is not None
+    assert mine["scope"] == "read" and mine["expires_at"] is not None, "defaults are closed"
     row = db.get(ApiToken, mine["id"])
     row.expires_at = row.expires_at - timedelta(days=2)
     db.commit()
@@ -311,3 +312,115 @@ def test_openapi_documents_auth_and_errors_on_every_operation(client):
                 assert "401" in op["responses"] and "422" in op["responses"], (method, path)
     results = schema["paths"]["/api/v1/events/{slug}/results"]["get"]["responses"]["200"]
     assert "ResultsOut" in str(results)
+
+
+def test_next_step_follows_the_stage_and_never_undoes_a_close(client, auth, db):
+    org = auth("organizer")
+    event = db.execute(select(Event).where(Event.slug == SLUG)).scalar_one()
+    step = dashboard.next_step(db, event)
+    assert step.label == "Close judging", "every fixture assignment is done"
+    client.post(f"{S}/actions/close_judging", headers=org)
+    try:
+        db.expire_all()
+        step = dashboard.next_step(db, event)
+        assert step.label == "Publish results" and step.action == "publish_results"
+        keys = [k for k, _, _ in dashboard.more_actions(event)]
+        assert "open_judging" in keys and "close_judging" not in keys
+    finally:
+        client.post(f"{S}/actions/open_judging", headers=org)
+    db.expire_all()
+    assert dashboard.next_step(db, event).label == "Close judging"
+    assert "open_judging" not in [k for k, _, _ in dashboard.more_actions(event)]
+
+
+def test_voting_window_save_rejects_and_confirms_early_close(app, client, auth):
+    """Closing the window early while votes are in needs an explicit tick; the settings form
+    needs one to reopen submissions once judging has started."""
+    org = demo(app, "organizer")
+    r = org.post(
+        f"/e/{SLUG}/organizer/settings",
+        {
+            "name": "Sample Hack 2026",
+            "description": "x",
+            "max_team_size": "4",
+            "is_public": "on",
+            "submissions_open_at": "2026-01-30T00:00",
+            "submissions_close_at": "2099-03-01T18:00",
+            "voting_open_at": "",
+            "voting_close_at": "",
+        },
+    )
+    assert r.status_code == 422 and "reopens submissions" in r.text, (
+        "judging is open in the fixtures"
+    )
+    r = org.post(
+        f"/e/{SLUG}/organizer/settings",
+        {
+            "name": "Sample Hack 2026",
+            "description": "x",
+            "max_team_size": "4",
+            "is_public": "on",
+            "submissions_open_at": "2026-01-30T00:00",
+            "submissions_close_at": "2026-03-01T18:00",
+            "voting_open_at": "",
+            "voting_close_at": "",
+        },
+    )
+    assert r.status_code == 303, "an unchanged deadline needs no confirmation"
+
+
+def test_boosted_navigation_never_gets_a_bare_partial(app):
+    org = demo(app, "organizer")
+    boosted = {"HX-Request": "true", "HX-Boosted": "true"}
+    page = org.get(f"/e/{SLUG}/organizer/progress", headers=boosted)
+    assert page.status_code == 200 and "<html" in page.text and 'id="progress-body"' in page.text
+    partial = org.get(
+        f"/e/{SLUG}/organizer/progress",
+        headers={"HX-Request": "true", "HX-Target": "progress-body"},
+    )
+    assert partial.status_code == 200 and "<html" not in partial.text and "kpis" in partial.text
+    judge = demo(app, "judge_a")
+    assert "<html" in judge.get(f"/e/{SLUG}/judge/compare", headers=boosted).text
+
+
+def test_gallery_filter_swap_refreshes_the_track_chips(client):
+    r = client.get(
+        f"/e/{SLUG}/projects",
+        params={"track": "trk_03"},
+        headers={"HX-Request": "true", "HX-Target": "gallery-results"},
+    )
+    assert r.status_code == 200 and "<html" not in r.text
+    assert 'id="gallery-tracks"' in r.text and 'hx-swap-oob="true"' in r.text
+    assert 'id="gallery-count"' in r.text
+    chips = r.text.split('id="gallery-tracks"', 1)[1]
+    assert chips.count("is-selected") == 1
+    selected = re.search(r'<a class="chip[^"]*is-selected[^"]*"[^>]*>', chips).group(0)
+    assert "track=trk_03" in selected, selected
+
+
+def test_archived_event_console_is_read_only(client, auth, app):
+    org = auth("organizer")
+    now = datetime.now(UTC).isoformat()
+    slug = client.post(
+        "/api/v1/events",
+        headers=org,
+        json={"name": "Archive Me", "is_public": True, "submissions_open_at": now},
+    ).json()["event"]["slug"]
+    assert client.post(f"/api/v1/events/{slug}/actions/archive", headers=org).status_code == 200
+    page = demo(app, "organizer").get(f"/e/{slug}/organizer/settings")
+    assert page.status_code == 200 and "archived and read-only" in page.text
+    assert "<fieldset" in page.text and "disabled" in page.text.split("<fieldset", 1)[1][:80]
+    r = demo(app, "organizer").post(
+        f"/e/{slug}/organizer/settings",
+        {
+            "name": "Renamed",
+            "description": "",
+            "max_team_size": "4",
+            "is_public": "on",
+            "submissions_open_at": "",
+            "submissions_close_at": "",
+            "voting_open_at": "",
+            "voting_close_at": "",
+        },
+    )
+    assert r.status_code == 409 and "Archived events" in r.text and "Event settings" in r.text

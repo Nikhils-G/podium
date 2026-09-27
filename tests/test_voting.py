@@ -1,10 +1,12 @@
 """T3: voting modes, windows, dedupe, quadratic budgets, hidden tallies, stable ballots, abuse
 handling and comments — on a fresh event created through the API."""
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from podium.security.sessions import create_session
 from podium.services import voting
@@ -341,3 +343,52 @@ def test_team_member_cannot_vote_for_own_project(world):
         f"/api/v1/events/{slug}/projects/{pid}/votes", headers={"Cookie": f"session={token}"}
     )
     assert r.status_code == 403 and "own team" in r.json()["error"]["message"]
+
+
+def test_ballot_is_shuffled_before_paging_and_fixed_per_visitor(world, db):
+    from podium.models import Event
+    from podium.services import projects as projects_service
+
+    event = db.execute(select(Event).where(Event.slug == "sample-hack-2026")).scalar_one()
+    pages = [
+        projects_service.gallery(db, event, ballot_key="anon:x", page=n, page_size=10)
+        for n in range(1, 6)
+    ]
+    seen = [c.public_id for pg in pages for c in pg.cards]
+    assert len(seen) == 41 and len(set(seen)) == 41, "every page together is a permutation"
+    again = projects_service.gallery(db, event, ballot_key="anon:x", page=1, page_size=10)
+    assert [c.public_id for c in again.cards] == seen[:10], "same key, same order"
+    other = projects_service.gallery(db, event, ballot_key="anon:y", page=1, page_size=10)
+    assert [c.public_id for c in other.cards] != seen[:10], "another visitor, another order"
+    titled = projects_service.gallery(db, event, ballot_key="anon:x", sort="title", page_size=10)
+    assert [c.public_id for c in titled.cards] == seen[:10] and titled.sort == "ballot"
+    # over the web, during the open window, each visitor gets a signed cookie and a fixed order
+    c, slug, org = world["client"], world["slug"], world["org"]
+    _window(c, slug, org, world["now"], open_now=True)
+    first = TestClient(c.app)
+    r = first.get(f"/e/{slug}/projects")
+    assert r.status_code == 200 and "voter" in r.cookies and "Ballot order" in r.text
+    assert 'id="gallery-sort"' not in r.text
+    order = re.findall(r'/e/[^/]+/projects/(prj_[a-z0-9]+)"', r.text)
+    r2 = first.get(f"/e/{slug}/projects?sort=title")
+    assert re.findall(r'/e/[^/]+/projects/(prj_[a-z0-9]+)"', r2.text) == order
+    second = TestClient(c.app)
+    r3 = second.get(f"/e/{slug}/projects")
+    assert r3.cookies["voter"] != first.cookies["voter"]
+    _window(c, slug, org, world["now"], open_now=False)
+    closed = TestClient(c.app).get(f"/e/{slug}/projects")
+    assert "voter" not in closed.cookies and 'id="gallery-sort"' in closed.text
+    _window(c, slug, org, world["now"], open_now=True)
+
+
+def test_locked_voting_settings_are_refused_inline(world, app):
+    from tests.test_forms_sweep import Browser
+
+    slug, org = world["slug"], world["org"]
+    token = org["Cookie"].split("=", 1)[1]
+    browser = Browser(app, token)
+    page = browser.get(f"/e/{slug}/organizer/voting")
+    assert page.status_code == 200 and "locked until the window closes" in page.text
+    r = browser.post(f"/e/{slug}/organizer/voting", {"voting_mode": "link", "voting_credits": "5"})
+    assert r.status_code == 409 and "Community voting" in r.text, "inline, on the console page"
+    assert "Close the window" in r.text

@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from podium.db import get_db
 from podium.errors import PodiumError, ValidationFailed
+from podium.models import Vote
 from podium.security.csrf import verify_csrf
 from podium.security.deps import EventContext, require_organizer
 from podium.security.ratelimit import ip_hash
@@ -28,9 +30,35 @@ def _ctx(ctx, db, **extra):
         "error": "",
         "new_codes": None,
         "window_values": _event_form_values(ctx.event),
+        "settings_locked": voting_service.voting_is_open(ctx.event)
+        and db.execute(
+            select(func.count()).select_from(Vote).where(Vote.event_id == ctx.event.id)
+        ).scalar_one()
+        > 0,
     }
     defaults.update(extra)
     return _console(ctx, "voting", **defaults)
+
+
+def _closes_voting_early(db, event, window: dict) -> int | None:
+    """Votes already cast + a close time that is now or in the past → ask before ending the
+    window under voters' feet. Returns the vote count when confirmation is needed."""
+    from podium.models import Vote
+    from podium.models.base import utcnow
+    from podium.services.events import parse_utc, tz_offset
+
+    if not voting_service.voting_is_open(event):
+        return None
+    try:
+        close = parse_utc(window.get("voting_close_at"), tz_offset(window))
+    except ValueError:
+        return None
+    if close is None or close > utcnow():
+        return None
+    cast = db.execute(
+        select(func.count()).select_from(Vote).where(Vote.event_id == event.id)
+    ).scalar_one()
+    return cast or None
 
 
 @router.post("/e/{slug}/organizer/voting/window", dependencies=[Depends(verify_csrf)])
@@ -39,16 +67,18 @@ async def voting_window(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
-    """The voting dates are event settings; this form edits just those two."""
+    """Only the two voting dates are read from this form (round-2 blocker B1)."""
     form = await request.form()
-    data = _event_form_values(ctx.event)
-    data["is_public"] = "on" if ctx.event.is_public else ""
-    data["max_team_size"] = str(ctx.event.max_team_size)
     window = {k: str(form.get(k, "")) for k in ("voting_open_at", "voting_close_at")}
     window["tz_offset_minutes"] = str(form.get("tz_offset_minutes", ""))
-    data.update(window)
     try:
-        events_service.update_event(db, ctx.event, ctx.user, data, ip_hash=ip_hash(request))
+        closing = _closes_voting_early(db, ctx.event, window)
+        if closing and form.get("confirm_close_voting") != "on":
+            c = _ctx(ctx, db, window_values=window, confirm_close_voting=closing)
+            return render(request, "organizer/voting.html", status_code=422, title="Voting", **c)
+        events_service.update_voting_window(
+            db, ctx.event, ctx.user, window, ip_hash=ip_hash(request)
+        )
     except ValidationFailed as exc:
         c = _ctx(ctx, db, errors=exc.errors, window_values=window)
         return render(request, "organizer/voting.html", status_code=422, title="Voting", **c)
@@ -84,6 +114,11 @@ async def voting_save(
         c = _ctx(ctx, db)
         c["errors"] = exc.errors
         return render(request, "organizer/voting.html", status_code=422, title="Voting", **c)
+    except PodiumError as exc:
+        c = _ctx(ctx, db, error=exc.message)
+        return render(
+            request, "organizer/voting.html", status_code=exc.status_code, title="Voting", **c
+        )
     return RedirectResponse(f"/e/{ctx.event.slug}/organizer/voting?saved=1", status_code=303)
 
 

@@ -44,7 +44,7 @@ make dev                       # http://127.0.0.1:8080
 
 ## Demo logins
 
-Every install with `PODIUM_DEMO_ACCOUNTS=true` (the default) seeds these identities. The **Sign
+`docker compose up` and `make dev` run with `PODIUM_DEMO_ACCOUNTS=true` and seed these identities (the setting is off by default in the code, so a plain `uvicorn` start never creates them). The **Sign
 in** page has one-click buttons for them, and the boot log prints the session cookies below, which
 are also what `.dogfood.toml` uses.
 
@@ -104,9 +104,9 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 | `PODIUM_BASE_URL` | `http://localhost:8080` | used in links, invites, certificates |
 | `PODIUM_DATA_DIR` | `./data` (`/data` in Docker) | SQLite database and the signing key |
 | `PODIUM_DATABASE_URL` | unset | e.g. `postgresql+psycopg://…` to use Postgres instead of SQLite (driver included) |
-| `PODIUM_OPEN_EVENT_CREATION` | `true` | `false` lets only instance admins create events |
+| `PODIUM_OPEN_EVENT_CREATION` | `false` | `true` lets any signed-in account create events; by default only instance admins can (the demo organizer is one) |
 | `PODIUM_SEED_FIXTURES` | `true` | load `fixtures/fixtures.json` at boot (idempotent) |
-| `PODIUM_DEMO_ACCOUNTS` | `true` | seed the demo identities and their fixed session tokens |
+| `PODIUM_DEMO_ACCOUNTS` | `false` | seed the demo identities and their fixed session tokens (`docker-compose.yml` sets it to `true`) |
 | `PODIUM_DEMO_PASSWORD` | `demo-pass` | password for seeded users |
 | `PODIUM_SESSION_DAYS` | `14` | session lifetime |
 | `PODIUM_RATE_LIMIT_ENABLED` | `true` | per-address limits on login, register, vote, comment |
@@ -118,7 +118,8 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 - **Backup**: copy the data directory (`docker compose cp web:/data ./backup` or the named volume).
   It holds the SQLite file and the certificate signing key; that is the entire state.
 - **Upgrade**: pull, `docker compose up --build`. Migrations run on boot (`alembic upgrade head`).
-- **Production checklist**: set `PODIUM_SECRET_KEY`, `PODIUM_BASE_URL` (https), `PODIUM_DEMO_ACCOUNTS=false`,
+- **First admin**: on an instance with no accounts, the first person to register becomes the admin (audited). Seeded installs already have `admin@podium.local`; an install that seeded fixtures without demo accounts has no admin — set `PODIUM_OPEN_EVENT_CREATION=true` or flip `is_admin` for one user.
+- **Production checklist**: set `PODIUM_SECRET_KEY`, `PODIUM_BASE_URL` (https), leave `PODIUM_DEMO_ACCOUNTS` and `PODIUM_OPEN_EVENT_CREATION` unset (both off),
   `PODIUM_SEED_FIXTURES=false`; put a reverse proxy (Caddy, nginx) in front for TLS; keep one
   container per instance (rate limits and the webhook worker are in-process).
 - **Postgres**: set `PODIUM_DATABASE_URL`; the `psycopg` driver is installed, the schema uses only

@@ -91,8 +91,8 @@ def password_change(
 def token_create(
     request: Request,
     name: str = Form(""),
-    scope: str = Form("write"),
-    expires_in_days: str = Form(""),
+    scope: str = Form("read"),
+    expires_in_days: str = Form("90"),
     user: User = Depends(require_user),
     db: DbSession = Depends(get_db),
 ):
@@ -101,8 +101,8 @@ def token_create(
             db,
             user,
             name,
-            scope=scope if scope in tokens_service.SCOPES else "write",
-            expires_in_days=int(expires_in_days) if expires_in_days.isdigit() else None,
+            scope=scope if scope in tokens_service.SCOPES else "read",
+            expires_in_days=int(expires_in_days) if expires_in_days.strip().isdigit() else None,
         )
     except ValidationFailed as exc:
         return render(

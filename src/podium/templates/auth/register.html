@@ -7,6 +7,7 @@
     <p class="ink-2 mt-2">Already have one? <a href="/login{% if next %}?next={{ next|urlencode }}{% endif %}">Sign in</a>.</p>
   </div>
   {% if error %}{{ alert('critical', error) }}{% endif %}
+  {% if bootstrap %}{{ alert('info', 'This instance has no accounts yet. The first account created becomes its admin and can create events and promote others.') }}{% endif %}
   <form method="post" action="/register" hx-boost="false" class="stack">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="next" value="{{ next }}">

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from podium.config import get_settings
+from podium.config import Settings, get_settings
 from podium.db import get_db
 from podium.models import Event, Project, ProjectStatus, User
 from podium.security.deps import EventContext, current_user, load_event
@@ -12,7 +12,7 @@ from podium.services import navigation, projects
 from podium.services import voting as voting_service
 from podium.services.events import STAGE_LABELS, list_events_for, stage_of
 from podium.services.voting import Voter
-from podium.web.community import current_voter
+from podium.web.community import VOTER_COOKIE, current_voter, set_voter_cookie
 from podium.web.rendering import is_htmx, render
 
 router = APIRouter(include_in_schema=False)
@@ -104,36 +104,50 @@ def gallery(
     sort: str = Query("newest", max_length=20),
     page: int = Query(1, ge=1, le=10_000),
     voter: Voter | None = Depends(current_voter),
+    settings: Settings = Depends(get_settings),
 ):
-    data = projects.gallery(
-        db, ctx.event, q=q, track=track, sort=sort, page=page, include_hidden=ctx.is_organizer
-    )
     ballot = voting_service.voting_is_open(ctx.event)
-    voted: set[str] = set()
+    ballot_key = None
+    new_cookie = None
     if ballot:
-        # a ballot is randomized per voter and stable across reloads; sorting is disabled
-        key = voter.key if voter else "visitor"
-        ordered = voting_service.ballot_order(data.cards, key, ctx.event.id)
-        data.cards = ordered
-        if voter:
-            status = voting_service.voter_status(db, ctx.event, voter)
-            ids = {c.public_id for c in data.cards}
-            by_id = {
-                p.public_id: p.id
-                for p in db.execute(
-                    select(Project).where(
-                        Project.event_id == ctx.event.id, Project.public_id.in_(ids)
-                    )
-                ).scalars()
-            }
-            voted = {pid for pid, iid in by_id.items() if status.votes.get(iid)}
+        # one fixed random order per voter; visitors get a signed anonymous id for the same job
+        if voter is not None:
+            ballot_key = voter.key
+        else:
+            anon = voting_service.parse_voter_cookie(
+                settings.secret_key, request.cookies.get(VOTER_COOKIE)
+            )
+            if anon is None:
+                anon, new_cookie = voting_service.new_voter_cookie(settings.secret_key)
+            ballot_key = f"anon:{anon}"
+    data = projects.gallery(
+        db,
+        ctx.event,
+        q=q,
+        track=track,
+        sort=sort,
+        page=page,
+        include_hidden=ctx.is_organizer,
+        ballot_key=ballot_key,
+    )
+    voted: set[str] = set()
+    if ballot and voter:
+        status = voting_service.voter_status(db, ctx.event, voter)
+        ids = {c.public_id for c in data.cards}
+        by_id = {
+            p.public_id: p.id
+            for p in db.execute(
+                select(Project).where(Project.event_id == ctx.event.id, Project.public_id.in_(ids))
+            ).scalars()
+        }
+        voted = {pid for pid, iid in by_id.items() if status.votes.get(iid)}
     stage = stage_of(ctx.event)
     template = (
         "partials/gallery_grid.html"
         if is_htmx(request) and request.headers.get("HX-Target") == "gallery-results"
         else "public/gallery.html"
     )
-    return render(
+    response = render(
         request,
         template,
         event=ctx.event,
@@ -148,6 +162,9 @@ def gallery(
         voter=voter,
         oob=template != "public/gallery.html",
     )
+    if new_cookie:
+        set_voter_cookie(response, new_cookie, settings)
+    return response
 
 
 @router.get("/e/{slug}/embed")

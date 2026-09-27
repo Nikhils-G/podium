@@ -12,7 +12,6 @@ from podium.db import get_db
 from podium.models import Event, Role, User
 from podium.security.deps import EventContext, current_user, require_event_role
 from podium.services import certificates as cert_service
-from podium.services.events import STAGE_LABELS, stage_of
 from podium.web.rendering import render
 
 router = APIRouter(include_in_schema=False)
@@ -145,6 +144,3 @@ def judge_records(
         title="Your records",
         **_console(ctx, "records", certificates=certs, base_url=settings.base_url),
     )
-
-
-_ = (stage_of, STAGE_LABELS)

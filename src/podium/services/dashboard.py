@@ -1,7 +1,7 @@
 """Numbers, attention items and judging progress for the organizer console."""
 
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
@@ -24,6 +24,7 @@ from podium.models import (
 )
 from podium.models.base import utcnow
 from podium.services.events import Stage, stage_of
+from podium.services.text import plural
 
 
 @dataclass
@@ -226,17 +227,41 @@ STEPS = [
     (Stage.closed, "Closed", "Deadline passed"),
     (Stage.judging, "Judging", "Judges score assigned projects"),
     (Stage.voting, "Voting", "Community votes"),
+    (Stage.judged, "Results review", "Scores are final: check normalization, award prizes"),
     (Stage.published, "Published", "Results are public"),
     (Stage.archived, "Archived", "Read-only"),
 ]
 
-ORDER = {stage: i for i, (stage, _, _) in enumerate(STEPS)}
+
+def steps_for(event: Event) -> list[tuple[Stage, str, str]]:
+    """The run of show for this event: Voting only appears when a window is scheduled."""
+    return [s for s in STEPS if s[0] != Stage.voting or event.voting_open_at is not None]
 
 
-def step_index(stage: Stage) -> int:
-    if stage == Stage.upcoming:
-        return ORDER[Stage.open]
-    return ORDER.get(stage, 0)
+def step_index(event: Event, now: datetime | None = None) -> int:
+    """The furthest milestone reached. Milestones come from set-once timestamps, so the index
+    never walks backwards as time passes; only an explicit reopen or unpublish lowers it."""
+    now = now or utcnow()
+    order = {stage: i for i, (stage, _, _) in enumerate(steps_for(event))}
+    reached = Stage.draft
+    if event.is_public:
+        reached = Stage.open  # covers "upcoming" too
+    if event.is_public and event.submissions_close_at and now >= event.submissions_close_at:
+        reached = Stage.closed
+    if event.judging_opened_at is not None:
+        reached = Stage.judging
+    if Stage.voting in order and event.voting_open_at <= now:
+        reached = Stage.voting  # open or already closed
+    voting_done = event.voting_open_at is None or (
+        event.voting_close_at is not None and now >= event.voting_close_at
+    )
+    if event.judging_closed_at is not None and voting_done:
+        reached = Stage.judged
+    if event.results_published_at is not None:
+        reached = Stage.published
+    if event.archived_at is not None:
+        reached = Stage.archived
+    return order[reached]
 
 
 @dataclass
@@ -248,11 +273,36 @@ class NextStep:
     enabled: bool = True
     reason: str = ""
     note: str = ""
+    secondary: tuple[str, str, str] | None = None  # (action, button label, consequence)
+
+
+CLOSE_JUDGING = ("close_judging", "Close judging", "Judges can no longer edit or submit reviews.")
+PUBLISH_CONSEQUENCE = "Rankings, scores and vote counts become public. This is logged."
+
+
+def _when(value: datetime | None) -> str:
+    return value.strftime("%d %b %Y, %H:%M UTC") if value else ""
+
+
+def _assignment_counts(db: DbSession, event: Event) -> tuple[int, int]:
+    """(total, pending) assignments for the event."""
+    from podium.models import Assignment, AssignmentStatus
+
+    total = db.execute(
+        select(func.count()).select_from(Assignment).where(Assignment.event_id == event.id)
+    ).scalar_one()
+    pending = db.execute(
+        select(func.count())
+        .select_from(Assignment)
+        .where(Assignment.event_id == event.id, Assignment.status != AssignmentStatus.done)
+    ).scalar_one()
+    return total, pending
 
 
 def next_step(db: DbSession, event: Event) -> NextStep:
-    """Exactly one recommended next move for the organizer, given the stage."""
-    from podium.models import Assignment, AssignmentStatus, RubricCriterion
+    """Exactly one recommended next move for the organizer, plus at most one secondary action.
+    The rules follow the stage; nothing here can suggest undoing what was just done."""
+    from podium.models import RubricCriterion
 
     stage = stage_of(event)
     base = f"/e/{event.slug}/organizer"
@@ -285,11 +335,7 @@ def next_step(db: DbSession, event: Event) -> NextStep:
             return NextStep(
                 "Invite judges", "Invitations are links you send yourself.", href=f"{base}/judges"
             )
-        when = (
-            event.submissions_close_at.strftime("%d %b %Y, %H:%M UTC")
-            if event.submissions_close_at
-            else "no deadline set"
-        )
+        when = _when(event.submissions_close_at) or "no deadline set"
         return NextStep(
             f"Submissions open until {when}",
             "Judging opens once the deadline passes.",
@@ -302,35 +348,81 @@ def next_step(db: DbSession, event: Event) -> NextStep:
             "Judges can start scoring their assigned projects.",
             action="open_judging",
         )
+    total, pending = _assignment_counts(db, event)
+    done = total - pending
+    pending_close = (
+        CLOSE_JUDGING[0],
+        CLOSE_JUDGING[1],
+        f"Judges can no longer edit or submit reviews; {plural(pending, 'pending review')} "
+        "stay unsubmitted.",
+    )
     if stage == Stage.judging:
-        pending = db.execute(
-            select(func.count())
-            .select_from(Assignment)
-            .where(Assignment.event_id == event.id, Assignment.status != AssignmentStatus.done)
-        ).scalar_one()
-        note = f"{pending} review(s) still pending." if pending else "Every assigned review is in."
+        if total == 0:
+            return NextStep(
+                "Assign projects to judges",
+                "Judges have nothing to score until projects are assigned.",
+                href=f"{base}/assignments",
+                secondary=CLOSE_JUDGING,
+            )
+        if pending:
+            return NextStep(
+                f"Judging in progress · {plural(pending, 'review')} pending",
+                "Close judging once the reviews you need are in.",
+                href=f"{base}/progress",
+                enabled=False,
+                note=f"{done} of {total} assigned reviews are in.",
+                secondary=pending_close,
+            )
         return NextStep(
             "Close judging",
-            "Judges can no longer edit or submit reviews.",
+            CLOSE_JUDGING[2],
             action="close_judging",
-            note=note,
+            note="Every assigned review is in.",
         )
     if stage == Stage.voting:
-        when = (
-            event.voting_close_at.strftime("%d %b %Y, %H:%M UTC") if event.voting_close_at else ""
-        )
-        return NextStep(
-            f"Voting open until {when}",
+        step = NextStep(
+            f"Voting open until {_when(event.voting_close_at) or 'you close it'}",
             "Results can be published once it closes.",
             href=f"{base}/voting",
             enabled=False,
         )
-    if event.results_published_at is None:
-        return NextStep(
-            "Publish results",
-            "Rankings, scores and vote counts become public. This is logged.",
-            action="publish_results",
+        if event.judging_opened_at is not None and event.judging_closed_at is None:
+            step.note = (
+                f"{pending} of {total} assigned reviews still pending."
+                if pending
+                else "Every assigned review is in."
+            )
+            step.secondary = pending_close if pending else CLOSE_JUDGING
+        elif event.judging_opened_at is None:
+            step.secondary = (
+                "open_judging",
+                "Open judging",
+                "Judges can start scoring their assigned projects.",
+            )
+        else:
+            step.note = "Judging is closed. Publish after voting closes so vote counts are final."
+        return step
+    if stage == Stage.judged:
+        note = (
+            f"{plural(pending, 'assigned review')} were never submitted."
+            if pending
+            else "Every assigned review is in."
         )
+        if event.voting_open_at is not None and event.voting_open_at > utcnow():
+            return NextStep(
+                f"Voting opens {_when(event.voting_open_at)}",
+                "Publish after voting closes so vote counts are final.",
+                href=f"{base}/voting",
+                enabled=False,
+                note=note,
+                secondary=(
+                    "publish_results",
+                    "Publish results now",
+                    "Rankings go public before the community vote; vote counts stay hidden "
+                    "until it closes.",
+                ),
+            )
+        return NextStep("Publish results", PUBLISH_CONSEQUENCE, action="publish_results", note=note)
     return NextStep(
         "Issue certificates",
         "Participation certificates, judge records and winner certificates.",
@@ -347,61 +439,19 @@ def more_actions(event: Event) -> list[tuple[str, str, str]]:
         out.append(
             ("unpublish_event", "Unpublish event", "Hides the event from everyone but organizers.")
         )
-    if event.judging_opened_at is not None and event.judging_closed_at is not None:
+    if event.judging_closed_at is not None and event.results_published_at is None:
         out.append(("open_judging", "Reopen judging", "Judges can edit and submit reviews again."))
     if event.results_published_at is not None:
         out.append(
-            ("unpublish_results", "Unpublish results", "Results are hidden again. This is logged.")
+            (
+                "unpublish_results",
+                "Unpublish results",
+                "Results are hidden again and issued winner certificates are revoked. "
+                "This is logged.",
+            )
         )
     out.append(("archive", "Archive event", "The event becomes read-only for everyone."))
     return out
-
-
-def next_actions(event: Event, stage: Stage) -> list[tuple[str, str, str]]:
-    """(action key, button label, consequence) the organizer can take right now."""
-    actions: list[tuple[str, str, str]] = []
-    if event.archived_at is not None:
-        return actions
-    if not event.is_public:
-        actions.append(
-            (
-                "publish_event",
-                "Publish event",
-                "The event and its gallery become visible to everyone.",
-            )
-        )
-    else:
-        actions.append(
-            ("unpublish_event", "Unpublish event", "Hides the event from everyone but organizers.")
-        )
-    if event.judging_opened_at is None or event.judging_closed_at is not None:
-        actions.append(
-            ("open_judging", "Open judging", "Judges can start scoring their assigned projects.")
-        )
-    else:
-        actions.append(
-            ("close_judging", "Close judging", "Judges can no longer edit or submit reviews.")
-        )
-    if event.results_published_at is None:
-        actions.append(
-            (
-                "publish_results",
-                "Publish results",
-                "Rankings, scores and vote counts become public. This is logged.",
-            )
-        )
-    else:
-        actions.append(
-            ("unpublish_results", "Unpublish results", "Results are hidden again. This is logged.")
-        )
-    actions.append(
-        (
-            "archive",
-            "Archive event",
-            "The event becomes read-only for everyone. This cannot be undone here.",
-        )
-    )
-    return actions
 
 
 # --- judging progress ----------------------------------------------------------------------------

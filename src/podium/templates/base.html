@@ -21,6 +21,13 @@
   <a class="skip" href="#main">Skip to content</a>
   <div class="nav-progress" aria-hidden="true"></div>
   {% block shell %}{% endblock %}
+  <dialog class="confirm" id="confirm-dialog" aria-labelledby="confirm-title">
+    <div class="confirm__form">
+      <h2 class="confirm__title" id="confirm-title" data-confirm-title>Confirm</h2>
+      <p class="confirm__body" data-confirm-body></p>
+      <div class="cluster confirm__actions"><button class="btn btn--secondary" type="button" data-confirm-cancel>Cancel</button><button class="btn btn--primary" type="button" data-confirm-ok>Confirm</button></div>
+    </div>
+  </dialog>
   <div id="alerts" class="alerts"></div>
   <div id="toasts" class="toasts" aria-live="polite"></div>
 </body>

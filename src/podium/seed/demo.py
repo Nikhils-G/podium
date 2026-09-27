@@ -28,6 +28,8 @@ def _ensure_user(db: DbSession, email: str, name: str, password: str, *, admin=F
         user = User(email=email, name=name, password_hash=hash_password(password), is_admin=admin)
         db.add(user)
         db.flush()
+    elif admin and not user.is_admin:
+        user.is_admin = True  # a demo identity promoted in a later release keeps working
     return user
 
 
@@ -49,7 +51,9 @@ def ensure_demo_accounts(db: DbSession, settings: Settings) -> list[DemoLogin]:
     password = settings.demo_password
 
     admin = _ensure_user(db, "admin@podium.local", "Podium Admin", password, admin=True)
-    organizer = _ensure_user(db, "organizer@podium.local", "Olivia Organizer", password)
+    # The demo organizer is also an instance admin so the demo can create events while event
+    # creation stays closed to everyone else (judges, participants) by default.
+    organizer = _ensure_user(db, "organizer@podium.local", "Olivia Organizer", password, admin=True)
     people: list[tuple[str, User, str]] = [("admin", admin, "")]
     if event is not None:
         _ensure_role(db, event, organizer, Role.organizer)

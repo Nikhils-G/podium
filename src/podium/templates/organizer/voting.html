@@ -16,11 +16,16 @@
         {{ field('voting_close_at', 'Voting closes (UTC)', value=window_values.voting_close_at, type='datetime-local', error=errors.voting_close_at) }}
       </div>
       <p class="text-sm muted" data-tz-note>Times are in UTC. Leave both empty to keep voting off.</p>
+      {% if confirm_close_voting is defined and confirm_close_voting %}
+      <div class="alert alert--warning" role="alert"><label class="check"><input type="checkbox" name="confirm_close_voting"> <span><strong>This closes voting now.</strong> {{ confirm_close_voting|plural('vote') }} are already in and nobody else will be able to vote. Tick to confirm, then save again.</span></label></div>
+      {% endif %}
       <div><button class="btn btn--secondary" type="submit">Save window</button></div>
     </form>
     <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/voting" hx-boost="false">
       <h2>How people vote</h2>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if settings_locked %}{{ alert('info', 'Voting is open and votes are in, so the mode, quadratic setting and credits are locked until the window closes. Comments can still be switched.') }}{% endif %}
+      <fieldset class="stack" {% if settings_locked or archived %}disabled{% endif %}>
       <div class="field{% if errors.voting_mode %} is-invalid{% endif %}">
         <span class="field__label">Who can vote</span>
         <label class="radio"><input type="radio" name="voting_mode" value="account" {% if event.voting_mode.value == 'account' %}checked{% endif %}> <span><strong>Signed-in accounts</strong> — one vote per account. Strongest against ballot stuffing.</span></label>
@@ -29,8 +34,9 @@
       </div>
       <label class="check"><input type="checkbox" name="quadratic_enabled" {% if event.quadratic_enabled %}checked{% endif %}> <span><strong>Quadratic voting</strong> — voters spread a credit budget; the n-th vote on one project costs 2n−1 credits (1, 3, 5…).</span></label>
       {{ field('voting_credits', 'Credits per voter (quadratic)', value=event.voting_credits, type='number', error=errors.voting_credits) }}
-      <label class="check"><input type="checkbox" name="comments_enabled" {% if event.comments_enabled %}checked{% endif %}> <span>Allow comments on projects</span></label>
-      <div><button class="btn btn--primary" type="submit">Save voting settings</button></div>
+      </fieldset>
+      <label class="check"><input type="checkbox" name="comments_enabled" {% if event.comments_enabled %}checked{% endif %} {% if archived %}disabled{% endif %}> <span>Allow comments on projects</span></label>
+      <div><button class="btn btn--primary" type="submit" {% if archived %}disabled{% endif %}>Save voting settings</button></div>
     </form>
     <section class="card stack" id="abuse">
       <h2>Suspicious votes <span class="count">{{ suspicious|length }}</span></h2>

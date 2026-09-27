@@ -1,6 +1,6 @@
 import re
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from podium.errors import ValidationFailed
@@ -37,12 +37,32 @@ def register(
     errors = validate_registration(db, email, name, password)
     if errors:
         raise ValidationFailed(errors=errors)
-    user = User(email=email, name=name.strip(), password_hash=hash_password(password))
+    first = instance_is_empty(db)
+    user = User(
+        email=email, name=name.strip(), password_hash=hash_password(password), is_admin=first
+    )
     db.add(user)
     db.flush()
     audit.record(db, "user.registered", "user", user.public_id, actor_id=user.id, ip_hash=ip_hash)
+    if first:
+        # A fresh self-hosted instance has nobody who could create an event or promote anyone;
+        # the person who installs it and signs up first is its admin. Seeded installs never
+        # reach this branch because seeding runs before the first request.
+        audit.record(
+            db,
+            "user.bootstrap_admin",
+            "user",
+            user.public_id,
+            actor_id=user.id,
+            ip_hash=ip_hash,
+            meta={"reason": "first account on an empty instance"},
+        )
     db.commit()
     return user
+
+
+def instance_is_empty(db: DbSession) -> bool:
+    return db.execute(select(func.count()).select_from(User)).scalar_one() == 0
 
 
 def authenticate(

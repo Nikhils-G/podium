@@ -10,7 +10,7 @@
     {% if next_item %}<a class="btn btn--ghost btn--sm" href="/e/{{ event.slug }}/judge/review/{{ next_item.project.public_id }}">Next →</a>{% endif %}
   </div>
 </div>
-{% if error %}{{ alert('critical', error) }}{% endif %}
+<div id="review-errors">{% if error %}{{ alert('critical', error) }}{% endif %}</div>
 {% if not judging_open %}{{ alert('info', 'Judging is closed. This review is read-only.') }}{% endif %}
 <div class="review-layout">
   <aside class="review-project stack">
@@ -51,13 +51,19 @@
     <div class="review-footer">
       <div class="score-total" aria-live="polite"><span class="score-total__label">Weighted total</span><span class="score-total__value" data-total>{{ '%.1f'|format(total) if total is not none else '—' }}</span><span class="muted text-sm">/ 100</span></div>
       <span id="save-status" class="save-status" aria-live="polite">{% if review and not submitted %}Draft saved{% endif %}</span>
+      <p class="muted text-sm" data-flat-nudge hidden></p>
       <div class="cluster">
         {% if judging_open and criteria %}
           {% if submitted %}
             <button class="btn btn--secondary" type="submit" name="action" value="reopen" hx-disable>Edit review</button>
           {% else %}
             <button class="btn btn--ghost" type="submit" name="action" value="draft" hx-disable>Save draft</button>
+            {% if next_todo %}
+            <button class="btn btn--secondary" type="submit" name="action" value="submit" hx-disable>Submit review</button>
+            <button class="btn btn--primary" type="submit" name="action" value="submit_next" hx-disable data-submit-review>Submit &amp; next →</button>
+            {% else %}
             <button class="btn btn--primary" type="submit" name="action" value="submit" hx-disable data-submit-review>Submit review</button>
+            {% endif %}
           {% endif %}
         {% endif %}
       </div>

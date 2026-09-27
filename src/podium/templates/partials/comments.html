@@ -27,7 +27,7 @@
     <div class="field{% if errors.body %} is-invalid{% endif %}">
       <label class="field__label" for="f-comment-body">Add a comment</label>
       <textarea class="textarea" id="f-comment-body" name="body" rows="3" maxlength="2000" required>{{ body }}</textarea>
-      {% if errors.body %}<p class="field__error">{{ errors.body }}</p>{% endif %}
+      {% if errors.body %}<p class="field__error" role="alert">{{ errors.body }}</p>{% endif %}
     </div>
     <div><button class="btn btn--secondary btn--sm" type="submit" hx-disabled-elt="this">Post comment</button></div>
   </form>

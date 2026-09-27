@@ -1,7 +1,7 @@
 .PHONY: dev up down logs check test lint fmt migrate seed clean-verify
 
-dev:            ## run locally with reload on :8080
-	uv run uvicorn podium.main:app --host 127.0.0.1 --port 8080 --reload
+dev:            ## run locally with reload on :8080 (demo accounts + open event creation on)
+	PODIUM_DEMO_ACCOUNTS=true PODIUM_OPEN_EVENT_CREATION=true uv run uvicorn podium.main:app --host 127.0.0.1 --port 8080 --reload
 
 up:             ## build + start the portal (docker)
 	docker compose up --build
@@ -28,7 +28,7 @@ migrate:        ## apply migrations to the local database
 	uv run alembic upgrade head
 
 seed:           ## load fixtures + demo accounts into the local database
-	uv run python -m podium.seed
+	PODIUM_DEMO_ACCOUNTS=true uv run python -m podium.seed
 
 clean-verify:   ## what a judge does: fresh build, boot, run the checker
 	docker compose down -v --remove-orphans || true

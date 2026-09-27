@@ -32,8 +32,8 @@ def create_token(
     user: User,
     name: str,
     *,
-    scope: str = "write",
-    expires_in_days: int | None = None,
+    scope: str = "read",
+    expires_in_days: int | None = 90,
 ) -> tuple[ApiToken, str]:
     name = name.strip()
     if not name or len(name) > 80:

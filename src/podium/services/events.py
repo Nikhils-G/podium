@@ -15,6 +15,7 @@ class Stage(enum.StrEnum):
     open = "open"
     closed = "closed"
     judging = "judging"
+    judged = "judged"  # judging opened and closed, results not published yet
     voting = "voting"
     published = "published"
     archived = "archived"
@@ -26,6 +27,7 @@ STAGE_LABELS = {
     Stage.open: "Submissions open",
     Stage.closed: "Submissions closed",
     Stage.judging: "Judging",
+    Stage.judged: "Judging closed",
     Stage.voting: "Voting",
     Stage.published: "Results published",
     Stage.archived: "Archived",
@@ -47,6 +49,8 @@ def stage_of(event: Event, now: datetime | None = None) -> Stage:
         return Stage.voting
     if event.judging_opened_at is not None and event.judging_closed_at is None:
         return Stage.judging
+    if event.judging_opened_at is not None and event.judging_closed_at is not None:
+        return Stage.judged
     if not event.is_public:
         return Stage.draft
     if event.submissions_open_at is not None and now < event.submissions_open_at:
@@ -210,6 +214,54 @@ def update_event(db: DbSession, event: Event, user: User, data: dict, *, ip_hash
                 str(clean[field]) if clean[field] is not None else None,
             ]
             setattr(event, field, clean[field])
+    if changes:
+        audit.record(
+            db,
+            "event.updated",
+            "event",
+            event.public_id,
+            event_id=event.id,
+            actor_id=user.id,
+            meta={"changes": changes},
+            ip_hash=ip_hash,
+        )
+    db.commit()
+    return event
+
+
+def update_voting_window(
+    db: DbSession, event: Event, user: User, data: dict, *, ip_hash=None
+) -> Event:
+    """Change only the two voting dates. Nothing else on the event is read from `data`, so a
+    browser offset can never leak into the submission deadline (round-2 blocker B1)."""
+    if event.archived_at is not None:
+        raise Conflict("Archived events can't be edited.")
+    offset = tz_offset(data)
+    clean: dict[str, datetime | None] = {}
+    errors: dict[str, str] = {}
+    for field in ("voting_open_at", "voting_close_at"):
+        try:
+            clean[field] = parse_utc(data.get(field), offset)
+        except ValueError as exc:
+            errors[field] = str(exc)
+            clean[field] = None
+    if (
+        clean.get("voting_open_at")
+        and clean.get("voting_close_at")
+        and clean["voting_close_at"] <= clean["voting_open_at"]
+    ):
+        errors["voting_close_at"] = "Voting must close after it opens."
+    if errors:
+        raise ValidationFailed(errors=errors)
+    changes = {}
+    for field, value in clean.items():
+        old = getattr(event, field)
+        if old != value:
+            changes[field] = [
+                str(old) if old is not None else None,
+                str(value) if value is not None else None,
+            ]
+            setattr(event, field, value)
     if changes:
         audit.record(
             db,

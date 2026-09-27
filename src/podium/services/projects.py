@@ -60,7 +60,10 @@ def gallery(
     page: int = 1,
     page_size: int = PAGE_SIZE,
     include_hidden: bool = False,
+    ballot_key: str | None = None,
 ) -> GalleryPage:
+    """Gallery cards. With `ballot_key` (an open voting window) the whole filtered set is
+    shuffled deterministically for that voter *before* paging, so page 1 favours nobody."""
     query = (
         select(Project, Team.name, Track.name, Track.position)
         .join(Team, Team.id == Project.team_id)
@@ -83,16 +86,25 @@ def gallery(
         )
     if track:
         query = query.where(Track.public_id == track)
-    if sort == "title":
-        query = query.order_by(func.lower(Project.title))
-    else:
-        sort = "newest"
-        query = query.order_by(Project.submitted_at.desc().nulls_last(), Project.id.desc())
+    if ballot_key is not None:
+        from podium.services.voting import ballot_order
 
-    total = db.execute(select(func.count()).select_from(query.subquery())).scalar_one()
-    pages = max(1, -(-total // page_size))
-    page = min(max(1, page), pages)
-    rows = db.execute(query.offset((page - 1) * page_size).limit(page_size)).all()
+        sort = "ballot"
+        all_rows = ballot_order(db.execute(query.order_by(Project.id)).all(), ballot_key, event.id)
+        total = len(all_rows)
+        pages = max(1, -(-total // page_size))
+        page = min(max(1, page), pages)
+        rows = all_rows[(page - 1) * page_size : page * page_size]
+    else:
+        if sort == "title":
+            query = query.order_by(func.lower(Project.title))
+        else:
+            sort = "newest"
+            query = query.order_by(Project.submitted_at.desc().nulls_last(), Project.id.desc())
+        total = db.execute(select(func.count()).select_from(query.subquery())).scalar_one()
+        pages = max(1, -(-total // page_size))
+        page = min(max(1, page), pages)
+        rows = db.execute(query.offset((page - 1) * page_size).limit(page_size)).all()
     cards = [
         ProjectCard(
             public_id=p.public_id,

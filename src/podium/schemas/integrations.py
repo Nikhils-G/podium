@@ -15,8 +15,10 @@ class WebhookUpdate(BaseModel):
 
 class TokenCreate(BaseModel):
     name: str = Field(..., max_length=80)
-    scope: str = Field("write", description="read (GET only) or write")
-    expires_in_days: int | None = Field(None, ge=1, le=3650, description="Omit for no expiry")
+    scope: str = Field("read", description="read (GET only, the default) or write")
+    expires_in_days: int | None = Field(
+        90, ge=1, le=3650, description="Days until expiry; send null for a token that never expires"
+    )
 
 
 def webhook_out(h) -> dict:

@@ -13,7 +13,7 @@ from podium.services import reviews as reviews_service
 from podium.services import rubric as rubric_service
 from podium.services import scoring
 from podium.services.events import STAGE_LABELS, stage_of
-from podium.web.rendering import is_htmx, render
+from podium.web.rendering import is_htmx, render, wants_partial
 
 router = APIRouter(include_in_schema=False)
 
@@ -122,6 +122,7 @@ def _review_ctx(ctx, db, assignment, review, values=None, errors=None, error="")
     )
     items = reviews_service.queue(db, ctx.event, ctx.user)
     idx = next((i for i, it in enumerate(items) if it.assignment.id == assignment.id), 0)
+    next_todo = _next_todo(db, ctx.event, ctx.user, assignment.project.public_id)
     prev_item = items[idx - 1] if idx > 0 else None
     next_item = items[idx + 1] if idx + 1 < len(items) else None
     return _console(
@@ -139,6 +140,7 @@ def _review_ctx(ctx, db, assignment, review, values=None, errors=None, error="")
         count=len(items),
         prev_item=prev_item,
         next_item=next_item,
+        next_todo=next_todo,
         submitted=review is not None and review.status.value == "submitted",
         comment=(values or {}).get("comment", review.comment if review else ""),
     )
@@ -184,7 +186,7 @@ async def review_save(
                 ctx.user,
                 raw,
                 comment,
-                submit=(action == "submit"),
+                submit=action in ("submit", "submit_next"),
                 ip_hash=ip_hash(request),
             )
     except ValidationFailed as exc:
@@ -227,7 +229,31 @@ async def review_save(
         )
     if is_htmx(request):
         return render(request, "partials/save_status.html", state="saved", message="Draft saved")
+    if action == "submit_next":
+        following = _next_todo(db, ctx.event, ctx.user, pid)
+        if following is not None:
+            return RedirectResponse(
+                f"/e/{ctx.event.slug}/judge/review/{following.project.public_id}",
+                status_code=303,
+            )
+        return RedirectResponse(f"/e/{ctx.event.slug}/judge?done=1", status_code=303)
     return RedirectResponse(f"/e/{ctx.event.slug}/judge/review/{pid}", status_code=303)
+
+
+def _next_todo(db, event, judge, current_pid: str):
+    """The next queue item that still needs a review, starting after the current one and
+    wrapping around; None when everything is submitted."""
+    items = reviews_service.queue(db, event, judge)
+    todo = [i for i in items if i.state != "done" and i.project.public_id != current_pid]
+    if not todo:
+        return None
+    after = [
+        i
+        for i in todo
+        if i.assignment.id
+        > next((j.assignment.id for j in items if j.project.public_id == current_pid), 0)
+    ]
+    return (after or todo)[0]
 
 
 # --- pairwise compare mode --------------------------------------------------------------------
@@ -242,7 +268,7 @@ def compare_page(
     from podium.services import pairwise
 
     state = pairwise.next_pair(db, ctx.event, ctx.user)
-    template = "partials/compare_card.html" if is_htmx(request) else "judge/compare.html"
+    template = "partials/compare_card.html" if wants_partial(request) else "judge/compare.html"
     return render(
         request,
         template,

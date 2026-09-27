@@ -19,7 +19,7 @@
 {%- endmacro %}
 
 {% macro stage_badge(stage, label) -%}
-{% set kinds = {'open': 'good', 'voting': 'accent', 'judging': 'warning', 'published': 'accent', 'closed': '', 'draft': '', 'upcoming': '', 'archived': ''} %}
+{% set kinds = {'open': 'good', 'voting': 'accent', 'judging': 'warning', 'judged': 'warning', 'published': 'accent', 'closed': '', 'draft': '', 'upcoming': '', 'archived': ''} %}
 <span class="badge{% if kinds[stage] %} badge--{{ kinds[stage] }}{% endif %}">{{ label }}</span>
 {%- endmacro %}
 

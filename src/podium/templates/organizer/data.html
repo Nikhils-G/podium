@@ -28,7 +28,7 @@
     </div>
     {% endif %}
   </section>
-  <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/data/import" enctype="multipart/form-data" hx-boost="false">
+  <form class="card stack stack--aside" method="post" action="/e/{{ event.slug }}/organizer/data/import" enctype="multipart/form-data" hx-boost="false">
     <h2>Import into this event</h2>
     <p class="text-sm ink-2">Upload a fixtures.json or a Podium export for <code>{{ event.public_id }}</code>. Rows are matched by id, so re-importing is safe. Always dry-run first.</p>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

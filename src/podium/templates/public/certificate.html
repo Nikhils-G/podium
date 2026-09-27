@@ -10,7 +10,9 @@
     <p class="certificate__body">
       {% if cert.kind.value == 'participation' %}took part in <strong>{{ event.name }}</strong>{% if cert.payload.team %} as a member of <strong>{{ cert.payload.team.name }}</strong>{% endif %}{% if cert.payload.project %}, submitting <strong>“{{ cert.payload.project.title }}”</strong>{% endif %}.
       {% elif cert.kind.value == 'judge' %}served as a judge for <strong>{{ event.name }}</strong>, submitting {{ cert.payload.reviews_submitted }} independent review{{ '' if cert.payload.reviews_submitted == 1 else 's' }}.
-      {% else %}placed <strong>{{ ['1st', '2nd', '3rd'][cert.payload.rank - 1] if cert.payload.rank <= 3 else cert.payload.rank ~ 'th' }}</strong> in <strong>{{ event.name }}</strong>{% if cert.payload.project %} with <strong>“{{ cert.payload.project.title }}”</strong>{% endif %}{% if cert.payload.team %} as part of {{ cert.payload.team.name }}{% endif %}.{% endif %}
+      {% elif cert.payload.prize %}won <strong>{{ cert.payload.prize.name }}</strong>{% if cert.payload.prize.track %} ({{ cert.payload.prize.track }} track){% endif %} at <strong>{{ event.name }}</strong>{% if cert.payload.project %} with <strong>“{{ cert.payload.project.title }}”</strong>{% endif %}{% if cert.payload.team %} as part of {{ cert.payload.team.name }}{% endif %}.
+      {% elif cert.payload.rank %}placed <strong>{{ ['1st', '2nd', '3rd'][cert.payload.rank - 1] if cert.payload.rank <= 3 else cert.payload.rank ~ 'th' }}</strong> in <strong>{{ event.name }}</strong>{% if cert.payload.project %} with <strong>“{{ cert.payload.project.title }}”</strong>{% endif %}{% if cert.payload.team %} as part of {{ cert.payload.team.name }}{% endif %}.
+      {% else %}was recognised as a winner of <strong>{{ event.name }}</strong>{% if cert.payload.project %} with <strong>“{{ cert.payload.project.title }}”</strong>{% endif %}.{% endif %}
     </p>
     <div class="certificate__footer">
       <div><p class="certificate__serial">Serial <code>{{ cert.serial }}</code></p><p class="muted text-sm">Issued {{ cert.issued_at.strftime('%-d %B %Y') }} · signed ed25519</p>

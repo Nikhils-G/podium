@@ -33,7 +33,7 @@ class EventOut(Open):
     description: str = ""
     is_public: bool
     stage: str = Field(
-        description="draft | upcoming | open | closed | judging | voting | published | archived"
+        description="draft, upcoming, open, closed, judging, judged, voting, published or archived"
     )
     max_team_size: int
     submissions_open_at: datetime | None = None

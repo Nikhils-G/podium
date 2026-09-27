@@ -62,7 +62,7 @@
     {% if event.voting_open_at and not is_draft %}
     <div class="card">
       <h3>Community vote</h3>
-      {% with voter=vote.voter, status=vote.status, mine=vote.mine, open=vote.open, closed=vote.closed, cost=vote.cost, count=vote.count, mode=vote.mode, error='' %}{% include "partials/vote_control.html" %}{% endwith %}
+      {% with voter=vote.voter, status=vote.status, mine=vote.mine, open=vote.open, closed=vote.closed, cost=vote.cost, count=vote.count, mode=vote.mode, own_team=vote.own_team, error='' %}{% include "partials/vote_control.html" %}{% endwith %}
     </div>
     {% elif ctx.is_organizer and not event.voting_open_at %}
     <div class="card"><h3>Community vote</h3><p class="muted text-sm">Voting isn't configured. Set a window on the <a href="/e/{{ event.slug }}/organizer/voting">Voting page</a>.</p></div>

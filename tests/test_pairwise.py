@@ -82,3 +82,14 @@ def test_judge_compare_flow(client, auth):
 
         judge = db.execute(select(User).where(User.public_id == "jdg_24")).scalar_one()
         assert pairwise.undo_last(db, event, judge) is True
+
+
+def test_spearman_reranks_within_the_shared_set():
+    from podium.services.pairwise import spearman
+
+    norm = {"A": 1, "B": 2, "C": 3, "D": 4, "E": 5}
+    bt = {"B": 1, "C": 2, "D": 3, "E": 4}  # same relative order, A never compared
+    assert spearman(bt, norm) == 1.0
+    reversed_bt = {"B": 4, "C": 3, "D": 2, "E": 1}
+    assert spearman(reversed_bt, norm) == -1.0
+    assert spearman({"B": 1, "C": 2}, norm) is None
