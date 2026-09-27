@@ -9,6 +9,7 @@ services:
       PODIUM_BASE_URL: ${PODIUM_BASE_URL:-http://localhost:8080}
       PODIUM_SEED_FIXTURES: ${PODIUM_SEED_FIXTURES:-true}
       PODIUM_DEMO_ACCOUNTS: ${PODIUM_DEMO_ACCOUNTS:-true}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1,::1}
     volumes:
       - podium_data:/data
     restart: unless-stopped

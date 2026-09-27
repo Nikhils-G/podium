@@ -177,7 +177,10 @@ def generate_codes(
     return {"codes": [{"code": c, "email": e} for c, e in codes]}
 
 
-@router.post("/events/{slug}/voting/codes/redeem")
+@router.post(
+    "/events/{slug}/voting/codes/redeem",
+    dependencies=[Depends(limiter("vote_code", 10, 60))],
+)
 def redeem_code(
     body: CodeRedeem | None = None,
     code: str = Query("", max_length=40, description='Deprecated: send {"code"} as JSON.'),

@@ -16,9 +16,9 @@ _lock = threading.Lock()
 
 
 def client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """The socket peer. Behind a proxy, uvicorn --proxy-headers has already replaced it with the
+    forwarded client, but only for proxies listed in FORWARDED_ALLOW_IPS; a client-sent
+    X-Forwarded-For is never trusted here, or one rotating header would dodge every limit."""
     return request.client.host if request.client else "unknown"
 
 
