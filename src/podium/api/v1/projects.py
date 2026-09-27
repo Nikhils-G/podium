@@ -93,6 +93,7 @@ def _out(project) -> dict:
 
 @router.get("/events/{slug}/projects/{pid}")
 def get_project(pid: str, ctx: EventContext = Depends(load_event), db: DbSession = Depends(get_db)):
+    """One project. Drafts are visible only to their team and to organizers."""
     project = projects.get_project(db, ctx.event, pid, ctx.user, organizer=ctx.is_organizer)
     return {"project": _out(project)}
 
@@ -132,6 +133,7 @@ def withdraw_project(
     user: User = Depends(require_user),
     db: DbSession = Depends(get_db),
 ):
+    """Withdraw a project from the gallery and from judging (it can be restored)."""
     project = projects.get_project(db, ctx.event, pid, user, organizer=ctx.is_organizer)
     project = projects.withdraw_project(
         db, ctx.event, project, user, organizer=ctx.is_organizer, ip_hash=ip_hash(request)
@@ -147,6 +149,7 @@ def restore_project(
     user: User = Depends(require_user),
     db: DbSession = Depends(get_db),
 ):
+    """Put a withdrawn project back."""
     project = projects.get_project(db, ctx.event, pid, user, organizer=ctx.is_organizer)
     project = projects.withdraw_project(
         db,

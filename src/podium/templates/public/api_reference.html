@@ -1,0 +1,150 @@
+{% extends "layouts/console.html" %}
+{% from "macros/ui.html" import empty %}
+{% macro typ(t) -%}
+{%- for tok in t.split(' ') %}{% if tok in ref.schema_names %}<a href="#schema-{{ tok }}">{{ tok }}</a>{% else %}{{ tok }}{% endif %}{% if not loop.last %} {% endif %}{% endfor -%}
+{%- endmacro %}
+{% macro fields_table(rows, caption) -%}
+<div class="table-wrap"><table class="table api-table"><caption class="visually-hidden">{{ caption }}</caption>
+<thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead><tbody>
+{% for f in rows %}<tr><td><code>{{ f.name }}</code>{% if f.required %} <span class="api-req">required</span>{% endif %}</td><td class="api-type">{{ typ(f.type) }}</td><td>{% if f.description %}{{ f.description }}{% endif %}{% if f.constraints %}{% if f.description %} {% endif %}<span class="muted">{{ f.constraints }}</span>{% endif %}{% if not f.description and not f.constraints %}<span class="muted">—</span>{% endif %}</td></tr>
+{% endfor %}</tbody></table></div>
+{%- endmacro %}
+{% macro code_block(label, text) -%}
+<div class="api-code-head"><span class="text-sm muted">{{ label }}</span><button class="btn btn--ghost btn--sm" type="button" data-copy="{{ text }}">Copy</button></div>
+<pre class="api-code"><code>{{ text }}</code></pre>
+{%- endmacro %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="page-header__eyebrow">Developers</p>
+    <h1>API reference</h1>
+    <p class="ink-2 mt-2">Everything the console can do, the API can do: {{ ref.total }} endpoints under <code>{{ ref.base_url }}/api/v1</code>, JSON in and out, the same permissions as the web app.</p>
+  </div>
+  <div class="cluster"><a class="btn btn--secondary" href="/api/openapi.json" hx-boost="false">OpenAPI document</a><a class="btn btn--ghost" href="/api/docs/console" hx-boost="false">Interactive console</a></div>
+</div>
+
+<form class="toolbar api-filter" method="get" action="/api/docs" role="search" hx-boost="false"{% if query %} data-server-filtered="1"{% endif %}>
+  <label class="visually-hidden" for="api-q">Filter endpoints</label>
+  <input class="input" id="api-q" type="search" name="q" value="{{ query }}" placeholder="Filter endpoints — try vote, certificate or /judges" data-api-filter data-search autocomplete="off">
+  <button class="btn btn--secondary" type="submit">Filter</button>
+  {% if query %}<a class="btn btn--ghost" href="/api/docs">Clear</a>{% endif %}
+  <span class="muted text-sm" data-api-count data-total="{{ ref.total }}" aria-live="polite">{{ shown }} of {{ ref.total }} endpoints</span>
+</form>
+
+{% if not query %}
+<section class="api-section" id="overview" data-api-guide>
+  <h2>Overview</h2>
+  <div class="api-guide">
+    <p>The base URL is <code>{{ ref.base_url }}/api/v1</code>. Requests and responses are JSON (<code>Content-Type: application/json</code>). Timestamps are ISO 8601 in UTC, for example <code>2026-10-03T18:00:00Z</code>. Every record has a stable public id with a type prefix — <code>evt_</code> events, <code>prj_</code> projects, <code>tm_</code> teams, <code>usr_</code> accounts, <code>crt_</code> criteria, <code>prz_</code> prizes, <code>trk_</code> tracks, <code>whk_</code> webhooks — and imported data keeps the ids it arrived with (the sample event's judges are <code>jdg_…</code>).</p>
+    <p>The version lives in the path: <code>/api/v1</code> only ever gains fields. This page is rendered from the <a href="/api/openapi.json" hx-boost="false">OpenAPI 3.1 document</a> the server generates, so the two cannot disagree.</p>
+    {{ code_block("Your first request — no sign-in needed", "curl " ~ ref.base_url ~ "/api/v1/events") }}
+  </div>
+</section>
+
+<section class="api-section" id="authentication" data-api-guide>
+  <h2>Authentication</h2>
+  <div class="api-guide">
+    <h3>Personal tokens</h3>
+    <p>Create a token on <a href="/account">your account page</a> and send it as <code>Authorization: Bearer pdm_…</code>. A token is shown once, carries exactly your permissions, and is either <strong>read-only</strong> (any request other than GET gets 403) or <strong>read and write</strong>. Tokens expire after 90 days unless you choose otherwise, and can be revoked at any time.</p>
+    {{ code_block("With a token", "curl " ~ ref.base_url ~ "/api/v1/me \\\n  -H \"Authorization: Bearer $PODIUM_TOKEN\"") }}
+    <h3>Browser sessions</h3>
+    <p>Same-origin requests from a signed-in browser are accepted with the <code>session</code> cookie. Mutating requests from a page must also send the CSRF token (<code>X-CSRF-Token</code>), which the web app does for you.</p>
+    <h3>Who can call what</h3>
+    <p>Every endpoint below states who may call it. Roles belong to an event, not to an account: the same person can organize one event and judge another. An <strong>instance admin</strong> passes every check.</p>
+    <ul class="api-list">
+      <li><strong>Public</strong> — no sign-in; anonymous voters are identified by the event's voting mode (account, emailed code or link).</li>
+      <li><strong>Signed in</strong> — any account; the service layer then limits what is returned (a judge only ever sees their own reviews).</li>
+      <li><strong>Team member</strong> — a participant on a team in that event.</li>
+      <li><strong>Judge of the event</strong> — accepted a judge invitation for that event.</li>
+      <li><strong>Event organizer</strong> — created the event or was added as a co-organizer.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="api-section" id="errors" data-api-guide>
+  <h2>Errors</h2>
+  <div class="api-guide">
+    <p>Every error, from any endpoint, has the same shape. <code>code</code> is stable and machine-readable; <code>message</code> is written for people and is also sent as the <code>X-Podium-Message</code> header. A 422 adds <code>errors</code>, a map from field name to what is wrong with it. A 429 adds <code>Retry-After</code>.</p>
+    {{ code_block("Error body", '{\n  "error": {\n    "code": "forbidden",\n    "message": "Only organizers of this event can do this."\n  }\n}') }}
+    <div class="table-wrap"><table class="table api-table"><caption class="visually-hidden">Error statuses</caption>
+      <thead><tr><th scope="col">Status</th><th scope="col">Meaning</th></tr></thead>
+      <tbody>{% for status, text in ref.error_rows %}<tr><td><code class="api-status api-status--{{ status[0] }}">{{ status }}</code></td><td>{{ text }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <p class="text-sm"><strong>Codes:</strong> {% for code in ref.error_codes %}<code>{{ code }}</code>{% if not loop.last %} · {% endif %}{% endfor %}.</p>
+  </div>
+</section>
+
+<section class="api-section" id="rate-limits" data-api-guide>
+  <h2>Rate limits</h2>
+  <div class="api-guide">
+    <p>Limits are counted per client IP address inside a sliding window. Over the limit you get <code>429 rate_limited</code> with a <code>Retry-After</code> header; wait and retry. Sign-in and registration forms have their own, stricter limits.</p>
+    {% if ref.rate_limits %}<ul class="api-list">{% for name, text in ref.rate_limits %}<li><code>{{ name }}</code> — {{ text }}</li>{% endfor %}</ul>{% else %}<p class="muted">No endpoint on this instance is rate limited.</p>{% endif %}
+  </div>
+</section>
+
+<section class="api-section" id="webhooks" data-api-guide>
+  <h2>Webhooks</h2>
+  <div class="api-guide">
+    <p>Organizers register endpoints under <strong>Integrations</strong> (or with the webhook endpoints below). Each delivery is a JSON <code>POST</code> with three headers: <code>X-Podium-Event</code> (the type), <code>X-Podium-Delivery</code> (a unique id — use it to ignore duplicates) and <code>X-Podium-Signature</code>, an HMAC-SHA256 of the raw body with the webhook's secret, formatted <code>sha256=&lt;hex&gt;</code>. Verify it before trusting the payload.</p>
+    {{ code_block("Verifying a signature (Python)", "import hashlib, hmac\n\nexpected = \"sha256=\" + hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()\nassert hmac.compare_digest(expected, headers[\"X-Podium-Signature\"])") }}
+    <p>A delivery counts as accepted on any 2xx within 5 seconds. Otherwise it is retried after 30 seconds, 5 minutes and 30 minutes, then marked failed — except for a 4xx other than 408, 425 or 429, which is final. Failed deliveries can be resent from Integrations or with the redeliver endpoint, and <strong>Send a test ping</strong> queues a <code>ping</code> through the same path.</p>
+    <p><strong>Event types:</strong> {% for t in webhook_types %}<code>{{ t }}</code>{% if not loop.last %} · {% endif %}{% endfor %}.</p>
+  </div>
+</section>
+{% endif %}
+
+{% for s in sections %}
+<section class="api-section" id="{{ s.key }}" data-api-section>
+  <h2>{{ s.name }}</h2>
+  {% if s.description %}<p class="ink-2">{{ s.description }}</p>{% endif %}
+  {% for op in s.operations %}
+  <article class="api-op" id="{{ op.key }}" data-api-op data-search="{{ op.search }}">
+    <div class="api-op__head">
+      <span class="method method--{{ op.method }}">{{ op.method|upper }}</span>
+      <code class="api-path">{% for seg, is_param in op.path_parts %}{% if is_param %}<b>{{ seg }}</b>{% else %}{{ seg }}{% endif %}{% endfor %}</code>
+      <a class="api-op__anchor" href="#{{ op.key }}" aria-label="Link to {{ op.summary }}">#</a>
+    </div>
+    <h3 class="api-op__summary">{{ op.summary }}</h3>
+    {% if op.description %}<p class="api-op__desc">{{ op.description }}</p>{% endif %}
+    <p class="api-access"><strong>Who can call it:</strong> {{ op.access }}{% if op.rate_limit %} · <strong>Rate limit:</strong> {{ op.rate_limit }}{% endif %}</p>
+    <div class="api-op__grid">
+      <div>
+        {% if op.params %}
+        <h4>Parameters</h4>
+        <div class="table-wrap"><table class="table api-table"><caption class="visually-hidden">Parameters</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">In</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead>
+          <tbody>{% for p in op.params %}<tr><td><code>{{ p.name }}</code>{% if p.required %} <span class="api-req">required</span>{% endif %}</td><td>{{ p.location }}</td><td class="api-type">{{ typ(p.type) }}</td><td>{% if p.description %}{{ p.description }} {% endif %}{% if p.constraints %}<span class="muted">{{ p.constraints }}</span>{% elif not p.description %}<span class="muted">—</span>{% endif %}</td></tr>{% endfor %}</tbody>
+        </table></div>
+        {% endif %}
+        {% if op.body_fields %}
+        <h4>Request body <span class="muted">application/json{% if op.body_schema %} · {{ typ(op.body_schema) }}{% endif %}</span></h4>
+        {{ fields_table(op.body_fields, "Request body") }}
+        {% endif %}
+        <h4>Responses</h4>
+        <ul class="api-responses">
+          {% for r in op.success %}<li><code class="api-status api-status--{{ r.status[0] }}">{{ r.status }}</code> {{ r.description }}{% if r.schema %} <span class="muted">→ {{ typ(r.schema) }}</span>{% endif %}</li>{% endfor %}
+          {% if op.error_codes %}<li class="api-errors"><span class="muted">Errors:</span> {% for code in op.error_codes %}<a href="#errors"><code class="api-status api-status--{{ code[0] }}">{{ code }}</code></a>{% if not loop.last %} {% endif %}{% endfor %}</li>{% endif %}
+        </ul>
+      </div>
+      <div>{{ code_block("Example request", op.curl) }}</div>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% else %}
+{{ empty("No endpoints match “" ~ query ~ "”", "Try a shorter word, a path fragment such as /votes, or an HTTP method.", "Show all endpoints", "/api/docs") }}
+{% endfor %}
+
+{% if not query %}
+<section class="api-section" id="schemas" data-api-guide>
+  <h2>Schemas</h2>
+  <p class="ink-2">Request and response bodies, as named in the endpoint tables above.</p>
+  {% for sd in ref.schemas %}
+  <article class="api-schema" id="schema-{{ sd.name }}">
+    <h3><code>{{ sd.name }}</code></h3>
+    {% if sd.fields %}{{ fields_table(sd.fields, sd.name) }}{% else %}<p class="muted">Free-form object.</p>{% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

@@ -71,7 +71,7 @@ and "Close judging" stays reachable while voting is open.
 | Per-judge z-score with shrinkage, flat scorers neutralised | raw means; plain z-score | Documented in `JUDGING.md`; robust to the fixture's awkward cases (one review, identical scores, incomplete batches) |
 | Webhook deliveries as rows + in-process worker | fire-and-forget HTTP, Celery | Retries survive restarts, are visible and re-deliverable in the UI, and need no broker |
 | Signed certificates with a local ed25519 key | PDFs, external issuers | Verifiable by anyone with the published public key; print-ready HTML; no dependency |
-| Strict CSP with nonces, no inline styles | relaxed CSP | Forces the offline rule (nothing external can slip in) and blocks XSS classes by construction. Only `/api/docs` relaxes styles for Swagger UI |
+| Strict CSP with nonces, no inline styles | relaxed CSP | Forces the offline rule (nothing external can slip in) and blocks XSS classes by construction. Only `/api/docs/console` relaxes styles for Swagger UI |
 
 ## Decisions worth stealing
 

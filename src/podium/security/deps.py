@@ -100,6 +100,7 @@ def require_event_role(*roles: Role):
             return ctx
         raise Forbidden("You don't have access to this part of the event.")
 
+    dependency.roles = roles  # read by web/apiref.py to print "who can call it"
     return dependency
 
 

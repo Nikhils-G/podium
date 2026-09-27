@@ -73,6 +73,7 @@ def judge_reviews(
 def my_queue(
     ctx: EventContext = Depends(require_event_role(Role.judge)), db: DbSession = Depends(get_db)
 ):
+    """Projects assigned to the caller, each with its review state: todo, in progress, done."""
     items = reviews_service.queue(db, ctx.event, ctx.user)
     return {
         "judging_open": reviews_service.judging_is_open(ctx.event),
@@ -94,6 +95,7 @@ def get_my_review(
     ctx: EventContext = Depends(require_event_role(Role.judge)),
     db: DbSession = Depends(get_db),
 ):
+    """The caller's own review of one assigned project, draft or submitted."""
     assignment = reviews_service.assignment_for(db, ctx.event, ctx.user, project_id)
     review = reviews_service.review_for(db, assignment)
     if review is None:
@@ -134,6 +136,7 @@ def reopen_my_review(
     ctx: EventContext = Depends(require_event_role(Role.judge)),
     db: DbSession = Depends(get_db),
 ):
+    """Turn a submitted review back into a draft while judging is open."""
     assignment = reviews_service.assignment_for(db, ctx.event, ctx.user, project_id)
     review = reviews_service.reopen(db, ctx.event, assignment, ctx.user)
     return {
@@ -146,6 +149,7 @@ def reopen_my_review(
 
 @router.get("/events/{slug}/judges")
 def list_judges(ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)):
+    """Judges of the event with their tracks and assignment counts."""
     rows = judges_service.list_judges(db, ctx.event)
     return {
         "judges": [
@@ -206,6 +210,7 @@ def revoke_invite(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Cancel a pending judge invitation; its link stops working at once."""
     judges_service.revoke_invite(db, ctx.event, ctx.user, invite_id)
 
 
@@ -213,6 +218,7 @@ def revoke_invite(
 def remove_judge(
     judge_id: str, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Remove a judge from the event."""
     judges_service.remove_judge(db, ctx.event, ctx.user, judge_id)
 
 
@@ -223,6 +229,7 @@ def remove_judge(
 def get_rubric(
     ctx: EventContext = Depends(require_event_role(Role.judge)), db: DbSession = Depends(get_db)
 ):
+    """Scoring criteria with weights and scales."""
     return {
         "locked": rubric_service.is_locked(ctx.event),
         "criteria": [criterion_out(c) for c in rubric_service.criteria(db, ctx.event)],
@@ -235,6 +242,7 @@ def add_criterion(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Add a criterion; refused once judging has opened."""
     crit = rubric_service.add_criterion(
         db,
         ctx.event,
@@ -255,6 +263,7 @@ def update_criterion(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Rename or reweight a criterion; the scale is locked once it has scores."""
     crit = rubric_service.get_criterion(db, ctx.event, criterion_id)
     crit = rubric_service.update_criterion(
         db, ctx.event, ctx.user, crit, **body.model_dump(exclude_unset=True)
@@ -268,6 +277,7 @@ def archive_criterion(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Archive a criterion that has scores, or delete one that has none."""
     crit = rubric_service.get_criterion(db, ctx.event, criterion_id)
     rubric_service.archive_criterion(db, ctx.event, ctx.user, crit)
 
@@ -279,6 +289,7 @@ def archive_criterion(
 def list_assignments(
     ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Every judge-to-project assignment with its status."""
     loads = assignments_service.by_judge(db, ctx.event)
     return {
         "judges": [
@@ -306,6 +317,7 @@ def assign_manually(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Assign one judge to one project; idempotent and never a judge's own team."""
     judge = judges_service.judge_by_public_id(db, ctx.event, body.judge)
     created = assignments_service.assign_manually(db, ctx.event, ctx.user, judge, body.projects)
     return {"created": created}
@@ -349,6 +361,7 @@ def auto_apply(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Apply the deterministic, balanced assignment plan the preview showed."""
     plan = assignments_service.build_plan(
         db, ctx.event, reviews_per_project=body.reviews_per_project, seed=body.seed
     )
@@ -362,6 +375,7 @@ def remove_assignment(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Remove an assignment that has no submitted review."""
     assignments_service.remove_assignment(db, ctx.event, ctx.user, assignment_id)
 
 
@@ -435,6 +449,7 @@ def audit_log(
     action: str = Query("", max_length=64),
     page: int = Query(1, ge=1),
 ):
+    """Hash-chained audit entries, newest first; filter by action or actor."""
     data = audit_service.list_entries(db, ctx.event.id, action=action, page=page)
     return {
         "total": data.total,

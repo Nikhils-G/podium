@@ -42,6 +42,7 @@ def limiter(bucket: str, limit: int, window_seconds: int = 60):
         if settings.rate_limit_enabled:
             check(bucket, ip_hash(request), limit, window_seconds)
 
+    dependency.rate_limit = (bucket, limit, window_seconds)  # printed by the API reference
     return dependency
 
 

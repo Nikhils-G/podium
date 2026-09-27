@@ -39,6 +39,7 @@ router = APIRouter(tags=["integrations"])
 
 @router.get("/me", response_model=MeOut)
 def me(user: User = Depends(require_user)):
+    """The signed-in account."""
     return {
         "user": {
             "id": user.public_id,
@@ -51,6 +52,7 @@ def me(user: User = Depends(require_user)):
 
 @router.get("/me/tokens", response_model=TokensOut)
 def list_tokens(user: User = Depends(require_user), db: DbSession = Depends(get_db)):
+    """The caller's personal API tokens: prefix, scope and expiry, never the secret."""
     return {
         "tokens": [
             {
@@ -83,6 +85,7 @@ def create_token(
 def revoke_token(
     token_id: int, user: User = Depends(require_user), db: DbSession = Depends(get_db)
 ):
+    """Revoke one of the caller's tokens immediately."""
     tokens_service.revoke_token(db, user, token_id)
 
 
@@ -91,11 +94,13 @@ def revoke_token(
 
 @router.get("/events/{slug}/webhooks/types")
 def webhook_types():
+    """Event types a webhook can subscribe to."""
     return {"types": webhooks_service.EVENT_TYPES}
 
 
 @router.get("/events/{slug}/webhooks")
 def list_webhooks(ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)):
+    """Webhooks registered on the event."""
     return {"webhooks": [webhook_out(h) for h in webhooks_service.list_hooks(db, ctx.event)]}
 
 
@@ -118,6 +123,7 @@ def update_webhook(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Change a webhook's URL, subscriptions or active flag."""
     hook = webhooks_service.get_hook(db, ctx.event, hook_id)
     return {
         "webhook": webhook_out(
@@ -130,6 +136,7 @@ def update_webhook(
 def delete_webhook(
     hook_id: str, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Delete a webhook."""
     webhooks_service.delete_hook(
         db, ctx.event, ctx.user, webhooks_service.get_hook(db, ctx.event, hook_id)
     )
@@ -139,6 +146,7 @@ def delete_webhook(
 def list_deliveries(
     ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Recent deliveries with status, attempts and the last error."""
     return {
         "deliveries": [delivery_out(d) for d in webhooks_service.recent_deliveries(db, ctx.event)]
     }
@@ -150,6 +158,7 @@ def redeliver(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Queue a delivery to be sent again."""
     return {
         "delivery": delivery_out(webhooks_service.redeliver(db, ctx.event, ctx.user, delivery_id))
     }
@@ -182,6 +191,7 @@ def issue_certificates(
 def list_certificates(
     ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Certificates issued for the event, including revoked ones."""
     return {"certificates": [certificate_out(c) for c in cert_service.for_event(db, ctx.event)]}
 
 
@@ -189,6 +199,7 @@ def list_certificates(
 def revoke_certificate(
     serial: str, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Revoke a certificate; verification then reports it as revoked."""
     cert = cert_service.by_serial(db, serial)
     if cert.event_id != ctx.event.id:
         raise NotFound("No such certificate in this event.")
@@ -199,6 +210,7 @@ def revoke_certificate(
 def my_records(
     ctx: EventContext = Depends(require_event_role(Role.judge)), db: DbSession = Depends(get_db)
 ):
+    """The caller's judge records: signed certificates of the reviews they submitted."""
     return {"records": [certificate_out(c) for c in cert_service.for_user(db, ctx.event, ctx.user)]}
 
 

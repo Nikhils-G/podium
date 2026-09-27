@@ -41,6 +41,7 @@ def my_team(
     user: User = Depends(require_user),
     db: DbSession = Depends(get_db),
 ):
+    """The caller's team in this event, with its members and project."""
     team = teams.team_for(db, ctx.event, user)
     if team is None:
         raise NotFound("You're not in a team for this event.")
@@ -64,6 +65,7 @@ def leave_team(
     user: User = Depends(require_user),
     db: DbSession = Depends(get_db),
 ):
+    """Leave your team; refused once the team has submitted a project."""
     team = teams.team_for(db, ctx.event, user)
     if team is None:
         raise NotFound("You're not in a team for this event.")

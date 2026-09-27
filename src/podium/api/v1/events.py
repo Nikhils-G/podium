@@ -54,6 +54,7 @@ def create_event(
 
 @router.get("/events/{slug}", response_model=EventEnvelope)
 def get_event(ctx: EventContext = Depends(load_event)):
+    """One event with its tracks, prizes and derived stage."""
     return {"event": event_out(ctx.event, stage_of(ctx.event).value)}
 
 
@@ -64,6 +65,7 @@ def update_event(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Change event settings; the audit log records a dated diff of every field."""
     event = events_service.update_event(
         db, ctx.event, ctx.user, _payload(body), ip_hash=ip_hash(request)
     )
@@ -89,6 +91,7 @@ def add_track(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Add a track for projects to submit into."""
     track = events_service.add_track(db, ctx.event, ctx.user, body.name, body.description)
     return {"track": {"id": track.public_id, "name": track.name, "description": track.description}}
 
@@ -97,6 +100,7 @@ def add_track(
 def delete_track(
     track_id: str, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Remove a track no project uses (409 while any project is in it)."""
     events_service.remove_track(db, ctx.event, ctx.user, track_id)
 
 
@@ -106,6 +110,7 @@ def add_prize(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Add a prize, optionally tied to a track."""
     prize = events_service.add_prize(
         db, ctx.event, ctx.user, body.name, body.amount, body.description, body.track
     )
@@ -138,6 +143,7 @@ def award_prize(
 def delete_prize(
     prize_id: str, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Remove a prize."""
     events_service.remove_prize(db, ctx.event, ctx.user, prize_id)
 
 
@@ -145,6 +151,7 @@ def delete_prize(
 def list_organizers(
     ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Organizers of the event."""
     return {
         "organizers": [
             {"id": u.public_id, "name": u.name, "email": u.email}
@@ -166,4 +173,5 @@ def add_organizer(
 def remove_organizer(
     user_id: str, ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Remove a co-organizer; the last organizer cannot be removed."""
     events_service.remove_organizer(db, ctx.event, ctx.user, user_id)

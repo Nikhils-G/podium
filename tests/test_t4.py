@@ -149,9 +149,10 @@ def test_embed_is_frameable_and_gallery_api_has_cors(client):
 
 
 def test_api_docs_and_openapi_are_served_locally(client):
-    r = client.get("/api/docs")
+    r = client.get("/api/docs/console")
     assert r.status_code == 200 and "/static/vendor/swagger-ui/swagger-ui-bundle.js" in r.text
     assert "cdn" not in r.text.lower()
+    assert "API reference" in client.get("/api/docs").text
     spec = client.get("/api/openapi.json").json()
     assert (
         spec["info"]["title"] == "Podium"

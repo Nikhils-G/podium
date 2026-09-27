@@ -18,5 +18,5 @@ participant/judge. Start from a fresh `docker compose up`.
 | 4:00 | Organizer → Voting | Set the window at the top of the Voting page; mode = accounts, quadratic on, credits 10. As the participant open **the ballot** (`/vote`): fixed random order, the sticky credit bar drops as votes land, a refused vote explains itself inside the control; counts hidden until close + publish. |
 | 4:20 | Results → Publish results | Disabled with a reason until judging is closed; close judging from the timeline, publish with the in-app confirmation → public results: podium with "#1 in 47% of re-draws", prizes, community favourite → **How this event was judged** page. |
 | 4:35 | Certificates | Issue judge records (only after judging closed) and winner certificates (from the awards) → open one → Verify page (QR, signature valid). |
-| 4:45 | /api/docs + Data | OpenAPI: both auth schemes, the error shape on every operation. Data: download `export.json`; import it → **Dry run** → "Apply this import" → "nothing new". |
+| 4:45 | /api/docs + Data | API reference: who can call what, one error shape, a curl example per endpoint. Data: download `export.json`; import it → **Dry run** → "Apply this import" → "nothing new". |
 | 4:55 | Terminal | `make check` → `claimed T1 T2 T3 T4, verified T1 T2`. "T3 and T4 have no automated checks; you just saw them." |

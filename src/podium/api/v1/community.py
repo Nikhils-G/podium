@@ -88,6 +88,7 @@ def retract_vote(
     voter: Voter | None = Depends(current_voter),
     db: DbSession = Depends(get_db),
 ):
+    """Take back the caller's vote on a project while voting is open."""
     project = projects_service.get_project(db, ctx.event, pid, ctx.user, organizer=ctx.is_organizer)
     if voter is None:
         raise Unauthorized("No voter identity on this request.")
@@ -101,6 +102,7 @@ def my_votes(
     voter: Voter | None = Depends(current_voter),
     db: DbSession = Depends(get_db),
 ):
+    """The caller's votes keyed by project public id, and the credits left."""
     status = voting_service.voter_status(db, ctx.event, voter)
     public_ids = {
         p.id: p.public_id
@@ -145,6 +147,10 @@ def voting_settings(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Change mode, credits, quadratic voting and comments.
+
+    Locked while an open voting window already holds votes.
+    """
     data = {k: v for k, v in body.model_dump(exclude_unset=True).items()}
     for key in ("quadratic_enabled", "comments_enabled"):
         if key not in data:
@@ -179,6 +185,10 @@ def redeem_code(
     db: DbSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
+    """Exchange an emailed voting code for a voter identity.
+
+    The same code always maps to the same voter, so redeeming twice is harmless.
+    """
     from podium.web.community import _sign, code_cookie_name
 
     key = voting_service.redeem_code(db, ctx.event, (body.code if body else "") or code)
@@ -199,6 +209,7 @@ def redeem_code(
 def suspicious_votes(
     ctx: EventContext = Depends(require_organizer), db: DbSession = Depends(get_db)
 ):
+    """Votes flagged for bursts from one address, for the organizer to review."""
     return {
         "votes": [
             {
@@ -220,6 +231,7 @@ def void_vote(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Void a vote with a reason; it stays on record but stops counting."""
     vote = voting_service.void(db, ctx.event, ctx.user, vote_id, body.reason)
     return {"vote": {"id": vote.id, "voided_at": vote.voided_at, "reason": vote.void_reason}}
 
@@ -241,6 +253,7 @@ def _comment_out(c) -> dict:
 def list_comments(
     pid: str, ctx: EventContext = Depends(load_event), db: DbSession = Depends(get_db)
 ):
+    """Comments on a project; organizers also see hidden ones."""
     project = projects_service.get_project(db, ctx.event, pid, ctx.user, organizer=ctx.is_organizer)
     return {
         "comments": [
@@ -263,6 +276,7 @@ def add_comment(
     user: User = Depends(require_user),
     db: DbSession = Depends(get_db),
 ):
+    """Post a comment of up to 2000 characters while the event allows comments."""
     project = projects_service.get_project(db, ctx.event, pid, user, organizer=ctx.is_organizer)
     comment = comments_service.add(
         db, ctx.event, project, user, body.body, ip_hash=ip_hash(request)
@@ -277,6 +291,7 @@ def hide_comment(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Hide a comment from the public page."""
     project = projects_service.get_project(db, ctx.event, pid, ctx.user, organizer=True)
     comment = comments_service.set_hidden(
         db, ctx.event, comments_service.get(db, project, cid), ctx.user, True
@@ -291,6 +306,7 @@ def unhide_comment(
     ctx: EventContext = Depends(require_organizer),
     db: DbSession = Depends(get_db),
 ):
+    """Show a hidden comment again."""
     project = projects_service.get_project(db, ctx.event, pid, ctx.user, organizer=True)
     comment = comments_service.set_hidden(
         db, ctx.event, comments_service.get(db, project, cid), ctx.user, False

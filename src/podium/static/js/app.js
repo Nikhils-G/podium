@@ -248,8 +248,23 @@
   // ---- confirm-before-submit (destructive actions state their consequence) --------------------
   // ---- confirmation dialog (an in-app <dialog>, never window.confirm) ---------------------------
   var confirmDialog = document.getElementById("confirm-dialog");
-  var confirmPending = null;
+  var confirmPending = null;  // { onOk } while the dialog is open
   function closeConfirm() { confirmPending = null; if (confirmDialog && confirmDialog.open) confirmDialog.close(); }
+  // Opens the in-app dialog; falls back to window.confirm only where <dialog> is unsupported.
+  function askConfirm(opts) {
+    if (!confirmDialog || typeof confirmDialog.showModal !== "function") {
+      if (window.confirm(opts.body)) opts.onOk();
+      return;
+    }
+    confirmPending = { onOk: opts.onOk };
+    confirmDialog.querySelector("[data-confirm-title]").textContent = opts.title;
+    confirmDialog.querySelector("[data-confirm-body]").textContent = opts.body;
+    var ok = confirmDialog.querySelector("[data-confirm-ok]");
+    ok.textContent = opts.label || opts.title;
+    ok.className = "btn " + (opts.danger ? "btn--danger" : "btn--primary");
+    confirmDialog.showModal();
+    ok.focus();
+  }
   document.addEventListener("submit", function (e) {
     var form = e.target;
     if (!(form instanceof HTMLFormElement) || !form.hasAttribute("data-confirm")) return;
@@ -258,27 +273,18 @@
     e.stopImmediatePropagation();  // htmx must not send the request until the person confirms
     var submitter = e.submitter || form.querySelector('button[type="submit"]');
     var label = submitter ? submitter.textContent.trim() : "Confirm";
-    if (!confirmDialog || typeof confirmDialog.showModal !== "function") {
-      if (window.confirm(form.getAttribute("data-confirm"))) { form.dataset.confirmed = "1"; form.requestSubmit(submitter || undefined); }
-      return;
-    }
-    confirmPending = { form: form, submitter: submitter };
-    confirmDialog.querySelector("[data-confirm-title]").textContent = label;
-    confirmDialog.querySelector("[data-confirm-body]").textContent = form.getAttribute("data-confirm");
-    var ok = confirmDialog.querySelector("[data-confirm-ok]");
-    ok.textContent = label;
-    ok.className = "btn " + (submitter && submitter.classList.contains("btn--danger") ? "btn--danger" : "btn--primary");
-    confirmDialog.showModal();
-    ok.focus();
+    askConfirm({
+      title: label, body: form.getAttribute("data-confirm"), label: label,
+      danger: !!(submitter && submitter.classList.contains("btn--danger")),
+      onOk: function () { form.dataset.confirmed = "1"; form.requestSubmit(submitter || undefined); }
+    });
   }, true);
   if (confirmDialog) {
     confirmDialog.querySelector("[data-confirm-cancel]").addEventListener("click", closeConfirm);
     confirmDialog.querySelector("[data-confirm-ok]").addEventListener("click", function () {
       var pending = confirmPending;
       closeConfirm();
-      if (!pending) return;
-      pending.form.dataset.confirmed = "1";
-      pending.form.requestSubmit(pending.submitter || undefined);
+      if (pending) pending.onOk();
     });
     confirmDialog.addEventListener("click", function (e) { if (e.target === confirmDialog) closeConfirm(); });
     confirmDialog.addEventListener("cancel", function () { confirmPending = null; });
@@ -286,7 +292,36 @@
   document.addEventListener("submit", function () { dirty = false; });
   window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
   document.body.addEventListener("htmx:confirm", function (e) {
-    if (dirty && e.detail.boosted && !window.confirm("You have unsaved changes. Leave this page?")) e.preventDefault();
-    else if (e.detail.boosted) dirty = false;
+    if (!e.detail.boosted) return;
+    if (!dirty) return;
+    e.preventDefault();  // hold the navigation; the dialog decides
+    askConfirm({
+      title: "Leave this page?", body: "You have unsaved changes. Leaving now discards them.", label: "Leave without saving", danger: true,
+      onOk: function () { dirty = false; e.detail.issueRequest(true); }
+    });
+  });
+
+  // ---- API reference: instant filter (the form still works without JavaScript) ------------------
+  function filterApiReference(input) {
+    var form = input.form;
+    if (form && form.dataset.serverFiltered) return;  // the server already narrowed the page
+    var needle = input.value.trim().toLowerCase();
+    var shown = 0;
+    var ops = document.querySelectorAll("[data-api-op]");
+    ops.forEach(function (op) {
+      var hit = !needle || (op.getAttribute("data-search") || "").indexOf(needle) !== -1;
+      op.hidden = !hit;
+      if (hit) shown += 1;
+    });
+    document.querySelectorAll("[data-api-section]").forEach(function (section) {
+      section.hidden = !section.querySelector("[data-api-op]:not([hidden])");
+    });
+    document.querySelectorAll("[data-api-guide]").forEach(function (guide) { guide.hidden = !!needle; });
+    var count = document.querySelector("[data-api-count]");
+    if (count) count.textContent = shown + " of " + (count.getAttribute("data-total") || ops.length) + " endpoints";
+  }
+  document.addEventListener("input", function (e) {
+    var input = e.target && e.target.closest ? e.target.closest("[data-api-filter]") : null;
+    if (input) filterApiReference(input);
   });
 })();

@@ -559,3 +559,58 @@
   .mb-4 { margin-bottom: var(--s-4); }
   .grow { flex: 1; }
 }
+
+/* ---- page shell: the footer sits at the bottom even on short pages -------------------------------- */
+@layer layout {
+  body { display: flex; flex-direction: column; }
+  body > main, body > .shell { flex: 1 0 auto; width: 100%; }
+  footer.site { margin-top: auto; }
+}
+
+/* ---- API reference ----------------------------------------------------------------------------------- */
+@layer components {
+  .api-section { scroll-margin-top: 88px; padding-top: var(--s-6); }
+  .api-section + .api-section { border-top: 1px solid var(--border); margin-top: var(--s-6); }
+  .api-section > h2 { font-size: 24px; margin-bottom: var(--s-2); }
+  .api-guide { max-width: 72ch; }
+  .api-guide > * + * { margin-top: var(--s-3); }
+  .api-guide h3 { font-size: 15px; font-weight: 600; margin-top: var(--s-5); }
+  .api-list { padding-left: 1.2em; display: grid; gap: var(--s-1); }
+  .api-guide code, .api-list code, .api-op__desc code { overflow-wrap: anywhere; }
+  .api-op { padding: var(--s-5) 0; border-top: 1px solid var(--border); scroll-margin-top: 88px; }
+  .api-op__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
+  .method { display: inline-flex; align-items: center; justify-content: center; min-width: 60px; padding: 3px 8px; border-radius: var(--r-1);
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .method--get { color: var(--good-text); background: color-mix(in srgb, var(--good) 16%, transparent); }
+  .method--post { color: var(--accent); background: var(--accent-wash); }
+  .method--patch, .method--put { color: var(--warning-text); background: color-mix(in srgb, var(--warning) 24%, transparent); }
+  .method--delete { color: var(--critical-text); background: color-mix(in srgb, var(--critical) 14%, transparent); }
+  .api-path { font-size: 14px; overflow-wrap: anywhere; }
+  .api-path b { color: var(--accent); font-weight: 600; }
+  .api-op__anchor { color: var(--ink-muted); font-size: 14px; opacity: 0; padding: 0 var(--s-1); }
+  .api-op:hover .api-op__anchor, .api-op__anchor:focus-visible { opacity: 1; }
+  .api-op__summary { font-size: 18px; font-weight: 600; margin-top: var(--s-2); }
+  .api-op__desc { color: var(--ink-2); margin-top: var(--s-1); max-width: 72ch; }
+  .api-access { font-size: 13px; color: var(--ink-2); margin-top: var(--s-2); }
+  .api-op__grid { display: grid; gap: var(--s-4); margin-top: var(--s-3); grid-template-columns: minmax(0, 1fr); }
+  .api-op__grid > * { min-width: 0; }
+  .api-op h4 { font-size: 13px; font-weight: 600; margin-top: var(--s-4); margin-bottom: var(--s-2); }
+  .api-op h4:first-child { margin-top: 0; }
+  @media (min-width: 1200px) { .api-op__grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: start; } }
+  .api-table td, .api-table th { vertical-align: top; }
+  .api-req { font-size: 10px; font-weight: 600; color: var(--critical-text); text-transform: uppercase; letter-spacing: .05em; margin-left: 4px; }
+  .api-type { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2); }
+  .api-responses { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s-1); font-size: 14px; }
+  .api-status { font-weight: 600; margin-right: 2px; }
+  .api-status--2 { color: var(--good-text); } .api-status--4 { color: var(--serious-text); } .api-status--5 { color: var(--critical-text); }
+  .api-errors a { color: inherit; }
+  .api-code-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s-2); margin-bottom: var(--s-1); }
+  .api-code { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--r-2); padding: var(--s-3) var(--s-4);
+    font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
+  .api-code code { font-size: inherit; }
+  .api-schema { padding-top: var(--s-4); scroll-margin-top: 88px; }
+  .api-schema + .api-schema { margin-top: var(--s-4); border-top: 1px solid var(--border); }
+  .api-schema h3 { font-size: 16px; margin-bottom: var(--s-2); }
+  .api-filter .input { max-width: 440px; }
+  .api-console-note { padding-block: var(--s-3); }
+}

@@ -10,8 +10,10 @@ from podium.models import Event, Project, ProjectStatus, User
 from podium.security.deps import EventContext, current_user, load_event
 from podium.services import navigation, projects
 from podium.services import voting as voting_service
+from podium.services import webhooks as webhooks_service
 from podium.services.events import STAGE_LABELS, list_events_for, stage_of
 from podium.services.voting import Voter
+from podium.web import apiref
 from podium.web.community import VOTER_COOKIE, current_voter, set_voter_cookie
 from podium.web.rendering import is_htmx, render
 
@@ -202,7 +204,42 @@ def embed(
     )
 
 
+API_GUIDE = [
+    ("overview", "Overview", "#overview"),
+    ("authentication", "Authentication", "#authentication"),
+    ("errors", "Errors", "#errors"),
+    ("rate-limits", "Rate limits", "#rate-limits"),
+    ("webhooks", "Webhooks", "#webhooks"),
+    ("schemas", "Schemas", "#schemas"),
+]
+
+
 @router.get("/api/docs")
-def api_docs(request: Request, user: User | None = Depends(current_user)):
-    """Interactive API reference (vendored Swagger UI — works offline)."""
-    return render(request, "public/api_docs.html", title="API reference", user=user)
+def api_docs(request: Request, q: str = "", user: User | None = Depends(current_user)):
+    """API reference rendered from the OpenAPI document — readable without JavaScript."""
+    ref = apiref.reference(request.app, get_settings().base_url)
+    query = q.strip()
+    sections = apiref.filter_sections(ref, query)
+    endpoints = [(s.key, f"{s.name} ({len(s.operations)})", f"#{s.key}") for s in ref.sections]
+    return render(
+        request,
+        "public/api_reference.html",
+        title="API reference",
+        user=user,
+        ref=ref,
+        sections=sections,
+        query=query,
+        shown=sum(len(s.operations) for s in sections),
+        webhook_types=webhooks_service.EVENT_TYPES,
+        console="API",
+        nav_groups=[("Guide", API_GUIDE), ("Endpoints", endpoints)],
+        nav_items=[],
+        active="",
+        menu_label="API reference",
+    )
+
+
+@router.get("/api/docs/console")
+def api_console(request: Request, user: User | None = Depends(current_user)):
+    """Interactive console (vendored Swagger UI — works offline)."""
+    return render(request, "public/api_console.html", title="Interactive API console", user=user)

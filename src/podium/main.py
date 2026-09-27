@@ -1,6 +1,7 @@
 """Podium application factory."""
 
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -38,6 +39,15 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 def wants_json(request: Request) -> bool:
     return request.url.path.startswith("/api/") or is_htmx(request)
+
+
+def _field_errors(exc: RequestValidationError) -> dict[str, str]:
+    """pydantic's location tuples as the same field → message map the services produce."""
+    errors: dict[str, str] = {}
+    for item in exc.errors():
+        loc = [str(part) for part in item.get("loc", ()) if part not in ("body", "query", "path")]
+        errors.setdefault(".".join(loc) or "body", item.get("msg", "Invalid value."))
+    return errors
 
 
 def json_error(request: Request, status: int, code: str, message: str, **extra) -> JSONResponse:
@@ -97,7 +107,7 @@ ERROR_RESPONSES = {
     "403": "Signed in, but this role can't do that here — or the token is read-only.",
     "404": "No such event, project or record visible to you.",
     "409": "The action conflicts with the event's state (e.g. results published, window closed).",
-    "422": "Validation failed; `error.errors` maps field names to messages.",
+    "422": "Validation failed; error.errors maps field names to messages.",
     "429": "Rate limited; retry after a moment.",
 }
 
@@ -176,13 +186,13 @@ def _document_api(app: FastAPI) -> None:
                         operation.get("requestBody") or operation.get("parameters")
                     ):
                         continue
-                    operation["responses"].setdefault(
-                        status,
-                        {
-                            "description": text,
-                            "content": {"application/json": {"schema": error_ref}},
-                        },
-                    )
+                    operation["responses"][status] = {
+                        "description": text,
+                        "content": {"application/json": {"schema": error_ref}},
+                    }
+        for name in ("HTTPValidationError", "ValidationError"):  # FastAPI's own 422 shape
+            if f'"#/components/schemas/{name}"' not in json.dumps(schema["paths"]):
+                components["schemas"].pop(name, None)
         app.openapi_schema = schema
         return schema
 
@@ -265,7 +275,7 @@ def create_app() -> FastAPI:
                 422,
                 "validation_failed",
                 "Check the highlighted fields.",
-                errors=[{"loc": e.get("loc"), "msg": e.get("msg")} for e in exc.errors()],
+                errors=_field_errors(exc),
             )
         return error_page(request, 422, "The form contained values we couldn't accept.")
 

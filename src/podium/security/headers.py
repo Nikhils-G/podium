@@ -8,7 +8,7 @@ from starlette.requests import Request
 
 def csp_for(request: Request, nonce: str) -> str:
     frame = "frame-ancestors *" if request.url.path.endswith("/embed") else "frame-ancestors 'none'"
-    docs = request.url.path == "/api/docs"  # Swagger UI needs inline styles; nothing else does
+    docs = request.url.path == "/api/docs/console"  # Swagger UI needs inline styles; nothing else
     return "; ".join(
         [
             "default-src 'self'",
