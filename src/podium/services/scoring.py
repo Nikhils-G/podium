@@ -8,6 +8,7 @@ project      z̄_p = mean z over its reviews, shown as μ_g + σ_g·z̄_p clippe
              disagreement d_p = population std of its z values.
 """
 
+import random
 from dataclasses import dataclass, field
 from statistics import fmean, pstdev
 
@@ -146,6 +147,63 @@ def normalize(
         )
     stats.sort(key=lambda s: (-s.n, s.judge.name))
     return stats, mu_g, sigma_g
+
+
+@dataclass
+class Confidence:
+    p_first: float
+    p_top3: float
+    p_rank: dict[int, float]  # rank → share of re-draws that put the project there
+    expected_rank: float
+    n: int
+    samples: int
+
+    @property
+    def single_review(self) -> bool:
+        return self.n < 2
+
+
+def confidence(results: "Results", *, samples: int = 300, seed: int = 0) -> dict[int, Confidence]:
+    """How stable is the published ranking? A bootstrap: `samples` times, every project's own
+    reviews are re-drawn with replacement (judge calibration held fixed), the field is re-ranked
+    with the same tie rule as `_rank`, and we count where each project lands. "72% first" means
+    the project came first in 72% of the re-draws. Deterministic for a given seed."""
+    use_z = (
+        results.basis == RankingBasis.normalized and results.method == NormalizationMethod.zscore
+    )
+    pool: dict[int, list[float]] = {}
+    for s in results.reviews:
+        pool.setdefault(s.project_id, []).append(s.z if use_z else s.raw)
+    ids = [p.project.id for p in results.projects if p.n > 0 and p.project.id in pool]
+    if not ids:
+        return {}
+    rng = random.Random(seed)
+    firsts = dict.fromkeys(ids, 0)
+    top3 = dict.fromkeys(ids, 0)
+    rank_sum = dict.fromkeys(ids, 0)
+    hist: dict[int, dict[int, int]] = {pid: {} for pid in ids}
+    for _ in range(samples):
+        means = {pid: fmean(rng.choices(pool[pid], k=len(pool[pid]))) for pid in ids}
+        order = sorted(ids, key=lambda pid: -means[pid])
+        rank = 0
+        for i, pid in enumerate(order):
+            if i == 0 or abs(means[pid] - means[order[i - 1]]) > 1e-9:
+                rank = i + 1
+            firsts[pid] += rank == 1
+            top3[pid] += rank <= 3
+            rank_sum[pid] += rank
+            hist[pid][rank] = hist[pid].get(rank, 0) + 1
+    return {
+        pid: Confidence(
+            p_first=firsts[pid] / samples,
+            p_top3=top3[pid] / samples,
+            p_rank={r: c / samples for r, c in sorted(hist[pid].items())},
+            expected_rank=rank_sum[pid] / samples,
+            n=len(pool[pid]),
+            samples=samples,
+        )
+        for pid in ids
+    }
 
 
 def _rank(items: list[ProjectResult], key, attr_rank: str, attr_tie: str) -> None:

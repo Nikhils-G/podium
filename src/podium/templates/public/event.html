@@ -68,7 +68,8 @@
         <h3>Take part</h3>
         {% if submissions_open %}<p class="text-sm ink-2">Sign in or create an account to form a team and submit.</p><a class="btn btn--primary btn--block" href="/register?next=/e/{{ event.slug }}">Create account</a><a class="btn btn--ghost btn--block" href="/login?next=/e/{{ event.slug }}">Sign in</a>{% else %}<p class="text-sm ink-2">Submissions are closed.</p>{% endif %}
       {% endif %}
-      <a class="btn btn--secondary btn--block" href="/e/{{ event.slug }}/projects">{% if voting_open %}Vote in the gallery{% else %}Browse {{ project_count }} project{{ '' if project_count == 1 else 's' }}{% endif %}</a>
+      {% if voting_open %}<a class="btn btn--primary btn--block" href="/e/{{ event.slug }}/vote">Cast your votes</a>{% endif %}
+      <a class="btn btn--secondary btn--block" href="/e/{{ event.slug }}/projects">Browse {{ project_count|plural('project') }}</a>
       {% if event.results_published_at %}<a class="btn btn--secondary btn--block" href="/e/{{ event.slug }}/results">See results</a>{% endif %}
     </div>
   </aside>

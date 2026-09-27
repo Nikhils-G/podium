@@ -93,12 +93,14 @@ def vote_context(db, ctx: EventContext, project, voter: Voter | None) -> dict:
     }
 
 
-def _control(request: Request, db, ctx, project, voter, status_code=200, error=""):
+def _control(request: Request, db, ctx, project, voter, status_code=200, error="", compact=False):
     return render(
         request,
         "partials/vote_control.html",
         status_code=status_code,
         error=error,
+        compact=compact,
+        swapped=True,
         **vote_context(db, ctx, project, voter),
     )
 
@@ -111,11 +113,13 @@ def vote(
     request: Request,
     pid: str,
     website: str = Form(""),
+    compact_flag: str = Form("", alias="compact"),
     ctx: EventContext = Depends(load_event),
     voter: Voter | None = Depends(current_voter),
     db: DbSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
+    compact = compact_flag == "1"
     project = projects_service.get_project(db, ctx.event, pid, ctx.user, organizer=ctx.is_organizer)
     new_cookie = None
     if voter is None and ctx.event.voting_mode.value == "link":
@@ -143,10 +147,17 @@ def vote(
         )
     except PodiumError as exc:
         return _control(
-            request, db, ctx, project, voter, status_code=exc.status_code, error=exc.message
+            request,
+            db,
+            ctx,
+            project,
+            voter,
+            status_code=exc.status_code,
+            error=exc.message,
+            compact=compact,
         )
     response = (
-        _control(request, db, ctx, project, voter)
+        _control(request, db, ctx, project, voter, compact=compact)
         if is_htmx(request)
         else RedirectResponse(f"/e/{ctx.event.slug}/projects/{pid}", status_code=303)
     )
@@ -159,24 +170,87 @@ def vote(
 def unvote(
     request: Request,
     pid: str,
+    compact_flag: str = Form("", alias="compact"),
     ctx: EventContext = Depends(load_event),
     voter: Voter | None = Depends(current_voter),
     db: DbSession = Depends(get_db),
 ):
+    compact = compact_flag == "1"
     project = projects_service.get_project(db, ctx.event, pid, ctx.user, organizer=ctx.is_organizer)
     if voter is None:
         return _control(
-            request, db, ctx, project, voter, status_code=401, error="Nothing to remove."
+            request,
+            db,
+            ctx,
+            project,
+            voter,
+            status_code=401,
+            error="Nothing to remove.",
+            compact=compact,
         )
     try:
         voting_service.retract(db, ctx.event, project, voter, ip_hash=ip_hash(request))
     except PodiumError as exc:
         return _control(
-            request, db, ctx, project, voter, status_code=exc.status_code, error=exc.message
+            request,
+            db,
+            ctx,
+            project,
+            voter,
+            status_code=exc.status_code,
+            error=exc.message,
+            compact=compact,
         )
     if is_htmx(request):
-        return _control(request, db, ctx, project, voter)
+        return _control(request, db, ctx, project, voter, compact=compact)
     return RedirectResponse(f"/e/{ctx.event.slug}/projects/{pid}", status_code=303)
+
+
+@router.get("/e/{slug}/vote")
+def ballot_page(
+    request: Request,
+    ctx: EventContext = Depends(load_event),
+    voter: Voter | None = Depends(current_voter),
+    db: DbSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """The ballot: every project in this voter's fixed order with one control per row."""
+    event = ctx.event
+    open_now = voting_service.voting_is_open(event)
+    new_cookie = None
+    if voter is not None:
+        key = voter.key
+    else:
+        anon = voting_service.parse_voter_cookie(
+            settings.secret_key, request.cookies.get(VOTER_COOKIE)
+        )
+        if anon is None and open_now:
+            anon, new_cookie = voting_service.new_voter_cookie(settings.secret_key)
+        key = f"anon:{anon or 'visitor'}"
+    rows = voting_service.ballot(db, event, voter, key)
+    status = voting_service.voter_status(db, event, voter)
+    stage = stage_of(event)
+    response = render(
+        request,
+        "public/ballot.html",
+        title=f"Ballot · {event.name}",
+        event=event,
+        user=ctx.user,
+        ctx=ctx,
+        stage=stage.value,
+        stage_label=STAGE_LABELS[stage],
+        nav="vote",
+        rows=rows,
+        status=status,
+        voter=voter,
+        open=open_now,
+        closed=voting_service.voting_has_closed(event),
+        mode=event.voting_mode.value,
+        results_visible=voting_service.results_visible(event, organizer=ctx.is_organizer),
+    )
+    if new_cookie:
+        set_voter_cookie(response, new_cookie, settings)
+    return response
 
 
 @router.get("/e/{slug}/vote/code")
@@ -348,6 +422,7 @@ def results_page(
         votes_by_project=votes_by_project,
         favourites=favourites,
         awards=events_service.awards(ctx.event),
+        confidence=scoring.confidence(results, seed=ctx.event.id),
         **base,
     )
 

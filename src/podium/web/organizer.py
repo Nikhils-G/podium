@@ -156,8 +156,21 @@ def dashboard_page(
             step_index=dashboard.step_index(ctx.event),
             next_step=dashboard.next_step(db, ctx.event),
             more_actions=dashboard.more_actions(ctx.event),
+            timeline=dashboard.timeline(db, ctx.event),
         ),
     )
+
+
+@router.post("/e/{slug}/organizer/dates", dependencies=[Depends(verify_csrf)])
+def shift_date(
+    request: Request,
+    field: str = Form(""),
+    preset: str = Form(""),
+    ctx: EventContext = Depends(require_organizer),
+    db: DbSession = Depends(get_db),
+):
+    events_service.shift_date(db, ctx.event, ctx.user, field, preset, ip_hash=ip_hash(request))
+    return RedirectResponse(f"/e/{ctx.event.slug}/organizer?saved=dates", status_code=303)
 
 
 @router.post("/e/{slug}/organizer/actions/{action}", dependencies=[Depends(verify_csrf)])

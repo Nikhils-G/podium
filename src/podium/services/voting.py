@@ -457,6 +457,57 @@ def tally(db: DbSession, event: Event) -> Tally:
     )
 
 
+@dataclass
+class BallotRow:
+    project: Project
+    team_name: str
+    track_name: str | None
+    track_position: int | None
+    mine: int
+    cost: int
+    own_team: bool
+
+
+def ballot(db: DbSession, event: Event, voter: Voter | None, order_key: str) -> list[BallotRow]:
+    """Every submitted project in this voter's fixed random order, with what they have already
+    cast on each and what the next vote costs."""
+    from podium.models import Team, TeamMember, Track
+
+    rows = db.execute(
+        select(Project, Team.name, Track.name, Track.position)
+        .join(Team, Team.id == Project.team_id)
+        .outerjoin(Track, Track.id == Project.track_id)
+        .where(Project.event_id == event.id, Project.status == ProjectStatus.submitted)
+        .order_by(Project.id)
+    ).all()
+    rows = ballot_order(rows, order_key, event.id)
+    status = voter_status(db, event, voter)
+    my_teams: set[int] = set()
+    if voter is not None and voter.user is not None:
+        my_teams = set(
+            db.execute(
+                select(TeamMember.team_id)
+                .join(Team, Team.id == TeamMember.team_id)
+                .where(Team.event_id == event.id, TeamMember.user_id == voter.user.id)
+            ).scalars()
+        )
+    out = []
+    for project, team_name, track_name, track_position in rows:
+        mine = status.votes.get(project.id, 0)
+        out.append(
+            BallotRow(
+                project=project,
+                team_name=team_name,
+                track_name=track_name,
+                track_position=track_position,
+                mine=mine,
+                cost=cost_of_next_vote(mine) if event.quadratic_enabled else 1,
+                own_team=project.team_id in my_teams,
+            )
+        )
+    return out
+
+
 def recent(db: DbSession, event: Event, limit: int = 50) -> list[Vote]:
     """The latest votes, voided ones included, so an organizer can act on any of them."""
     return list(

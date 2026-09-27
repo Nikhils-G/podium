@@ -1,0 +1,47 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import stage_badge, when, countdown, empty %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="page-header__eyebrow">{{ event.name }}</p>
+    <h1>Ballot</h1>
+    <div class="page-header__meta">{{ stage_badge(stage, stage_label) }}<span class="count">{{ rows|length|plural('project') }}</span>{% if open and event.voting_close_at %}<span>{{ countdown(event.voting_close_at, 'Voting closes', 'Voting closed') }}</span>{% endif %}</div>
+  </div>
+  <a class="btn btn--ghost" href="/e/{{ event.slug }}/projects">Browse the gallery</a>
+</div>
+{% if not open %}
+  {% if closed %}<div class="alert alert--info" role="status">Voting closed {{ when(event.voting_close_at) }}.{% if results_visible %} <a href="/e/{{ event.slug }}/results">See the results</a>.{% endif %}</div>
+  {% elif event.voting_open_at %}<div class="alert alert--info" role="status">Voting opens {{ when(event.voting_open_at) }}. You can already browse the projects.</div>
+  {% else %}<div class="alert alert--info" role="status">This event has no community vote.</div>{% endif %}
+{% elif voter is none and mode == 'account' %}
+  <div class="card card--action mb-4"><h3>Sign in to vote</h3><p class="text-sm ink-2">One ballot per account. Your order below is yours alone and never changes.</p><a class="btn btn--primary" href="/login?next=/e/{{ event.slug }}/vote">Sign in</a> <a class="btn btn--secondary" href="/register?next=/e/{{ event.slug }}/vote">Create account</a></div>
+{% elif voter is none and mode == 'email' %}
+  <div class="card card--action mb-4"><h3>Enter your voting code</h3><p class="text-sm ink-2">The organizers issued codes to eligible voters.</p><a class="btn btn--primary" href="/e/{{ event.slug }}/vote/code">Enter code</a></div>
+{% endif %}
+{% if open and voter is not none and event.quadratic_enabled %}
+<div class="ballot-bar" role="status" aria-live="polite">
+  <span id="ballot-credits" class="ballot-bar__credits"><strong>{{ status.credits_left }}</strong> of {{ status.credits_total }} credits left</span>
+  <span class="text-sm ink-2">Each extra vote on the same project costs more (1, 3, 5…). Spread them or stack them.</span>
+</div>
+{% endif %}
+<p class="text-sm ink-2">Projects appear in a random order that is fixed for you, so no entry benefits from being first.</p>
+{% if rows %}
+<ol class="ballot">
+  {% for r in rows %}
+  <li class="ballot__row">
+    <div class="card__cover card__cover--sm hue-{{ r.project.public_id|hue }}" aria-hidden="true">{{ r.project.title[:1]|upper }}</div>
+    <div class="ballot__body">
+      <div class="card__meta">{% if r.track_name %}<span class="chip t-{{ ((r.track_position or 0) % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ r.track_name }}</span>{% endif %}<span>by {{ r.team_name }}</span></div>
+      <h2 class="ballot__title"><a href="/e/{{ event.slug }}/projects/{{ r.project.public_id }}">{{ r.project.title }}</a></h2>
+      {% if r.project.summary %}<p class="text-sm ink-2">{{ r.project.summary }}</p>{% endif %}
+    </div>
+    <div class="ballot__control">
+      {% with project=r.project, voter=voter, status=status, mine=r.mine, open=open, closed=closed, cost=r.cost, count=none, mode=mode, own_team=r.own_team, error='', compact=True, swapped=False %}{% include "partials/vote_control.html" %}{% endwith %}
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+{{ empty("Nothing to vote on yet", "Projects appear here once teams submit them.") }}
+{% endif %}
+{% endblock %}

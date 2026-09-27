@@ -24,6 +24,7 @@ templates = Jinja2Templates(env=jinja_env)
 templates.env.globals["version"] = __version__
 templates.env.globals["now_utc"] = utcnow
 jinja_env.filters["plural"] = plural
+jinja_env.filters["hue"] = lambda value: sum(ord(c) for c in str(value)) % 8 + 1
 jinja_env.globals["describe"] = describe
 
 

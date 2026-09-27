@@ -6,7 +6,8 @@
   <p class="visually-hidden">{{ page.total }} projects shown</p>
   <div class="grid-cards">
     {% for card in page.cards %}
-    <article class="card">
+    <article class="card card--project">
+      <div class="card__cover hue-{{ card.public_id|hue }}" aria-hidden="true">{{ card.title[:1]|upper }}</div>
       <div class="card__meta">
         {% if card.track_name %}<span class="chip t-{{ ((card.track_position or 0) % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ card.track_name }}</span>{% endif %}
         {% if card.status == 'withdrawn' %}{{ badge('Withdrawn', 'critical') }}{% endif %}
@@ -21,6 +22,11 @@
         {% if card.demo_url %}<a href="{{ card.demo_url }}" rel="noopener nofollow ugc" target="_blank">Demo</a>{% endif %}
         {% if card.video_url %}<a href="{{ card.video_url }}" rel="noopener nofollow ugc" target="_blank">Video</a>{% endif %}
       </div>
+      {% endif %}
+      {% if ballot and voter is not none %}
+      <div class="card__vote">{% with project=card, status=vote_status, mine=vote_status.votes.get(card.id, 0), open=True, closed=False, cost=(vote_cost(vote_status.votes.get(card.id, 0)) if event.quadratic_enabled else 1), count=none, mode=event.voting_mode.value, own_team=(card.team_id in my_teams), error='', compact=True, swapped=False %}{% include "partials/vote_control.html" %}{% endwith %}</div>
+      {% elif ballot %}
+      <div class="card__vote"><a class="btn btn--secondary btn--sm" href="/e/{{ event.slug }}/vote">Vote</a></div>
       {% endif %}
     </article>
     {% endfor %}

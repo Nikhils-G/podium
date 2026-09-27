@@ -26,8 +26,9 @@
 <section class="stack mt-6" id="ranking">
   <h2>Ranking</h2>
   <p class="text-sm ink-2">Disagreement is the spread (standard deviation) of the normalized scores a project received: 0 means every judge agreed, above 1 means judges saw it very differently and it deserves a look.</p>
+  <p class="text-sm ink-2"><strong>Confidence</strong> comes from a bootstrap: 300 times, each project's own reviews are re-drawn with replacement and the field is re-ranked, with judge calibration held fixed. "72% first" means the project came first in 72% of those re-draws; the expected rank is its average. A project with a single review can't be re-drawn, so it shows no estimate — its score still counts as a fixed point for the others.</p>
   <div class="table-wrap"><table class="table table--dense">
-    <thead><tr><th class="num">Rank</th><th>Project</th><th>Track</th><th class="num">Reviews</th><th class="num">Raw mean</th><th class="num">Normalized</th><th class="num">Δ rank</th><th class="num">Disagreement</th></tr></thead>
+    <thead><tr><th class="num">Rank</th><th>Project</th><th>Track</th><th class="num">Reviews</th><th class="num">Raw mean</th><th class="num">Normalized</th><th class="num">Δ rank</th><th class="num">Disagreement</th><th>Confidence</th></tr></thead>
     <tbody>{% for p in r.projects %}
     <tr class="{% if p.n == 0 %}is-muted{% endif %}">
       <td class="num">{% set rk = p.rank_norm if r.basis.value == 'normalized' else p.rank_raw %}{% if rk %}{% if (p.tied_norm if r.basis.value == 'normalized' else p.tied_raw) %}T-{% endif %}{{ rk }}{% else %}—{% endif %}</td>
@@ -38,6 +39,7 @@
       <td class="num"><span class="score score-{{ ((p.normalized or 0) / 20)|round(0, 'floor')|int + 1 if p.normalized is not none else 0 }}">{{ '%.1f'|format(p.normalized) if p.normalized is not none else '—' }}</span></td>
       <td class="num">{% if p.rank_delta is not none and p.rank_delta != 0 %}<span class="{{ 'delta-up' if p.rank_delta > 0 else 'delta-down' }}">{{ '+' if p.rank_delta > 0 }}{{ p.rank_delta }}</span>{% else %}·{% endif %}</td>
       <td class="num">{{ '%.2f'|format(p.disagreement) if p.disagreement is not none else '—' }}</td>
+      <td class="text-sm">{% set c = confidence.get(p.project.id) %}{% if not c %}—{% elif c.single_review %}<span class="muted">single review — no estimate</span>{% else %}<span title="Ranked #{{ c.p_rank.keys()|min }}–#{{ c.p_rank.keys()|max }} across {{ c.samples }} re-draws">{{ (c.p_first * 100)|round|int }}% first · {{ (c.p_top3 * 100)|round|int }}% top 3 · expected #{{ '%.1f'|format(c.expected_rank) }}</span>{% endif %}</td>
     </tr>{% endfor %}</tbody>
   </table></div>
 </section>

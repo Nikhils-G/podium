@@ -278,6 +278,39 @@ def update_voting_window(
     return event
 
 
+DATE_PRESETS = {"now": timedelta(0), "+15m": timedelta(minutes=15), "+60m": timedelta(hours=1)}
+SHIFTABLE = ("submissions_close_at", "voting_open_at", "voting_close_at")
+
+
+def shift_date(
+    db: DbSession, event: Event, user: User, field: str, preset: str, *, ip_hash=None
+) -> Event:
+    """Quick deadline moves from the timeline: close now, extend by 15 min or 1 h."""
+    if event.archived_at is not None:
+        raise Conflict("Archived events can't be edited.")
+    if field not in SHIFTABLE or preset not in DATE_PRESETS:
+        raise ValidationFailed(errors={"field": "Choose a known date and preset."})
+    value = utcnow() + DATE_PRESETS[preset]
+    if field == "voting_close_at" and event.voting_open_at and value <= event.voting_open_at:
+        raise Conflict("Voting must close after it opens.")
+    if field == "voting_open_at" and event.voting_close_at and value >= event.voting_close_at:
+        raise Conflict("Voting must open before it closes.")
+    old = getattr(event, field)
+    setattr(event, field, value)
+    audit.record(
+        db,
+        "event.updated",
+        "event",
+        event.public_id,
+        event_id=event.id,
+        actor_id=user.id,
+        meta={"changes": {field: [str(old) if old else None, str(value)]}, "preset": preset},
+        ip_hash=ip_hash,
+    )
+    db.commit()
+    return event
+
+
 # --- lifecycle actions -------------------------------------------------------------------------
 
 ACTIONS = (

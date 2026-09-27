@@ -24,6 +24,8 @@ URL_RE = re.compile(r"^https?://[^\s]+$")
 
 @dataclass
 class ProjectCard:
+    id: int
+    team_id: int
     public_id: str
     title: str
     summary: str
@@ -107,6 +109,8 @@ def gallery(
         rows = db.execute(query.offset((page - 1) * page_size).limit(page_size)).all()
     cards = [
         ProjectCard(
+            id=p.id,
+            team_id=p.team_id,
             public_id=p.public_id,
             title=p.title,
             summary=p.summary,

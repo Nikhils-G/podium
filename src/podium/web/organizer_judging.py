@@ -407,6 +407,7 @@ def results_page(
             unranked=unranked,
             prizes=sorted(ctx.event.prizes, key=lambda p: p.position),
             suggestions=suggestions,
+            confidence=scoring.confidence(results, seed=ctx.event.id),
             judging_open=reviews_service.judging_is_open(ctx.event),
         ),
     )

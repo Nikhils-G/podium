@@ -1,17 +1,32 @@
 {% extends "layouts/console.html" %}
-{% from "macros/ui.html" import badge, when, countdown %}
+{% from "macros/ui.html" import badge, when, countdown, alert %}
 {% block content %}
 <div class="page-header">
   <div><p class="page-header__eyebrow">Organizer</p><h1>{{ event.name }}</h1></div>
   <a class="btn btn--secondary" href="/e/{{ event.slug }}/organizer/settings">Event settings</a>
 </div>
 
-<ol class="stepper" aria-label="Run of show">
-  {% for stg, label, hint in steps %}
-    {% set i = loop.index0 %}
-    <li class="stepper__step{% if i < step_index %} is-done{% elif i == step_index %} is-current{% endif %}" {% if i == step_index %}aria-current="step"{% endif %}>
-      <span class="stepper__label">{{ label }}</span><span class="stepper__hint">{{ hint }}</span>
-    </li>
+{% if request.query_params.get('saved') == 'dates' %}{{ alert('success', 'Deadline updated. It is logged in the audit trail.') }}{% endif %}
+<ol class="phases" aria-label="Run of show">
+  {% for ph in timeline %}
+  <li class="phase phase--{{ ph.state }}">
+    <div class="phase__head"><span class="phase__dot" aria-hidden="true"></span><span class="phase__label">{{ ph.label }}</span><span class="phase__state">{{ ph.summary }}</span></div>
+    <div class="phase__dates">
+      {% if ph.key == 'certificates' %}{% elif ph.state == 'open' and ph.ends %}{{ countdown(ph.ends, 'closes', 'closed') }}
+      {% elif ph.state == 'scheduled' and ph.starts %}{{ countdown(ph.starts, 'opens', 'opened') }}
+      {% elif ph.state == 'closed' and ph.ends %}{{ countdown(ph.ends, 'closes', 'closed') }}
+      {% elif ph.state == 'done' and ph.starts %}{{ when(ph.starts) }}
+      {% elif ph.starts or ph.ends %}{{ when(ph.starts) }}{% if ph.ends %} → {{ when(ph.ends) }}{% endif %}{% endif %}
+    </div>
+    <div class="phase__actions cluster">
+      {% for a in ph.actions %}
+        {% if a.href %}<a class="btn btn--ghost btn--sm" href="{{ a.href }}">{{ a.label }}</a>
+        {% elif not a.enabled %}<span class="phase__disabled"><button class="btn btn--secondary btn--sm" type="button" disabled aria-disabled="true">{{ a.label }}</button><span class="muted text-sm">{{ a.reason }}</span></span>
+        {% elif a.action %}<form method="post" action="/e/{{ event.slug }}/organizer/actions/{{ a.action }}" hx-boost="false" data-confirm="{{ a.consequence }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--{{ a.kind }} btn--sm" type="submit">{{ a.label }}</button></form>
+        {% else %}<form method="post" action="/e/{{ event.slug }}/organizer/dates" hx-boost="false" data-confirm="{{ a.consequence }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="field" value="{{ a.date_field }}"><input type="hidden" name="preset" value="{{ a.preset }}"><button class="btn btn--{{ a.kind }} btn--sm" type="submit">{{ a.label }}</button></form>{% endif %}
+      {% endfor %}
+    </div>
+  </li>
   {% endfor %}
 </ol>
 

@@ -5,8 +5,9 @@
   <div>
     <p class="page-header__eyebrow">{{ event.name }}</p>
     <h1>Projects</h1>
-    <div class="page-header__meta">{{ stage_badge(stage, stage_label) }}<span class="count" id="gallery-count">{{ page.total }} project{{ '' if page.total == 1 else 's' }}</span></div>
+    <div class="page-header__meta">{{ stage_badge(stage, stage_label) }}<span class="count" id="gallery-count">{{ page.total|plural('project') }}</span></div>
   </div>
+  {% if ballot %}<a class="btn btn--primary" href="/e/{{ event.slug }}/vote">Open the ballot</a>{% endif %}
 </div>
 <form class="toolbar" method="get" action="/e/{{ event.slug }}/projects" role="search" hx-boost="false">
   <label class="visually-hidden" for="gallery-q">Search projects</label>

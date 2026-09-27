@@ -455,6 +455,234 @@ def next_step(db: DbSession, event: Event) -> NextStep:
     )
 
 
+@dataclass
+class PhaseAction:
+    label: str
+    action: str | None = None  # POST /organizer/actions/{action}
+    date_field: str | None = None  # POST /organizer/dates with preset
+    preset: str | None = None  # now | +15m | +60m
+    href: str | None = None
+    consequence: str = ""
+    enabled: bool = True
+    reason: str = ""
+    kind: str = "secondary"  # primary | secondary | danger
+
+
+@dataclass
+class Phase:
+    key: str
+    label: str
+    state: str  # scheduled | open | closed | done | off
+    summary: str
+    starts: datetime | None = None
+    ends: datetime | None = None
+    actions: list[PhaseAction] = field(default_factory=list)
+
+
+def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[Phase]:
+    """The run of show as phases with the actions the server would accept right now. This is
+    the one place an organizer changes a date in a hurry, and it never offers an undo as a
+    next step."""
+    from podium.services.voting import voting_has_closed, voting_is_open
+
+    now = now or utcnow()
+    base = f"/e/{event.slug}/organizer"
+    phases: list[Phase] = []
+    archived = event.archived_at is not None
+    # -- submissions
+    sub_open = (
+        event.is_public
+        and (event.submissions_open_at is None or event.submissions_open_at <= now)
+        and (event.submissions_close_at is None or now < event.submissions_close_at)
+    )
+    if not event.is_public:
+        sub = Phase(
+            "submissions", "Submissions", "off", "Not public yet — publish the event to open"
+        )
+    elif event.submissions_open_at and event.submissions_open_at > now:
+        sub = Phase("submissions", "Submissions", "scheduled", "Opens")
+    elif sub_open:
+        sub = Phase("submissions", "Submissions", "open", "Open")
+    else:
+        sub = Phase("submissions", "Submissions", "closed", "Closed")
+    sub.starts, sub.ends = event.submissions_open_at, event.submissions_close_at
+    if not archived and event.is_public:
+        if sub_open:
+            sub.actions += [
+                PhaseAction(
+                    "Close now",
+                    date_field="submissions_close_at",
+                    preset="now",
+                    consequence="Submissions close this minute; teams can no longer submit or edit.",
+                    kind="danger",
+                ),
+                PhaseAction(
+                    "Extend 15 min",
+                    date_field="submissions_close_at",
+                    preset="+15m",
+                    consequence="The deadline moves 15 minutes later than now.",
+                ),
+                PhaseAction(
+                    "Extend 1 h",
+                    date_field="submissions_close_at",
+                    preset="+60m",
+                    consequence="The deadline moves one hour later than now.",
+                ),
+            ]
+        elif event.submissions_close_at and event.judging_opened_at is None:
+            sub.actions.append(
+                PhaseAction(
+                    "Reopen for 1 h",
+                    date_field="submissions_close_at",
+                    preset="+60m",
+                    consequence="Submissions reopen for one hour; teams can submit and edit again.",
+                )
+            )
+        elif event.submissions_close_at:
+            sub.actions.append(
+                PhaseAction(
+                    "Reopen for 1 h",
+                    enabled=False,
+                    reason="judging has opened — reopen judging first if you must",
+                )
+            )
+    phases.append(sub)
+    # -- judging
+    total, pending = _assignment_counts(db, event)
+    if event.judging_opened_at is None:
+        jud = Phase("judging", "Judging", "scheduled", "Not opened yet")
+    elif event.judging_closed_at is None:
+        jud = Phase(
+            "judging",
+            "Judging",
+            "open",
+            f"Open · {total - pending} of {total} reviews in"
+            if total
+            else "Open · nothing assigned",
+        )
+    else:
+        jud = Phase("judging", "Judging", "closed", "Closed")
+    jud.starts, jud.ends = event.judging_opened_at, event.judging_closed_at
+    if not archived:
+        if event.judging_opened_at is None:
+            jud.actions.append(
+                PhaseAction(
+                    "Open judging",
+                    action="open_judging",
+                    consequence="Judges can start scoring their assigned projects.",
+                    kind="primary" if not sub_open else "secondary",
+                    enabled=event.is_public,
+                    reason="" if event.is_public else "publish the event first",
+                )
+            )
+        elif event.judging_closed_at is None:
+            jud.actions.append(
+                PhaseAction(
+                    "Close judging",
+                    action="close_judging",
+                    consequence=(
+                        f"Judges can no longer edit or submit reviews; {plural(pending, 'pending review')} stay unsubmitted."
+                        if pending
+                        else "Judges can no longer edit or submit reviews."
+                    ),
+                    kind="primary" if not pending else "secondary",
+                )
+            )
+        elif event.results_published_at is None:
+            jud.actions.append(
+                PhaseAction(
+                    "Reopen judging",
+                    action="open_judging",
+                    consequence="Judges can edit and submit reviews again.",
+                )
+            )
+    phases.append(jud)
+    # -- voting
+    if event.voting_open_at is None:
+        vot = Phase("voting", "Community voting", "off", "Not scheduled")
+        if not archived:
+            vot.actions.append(PhaseAction("Set a window", href=f"{base}/voting"))
+    elif voting_is_open(event):
+        vot = Phase("voting", "Community voting", "open", "Open")
+    elif voting_has_closed(event):
+        vot = Phase("voting", "Community voting", "closed", "Closed")
+    else:
+        vot = Phase("voting", "Community voting", "scheduled", "Opens")
+    vot.starts, vot.ends = event.voting_open_at, event.voting_close_at
+    if not archived and event.voting_open_at is not None:
+        if vot.state == "scheduled":
+            vot.actions.append(
+                PhaseAction(
+                    "Open now",
+                    date_field="voting_open_at",
+                    preset="now",
+                    consequence="Voting opens this minute.",
+                )
+            )
+        elif vot.state == "open":
+            vot.actions += [
+                PhaseAction(
+                    "Close now",
+                    date_field="voting_close_at",
+                    preset="now",
+                    consequence="Voting closes this minute; nobody else can vote.",
+                    kind="danger",
+                ),
+                PhaseAction(
+                    "Extend 15 min",
+                    date_field="voting_close_at",
+                    preset="+15m",
+                    consequence="Voting closes 15 minutes later than now.",
+                ),
+                PhaseAction(
+                    "Extend 1 h",
+                    date_field="voting_close_at",
+                    preset="+60m",
+                    consequence="Voting closes one hour later than now.",
+                ),
+            ]
+    phases.append(vot)
+    # -- results
+    if event.results_published_at is not None:
+        res = Phase("results", "Results", "done", "Published")
+        res.starts = event.results_published_at
+        if not archived:
+            res.actions.append(
+                PhaseAction(
+                    "Unpublish results",
+                    action="unpublish_results",
+                    consequence="Results are hidden again and issued winner certificates are revoked. This is logged.",
+                    kind="danger",
+                )
+            )
+    else:
+        res = Phase("results", "Results", "scheduled", "Not published")
+        if not archived:
+            judging_open = event.judging_opened_at is not None and event.judging_closed_at is None
+            res.actions.append(
+                PhaseAction(
+                    "Publish results",
+                    action="publish_results",
+                    consequence=PUBLISH_CONSEQUENCE,
+                    enabled=not judging_open,
+                    reason="close judging first" if judging_open else "",
+                    kind="primary",
+                )
+            )
+    phases.append(res)
+    # -- certificates
+    cert = Phase(
+        "certificates",
+        "Certificates",
+        "done" if event.results_published_at else "scheduled",
+        "Issue after publishing" if not event.results_published_at else "Ready to issue",
+    )
+    if not archived:
+        cert.actions.append(PhaseAction("Certificates", href=f"{base}/certificates"))
+    phases.append(cert)
+    return phases
+
+
 def more_actions(event: Event) -> list[tuple[str, str, str]]:
     """Reversible-but-disruptive actions, kept out of the primary path."""
     out: list[tuple[str, str, str]] = []

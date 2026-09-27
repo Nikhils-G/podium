@@ -3,7 +3,7 @@ publish guard on the results page, htmx section swaps, and the safe-defaults sta
 
 import asyncio
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -588,3 +588,181 @@ def test_audit_feed_reads_as_sentences(app, db):
     assert describe(entry) == "Something new (evt_01)"
     page = demo(app, "organizer").get(f"/e/{SLUG}/organizer/audit")
     assert page.status_code == 200 and "What happened" in page.text
+
+
+def test_timeline_offers_only_what_the_server_allows(client, auth, db, app):
+    org = auth("organizer")
+    event = db.execute(select(Event).where(Event.slug == SLUG)).scalar_one()
+    phases = {p.key: p for p in dashboard.timeline(db, event)}
+    assert phases["submissions"].state == "closed"
+    labels = [a.label for a in phases["submissions"].actions]
+    assert "Reopen for 1 h" in labels and not [
+        a for a in phases["submissions"].actions if a.enabled and a.date_field
+    ]
+    assert [a.label for a in phases["judging"].actions] == ["Close judging"]
+    publish = phases["results"].actions[0]
+    assert (
+        publish.label == "Publish results"
+        and not publish.enabled
+        and "close judging" in publish.reason
+    )
+    page = demo(app, "organizer").get(f"/e/{SLUG}/organizer")
+    assert 'class="phases"' in page.text and "Close judging" in page.text
+    # a quick deadline move on a fresh open event
+    now = datetime.now(UTC)
+    slug = client.post(
+        "/api/v1/events",
+        headers=org,
+        json={
+            "name": "Timeline Night",
+            "is_public": True,
+            "submissions_open_at": (now - timedelta(hours=1)).isoformat(),
+            "submissions_close_at": (now + timedelta(hours=5)).isoformat(),
+        },
+    ).json()["event"]["slug"]
+    r = demo(app, "organizer").post(
+        f"/e/{slug}/organizer/dates", {"field": "submissions_close_at", "preset": "+15m"}
+    )
+    assert r.status_code == 303
+    closes = client.get(f"/api/v1/events/{slug}", headers=org).json()["event"][
+        "submissions_close_at"
+    ]
+    assert (
+        closes.startswith(now.strftime("%Y-%m-%dT"))
+        and closes < (now + timedelta(minutes=16)).isoformat()
+    )
+    r = demo(app, "organizer").post(
+        f"/e/{slug}/organizer/dates", {"field": "submissions_close_at", "preset": "now"}
+    )
+    assert r.status_code == 303
+    fresh = db.execute(select(Event).where(Event.slug == slug)).scalar_one()
+    db.refresh(fresh)
+    assert fresh.submissions_close_at <= datetime.now(UTC)
+    r = demo(app, "organizer").post(
+        f"/e/{slug}/organizer/dates", {"field": "name", "preset": "now"}
+    )
+    assert r.status_code == 422
+
+
+def test_ranking_confidence_bootstrap():
+    from podium.models import NormalizationMethod, RankingBasis
+    from podium.services.scoring import Results, ReviewScore, confidence
+
+    class P:
+        def __init__(self, i):
+            self.id = i
+            self.public_id = f"prj_{i}"
+
+    class R:  # a stand-in for ProjectResult with the fields confidence reads
+        def __init__(self, project, n):
+            self.project, self.n = project, n
+
+    def results(scores: dict[int, list[float]]):
+        reviews = [
+            ReviewScore(review=None, judge_id=1, project_id=pid, raw=v, z=0.0)
+            for pid, vs in scores.items()
+            for v in vs
+        ]
+        rows = [R(P(pid), len(vs)) for pid, vs in scores.items()]
+        return Results(
+            event=None,
+            criteria=[],
+            reviews=reviews,
+            judges=[],
+            projects=rows,
+            global_mean=0.0,
+            global_std=1.0,
+            method=NormalizationMethod.none,
+            basis=RankingBasis.raw,
+        )
+
+    conf = confidence(results({1: [95, 95, 95], 2: [50, 60, 55], 3: [40, 45, 50]}), seed=1)
+    assert conf[1].p_first == 1.0 and conf[1].p_top3 == 1.0 and conf[1].p_rank == {1: 1.0}
+    assert conf[1].expected_rank == 1.0
+    conf = confidence(results({1: [70, 90], 2: [75, 85]}), seed=1)
+    assert 0 < conf[1].p_first < 1 and 0 < conf[2].p_first < 1 and conf[1].p_top3 == 1.0
+    assert conf[1].p_first + conf[2].p_first >= 1 - 1e-9
+    assert confidence(results({1: [70, 90], 2: [75, 85]}), seed=1) == conf
+    assert confidence(results({1: [70, 90], 2: [75, 85]}), seed=2) != conf
+    conf = confidence(results({1: [80], 2: [70, 90]}), seed=1)
+    assert conf[1].single_review and 1 in conf and conf[2].p_first < 1
+    assert confidence(results({}), seed=1) == {}
+
+
+def test_confidence_on_the_fixture_event(db):
+    from podium.services import scoring
+
+    event = db.execute(select(Event).where(Event.slug == SLUG)).scalar_one()
+    results = scoring.compute(db, event)
+    conf = scoring.confidence(results, seed=event.id)
+    assert len(conf) == 41
+    assert all(0 <= c.p_first <= 1 and 1 <= c.expected_rank <= 41 for c in conf.values())
+    assert sum(c.p_first for c in conf.values()) >= 1 - 1e-9
+    winner = next(p for p in results.projects if p.rank_norm == 1)
+    assert conf[winner.project.id].p_first > 0
+
+
+def test_ballot_page_and_gallery_chips(app, client, auth):
+    from tests.test_forms_sweep import Browser, fresh_user
+
+    org = auth("organizer")
+    now = datetime.now(UTC)
+    slug = client.post(
+        "/api/v1/events",
+        headers=org,
+        json={
+            "name": "Ballot Night",
+            "is_public": True,
+            "submissions_open_at": (now - timedelta(days=1)).isoformat(),
+            "submissions_close_at": (now + timedelta(days=1)).isoformat(),
+            "voting_open_at": (now - timedelta(hours=1)).isoformat(),
+            "voting_close_at": (now + timedelta(hours=1)).isoformat(),
+        },
+    ).json()["event"]["slug"]
+    client.patch(
+        f"/api/v1/events/{slug}/voting",
+        headers=org,
+        json={"quadratic_enabled": True, "voting_credits": 4},
+    )
+    makers = []
+    for i in range(3):
+        b = fresh_user(app, f"ballot-maker{i}@example.test")
+        makers.append(b)
+        assert (
+            b.c.post(f"/api/v1/events/{slug}/teams", json={"name": f"Ballot team {i}"}).status_code
+            == 201
+        )
+        assert (
+            b.c.post(
+                f"/api/v1/events/{slug}/projects",
+                json={"title": f"Ballot entry {i}", "submit": True},
+            ).status_code
+            == 201
+        )
+    visitor = Browser(app)
+    page = visitor.get(f"/e/{slug}/vote")
+    assert (
+        page.status_code == 200
+        and "Sign in to vote" in page.text
+        and page.text.count("ballot__row") == 3
+    )
+    voter = fresh_user(app, "ballot-voter@example.test")
+    page = voter.get(f"/e/{slug}/vote")
+    assert "4</strong> of 4 credits left" in page.text and 'name="compact" value="1"' in page.text
+    pid = re.findall(r'id="vote-(prj_[a-z0-9]+)"', page.text)[0]
+    r = voter.post(f"/e/{slug}/projects/{pid}/vote", {"compact": "1"}, htmx=True)
+    assert (
+        r.status_code == 200
+        and 'id="ballot-credits" class="ballot-bar__credits" hx-swap-oob="true"' in r.text
+    )
+    assert "3</strong> of 4 credits left" in r.text and "You voted" in r.text
+    # the maker sees no button on their own entry, both on the ballot and on the gallery cards
+    own = makers[0].get(f"/e/{slug}/vote").text
+    assert "Your team's project" in own
+    gallery = makers[0].get(f"/e/{slug}/projects").text
+    assert (
+        "Your team's project" in gallery
+        and 'class="card__cover' in gallery
+        and "Open the ballot" in gallery
+    )
+    assert gallery.count('name="compact" value="1"') >= 2, "other entries carry a vote chip"

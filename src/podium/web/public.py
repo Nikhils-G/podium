@@ -131,6 +131,18 @@ def gallery(
         ballot_key=ballot_key,
     )
     voted: set[str] = set()
+    vote_status = voting_service.voter_status(db, ctx.event, voter) if ballot else None
+    my_teams: set[int] = set()
+    if ballot and voter is not None and voter.user is not None:
+        from podium.models import Team, TeamMember
+
+        my_teams = set(
+            db.execute(
+                select(TeamMember.team_id)
+                .join(Team, Team.id == TeamMember.team_id)
+                .where(Team.event_id == ctx.event.id, TeamMember.user_id == voter.user.id)
+            ).scalars()
+        )
     if ballot and voter:
         status = voting_service.voter_status(db, ctx.event, voter)
         ids = {c.public_id for c in data.cards}
@@ -160,6 +172,9 @@ def gallery(
         ballot=ballot,
         voted=voted,
         voter=voter,
+        vote_status=vote_status,
+        my_teams=my_teams,
+        vote_cost=voting_service.cost_of_next_vote,
         oob=template != "public/gallery.html",
     )
     if new_cookie:

@@ -20,6 +20,7 @@
       <a class="podium__name serif" href="/e/{{ event.slug }}/projects/{{ p.project.public_id }}">{{ p.project.title }}</a>
       <span class="podium__team">{{ p.project.team.name }}</span>
       <div class="podium__bar"><span class="podium__rank">{{ ['1st', '2nd', '3rd'][i] }}</span><span class="podium__score">{{ '%.1f'|format(p.normalized if results.basis.value == 'normalized' else p.raw_mean) }}</span></div>
+      {% set c = confidence.get(p.project.id) %}{% if c and not c.single_review %}<span class="podium__confidence" title="Share of {{ c.samples }} bootstrap re-draws of the reviews in which this project held this rank">#{{ i + 1 }} in {{ (c.p_rank.get(i + 1, 0) * 100)|round|int }}% of re-draws</span>{% endif %}
     </div>
     {% endif %}{% endfor %}
   </section>
