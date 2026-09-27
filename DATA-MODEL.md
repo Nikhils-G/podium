@@ -2,7 +2,8 @@
 
 SQLAlchemy 2 declarative models in `src/podium/models/`, migrated with Alembic. SQLite (WAL) by
 default; every type is portable and `PODIUM_DATABASE_URL` switches to Postgres with the same
-migrations. All timestamps are stored as UTC and handed to Python as timezone-aware values
+migrations (smoke-tested against PostgreSQL 17 on 2026-09-27: migrations, seed, acceptance checker
+7/7, organizer pages; CI covers SQLite). All timestamps are stored as UTC and handed to Python as timezone-aware values
 (`UTCDateTime` refuses naive input). Every entity that appears in a URL or an export has a string
 `public_id`; imported rows keep the id they arrived with (`prj_07`, `jdg_24`), new rows get a
 prefixed random id (`prj_k7x2m9qa`). Integer primary keys stay internal.
@@ -95,8 +96,12 @@ the same function behind *Organizer → Data → Import* and `POST /api/v1/event
 shape is the DOGFOOD fixtures format (`event`, `tracks`, `judges`, `teams`, `projects`, `scores`);
 an optional `podium` block carries what that shape can't: event dates and settings, track
 descriptions, prizes, the rubric (weights, scales), project details and status, assignments and
-review statuses. Rows are matched by public id and updated in place, so imports are idempotent; a
-dry run executes the import inside a savepoint and rolls it back, returning the report.
+review statuses. Rows are matched by public id within the target event and updated in place, so
+imports are idempotent; a dry run executes the import inside a savepoint and rolls it back,
+returning the report. Public ids (tracks, teams, projects, prizes) are unique per instance: a file
+that reuses another event's ids is refused with 409 and never rewrites that event, so copying an
+event within one instance needs new row ids as well as a new `event.id`. Applied imports are
+audited (`event.imported`: who, the row counts and the file's SHA-256).
 
 Duplicate detection runs on import: a second project from the same team with the same repository
 (or title) is flagged `duplicate_of` and surfaced on the organizer dashboard — the fixture's
@@ -114,7 +119,7 @@ ranks, a `confidence` column that says `thin` below the review target), `audit`.
 start with `=`, `+`, `-` or `@` are prefixed with a quote so spreadsheets never execute them.
 
 **Between databases.** Point `PODIUM_DATABASE_URL` at Postgres and run the same Alembic
-migrations; move an event by exporting from one instance and importing into another. The
+migrations (this path was smoke-tested against PostgreSQL 17 on 2026-09-27); move an event by exporting from one instance and importing into another. The
 certificate signing key lives in `PODIUM_DATA_DIR/keys/` and must travel with the data if issued
 certificates should keep verifying.
 

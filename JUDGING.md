@@ -204,7 +204,12 @@ same event, and sees no aggregate anywhere in the judge console.
 ## 6. Audit trail
 
 Every sensitive action — role grants, rubric edits with before/after values, assignments,
-review submissions, votes (accepted, rejected and voided), publishing, exports, imports,
-certificate issuance — is an append-only row whose hash commits to the previous row's hash.
-**Organizer → Audit log → Verify chain** recomputes the whole chain; an edited or deleted row
-breaks verification from that point on. The log is filterable in the UI and exportable as CSV.
+review submissions, votes (accepted, rejected and voided), event lifecycle changes (publish, open
+and close judging, publish and unpublish results, archive), imports (who applied the file, the row
+counts and its SHA-256), certificate issuance — is an append-only row whose hash commits to the
+previous row's hash. Exports are read-only GETs and are deliberately not audited. Appends are
+serialised: each row is inserted first, which takes the database write lock (an advisory lock on
+PostgreSQL), and only then linked to the previous row, so two concurrent writers can never link to
+the same head. **Organizer → Audit log → Verify chain** recomputes the whole chain; an edited or
+deleted row breaks verification from that point on. The log is filterable in the UI and
+exportable as CSV.

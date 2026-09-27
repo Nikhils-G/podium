@@ -62,7 +62,7 @@ and "Close judging" stays reachable while voting is open.
 
 | Decision | Alternative considered | Why this one |
 |---|---|---|
-| SQLite in WAL mode as the default | Postgres in compose from day one | One-command boot that can't race a DB container; backup is one file; the schema is portable and `PODIUM_DATABASE_URL` switches to Postgres without code changes |
+| SQLite in WAL mode as the default | Postgres in compose from day one | One-command boot that can't race a DB container; backup is one file; the schema and queries are portable (no SQLite-only SQL functions, enforced by `tests/test_portability.py`) and `PODIUM_DATABASE_URL` switches to Postgres without code changes, smoke-tested against PostgreSQL 17 on 2026-09-27 (migrations, seed, acceptance checker 7/7, organizer pages); CI covers SQLite |
 | Server-rendered Jinja2 + htmx | React SPA | Must run with the network off: zero CDN assets, one build stage. htmx gives live search, autosave and polling without a bundler. The API exists for anyone who wants a different front end |
 | Roles per event (`event_roles`), admin global | a role column on `users` | A person judges one event and competes in another; conflicts of interest become structurally impossible (one role per person per event) |
 | Deterministic demo session tokens (HMAC of secret + role) | random per boot | The committed `.dogfood.toml` must work on a judge's fresh clone; demo sessions are also immune to "Sign out" |

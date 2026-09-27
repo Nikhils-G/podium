@@ -112,13 +112,14 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 | `PODIUM_SECRET_KEY` | dev value | signs sessions, CSRF, voter cookies, demo tokens — **set your own** |
 | `PODIUM_BASE_URL` | `http://localhost:8080` | used in links, invites, certificates |
 | `PODIUM_DATA_DIR` | `./data` (`/data` in Docker) | SQLite database and the signing key |
-| `PODIUM_DATABASE_URL` | unset | e.g. `postgresql+psycopg://…` to use Postgres instead of SQLite (driver included) |
+| `PODIUM_DATABASE_URL` | unset | e.g. `postgresql+psycopg://…` to use Postgres instead of SQLite (driver included; smoke-tested against PostgreSQL 17, CI covers SQLite) |
 | `PODIUM_OPEN_EVENT_CREATION` | `false` | `true` lets any signed-in account create events; by default only instance admins can (the demo organizer is one) |
 | `PODIUM_SEED_FIXTURES` | `true` | load `fixtures/fixtures.json` at boot (idempotent) |
 | `PODIUM_DEMO_ACCOUNTS` | `false` | seed the demo identities and their fixed session tokens (`docker-compose.yml` sets it to `true`) |
 | `PODIUM_DEMO_PASSWORD` | `demo-pass` | password for seeded users |
 | `PODIUM_SESSION_DAYS` | `14` | session lifetime |
-| `PODIUM_RATE_LIMIT_ENABLED` | `true` | per-address limits on login, register, vote, comment |
+| `PODIUM_RATE_LIMIT_ENABLED` | `true` | per-address limits on login, register, vote, voting-code redeem, comment |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1,::1` | uvicorn's own setting: the proxies whose `X-Forwarded-For` is trusted. Behind a reverse proxy, publish the port as `127.0.0.1:8080:8080` and list the proxy's address (or the Docker bridge subnet); use `*` only when the proxy overwrites `X-Forwarded-For`. Otherwise every user shares the Docker gateway's rate-limit bucket |
 | `PODIUM_WEBHOOK_WORKER` | `true` | in-process webhook delivery loop |
 | `PODIUM_COOKIE_SECURE` | derived from base URL | force the Secure cookie flag |
 
@@ -132,7 +133,9 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
   `PODIUM_SEED_FIXTURES=false`; put a reverse proxy (Caddy, nginx) in front for TLS; keep one
   container per instance (rate limits and the webhook worker are in-process).
 - **Postgres**: set `PODIUM_DATABASE_URL`; the `psycopg` driver is installed, the schema uses only
-  portable types and the same migrations apply. Export from one instance and import into another to move an event.
+  portable types and the same migrations apply. Smoke-tested against PostgreSQL 17 on 2026-09-27:
+  migrations, seed (twice), the acceptance checker 7/7 and the organizer pages; CI covers SQLite
+  only. Export from one instance and import into another to move an event.
 - **Email**: Podium never sends email. Judge invitations and voting codes are links and codes the
   organizer distributes; no SMTP configuration is required.
 - **Health**: `GET /healthz` → `{"status":"ok"}`; the Docker image has a healthcheck.
@@ -167,6 +170,9 @@ tests grouped by tier on every push.
 - Open-link voting is deliberately weak (one vote per browser cookie); use codes or accounts when
   it matters. Bursts from one address are flagged for review, not blocked.
 - No file uploads: projects link to their repositories, demos and videos.
+- Accounts that an import creates share `PODIUM_DEMO_PASSWORD` (there is no email to send a reset).
+  Import people who already have accounts, or set a strong `PODIUM_DEMO_PASSWORD` and have them
+  change it at `/account`.
 - English UI; all times are stored and shown in UTC with the viewer's local time alongside.
 - The Bradley-Terry ranking on the demo event is computed from comparisons *derived* from the
   fixture scores (clearly labelled) so the feature has data to show; real events use judges' own
