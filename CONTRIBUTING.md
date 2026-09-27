@@ -15,9 +15,10 @@ make test    # pytest
 make lint    # ruff check + ruff format --check
 ```
 
-CI runs the same checks, rebuilds the Docker image, runs the organizer's acceptance checker
-against it and inside a container with no network, and fails if the output differs from the
-committed `acceptance-report.txt`. Never edit that file by hand.
+CI runs the same checks on every pull request, rebuilds the Docker image, runs the organizer's
+acceptance checker against it (failing if the output differs from the committed
+`acceptance-report.txt` by a byte) and again inside a container with no network (requiring 7 of
+7). Never edit that file by hand.
 
 ## House rules
 

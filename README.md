@@ -17,7 +17,8 @@ projects, 30 judges, 8 tracks and 126 reviews — and prints test logins for eve
 ## Check every claim
 
 1. **Run it:** `docker compose up`, then open <http://localhost:8080>. Nothing is fetched at run
-   time; CI boots the same image with `--network none` on every push.
+   time; CI boots the same image with `--network none` on every push to main and every pull
+   request.
 2. **The official checker:** `python3 tools/run.py .dogfood.toml` prints 7 of 7 checks passing and
    `claimed T1 T2 T3 T4, verified T1 T2`. [`acceptance-report.txt`](acceptance-report.txt) is its
    exact output; [CI](https://github.com/Nikhils-G/podium/actions/workflows/ci.yml) rebuilds the
@@ -114,9 +115,9 @@ in the UI, the API, the test suite (`tests/test_voting.py`, `tests/test_t4.py`) 
 The checker's requests are mirrored in `tests/test_acceptance.py`, so a regression on any checked
 route fails `make test` before it fails the judges' run.
 
-CI re-runs this command on every push against a fresh `docker compose up` and inside a container
-with no network, and fails if the output differs from the committed `acceptance-report.txt` by a
-single byte. `tools/fixtures.json` is a byte-identical copy kept beside the checker, as the spec
+On every push to main and every pull request, CI runs this command against a fresh
+`docker compose up` and fails if the output differs from the committed `acceptance-report.txt` by
+a single byte; a second job runs it inside a container with no network and requires 7 of 7. `tools/fixtures.json` is a byte-identical copy kept beside the checker, as the spec
 suggests, so `python3 tools/run.py .dogfood.toml` also works without the flag.
 
 ## Configuration
@@ -187,14 +188,14 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 ## Development
 
 ```
-make test      # pytest — 231 tests on a temp database seeded from the real fixtures
+make test      # pytest — 238 tests on a temp database seeded from the real fixtures
 make lint      # ruff
 make check     # run the organizer's checker against a running portal → acceptance-report.txt
 make clean-verify   # what a judge does: rebuild without cache, boot, run the checker
 ```
 
 CI (`.github/workflows/ci.yml`) runs lint, the migration round trip and drift check, and the
-tests grouped by tier on every push.
+tests grouped by tier on every push to main and every pull request.
 
 ## Honest limitations
 
