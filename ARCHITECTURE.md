@@ -33,6 +33,17 @@ same code path as *Organizer → Data → Import*. Rows are matched by their pub
 re-running is idempotent and an export re-imports losslessly. Fixture ids (`prj_07`, `jdg_24`)
 survive as public ids, which is why `.dogfood.toml` can name `jdg_24` and the URL stays stable.
 
+## Event lifecycle
+
+An event's stage is never stored; `services/events.stage_of()` derives it from set-once
+timestamps and flags, in this priority: **archived** → **published** (results) → **voting**
+(window open now) → **judging** (opened, not closed) → **judging closed** (opened and closed,
+results not yet published) → **draft** (not public) → **upcoming** → **submissions closed** →
+**open**. The organizer dashboard turns that into a run-of-show timeline whose actions are
+exactly the ones the service layer would accept at that moment, so the UI can never suggest
+undoing the last step. Voting is independent of judging: it can run before, during or after,
+and "Close judging" stays reachable while voting is open.
+
 ## Request lifecycle
 
 1. `SecurityHeadersMiddleware` mints a per-request CSP nonce and sets the headers

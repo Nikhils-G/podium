@@ -18,8 +18,8 @@ projects, 30 judges, 8 tracks and 126 reviews — and prints test logins for eve
 |---|---|---|
 | **T1 Core** | Accounts and sessions; per-event roles (participant, judge, organizer, admin, visitor); events with dates, tracks and prizes; teams by invite link; draft → submit → edit until the deadline; deadline enforced server-side; public gallery with search and filters | ✅ |
 | **T2 Judging** | Judge invitations by link; organizer-weighted rubric; manual and balanced auto-assignment with preview; judge console with autosaving reviews; **role isolation enforced in the backend**; live progress dashboard; per-judge normalization with a documented method; CSV export at every stage | ✅ |
-| **T3 Public** | Community voting (signed-in, single-use codes, or open link), optional quadratic budgets; comments; results and vote counts hidden until the window closes *and* the organizer publishes; per-voter randomized ballots; rate limits, duplicate detection, burst flagging, honeypot, audit trail | ✅ |
-| **T4 Stretch** | REST API covering every console action with OpenAPI docs served offline; webhooks with HMAC-signed, retried deliveries; ed25519-signed certificates and judge records with public verification; embeddable gallery; whole-event JSON import/export | ✅ |
+| **T3 Public** | Community voting (signed-in, single-use codes, or open link), optional quadratic budgets; comments; results and vote counts hidden until the window closes *and* the organizer publishes; per-voter randomized ballots; rate limits, duplicate detection, burst flagging, honeypot, audit trail | ✅ built · human-judged |
+| **T4 Stretch** | REST API covering every console action with OpenAPI docs served offline; webhooks with HMAC-signed, retried deliveries; ed25519-signed certificates and judge records with public verification; embeddable gallery; whole-event JSON import/export | ✅ built · human-judged |
 | **Bonuses** | Normalization proof on the fixture data (Results page + `JUDGING.md`); Bradley-Terry pairwise judging mode; `THREAT-MODEL.md`; API-first design with a full OpenAPI spec | ✅ |
 
 ## Run it
@@ -73,7 +73,7 @@ the secret and disable demo accounts before running a real event — see *Operat
 4. **Sign in as judge_a** → the queue, then open a project: segmented 1–5 scoring with a live
    weighted total, autosave, keyboard shortcuts; the **Compare** tab for pairwise choices. Try to
    open `/api/v1/events/sample-hack-2026/judges/jdg_26/reviews` as this judge — **403**.
-5. **Voting** (organizer → Voting) → choose a mode, set a window in Settings, and vote as a
+5. **Voting** (organizer → Voting) → set the window and choose a mode on the Voting page, then vote as a
    participant from the gallery; counts stay hidden until you publish.
 6. **Integrations / Data / Certificates** → add a webhook and watch deliveries, download
    `export.json` and re-import it (dry run), issue judge records and verify one at `/verify`.
@@ -139,7 +139,7 @@ All configuration is environment variables with the `PODIUM_` prefix (or a `.env
 ## Development
 
 ```
-make test      # pytest — 118 tests on a temp database seeded from the real fixtures
+make test      # pytest — 150 tests on a temp database seeded from the real fixtures
 make lint      # ruff
 make check     # run the organizer's checker against a running portal → acceptance-report.txt
 make clean-verify   # what a judge does: rebuild without cache, boot, run the checker

@@ -79,6 +79,10 @@ Indexes exist on every foreign key and on the hot pairs (`projects(event, status
 
 ## What is computed, not stored
 
+The event **stage** (draft, upcoming, open, closed, judging, judging closed, voting,
+published, archived) is derived on every request from the timestamps on `events`; see
+ARCHITECTURE.md → Event lifecycle.
+
 Raw weighted totals, normalized scores, ranks, ties, disagreement, judge calibration statistics,
 vote tallies, Bradley-Terry strengths, judging progress, the event stage, and every "attention"
 flag. See `JUDGING.md` for the formulas. This is deliberate: an organizer can change a weight or

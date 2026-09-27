@@ -128,6 +128,29 @@ All figures above regenerate on the Results page and in `scores.csv`.
 - With very few reviews per project the disagreement figure is noisy; treat it as a flag, not a
   measurement.
 
+### Ranking confidence (bootstrap)
+
+A ranking is only as settled as the reviews behind it. Podium re-draws every project's own
+reviews with replacement 300 times (judge calibration held fixed), re-ranks the field each time
+with the same tie rule, and counts where each project lands. The organizer's Results page shows,
+per project, the share of re-draws in which it came first and in the top three plus its expected
+rank; the public podium says "#1 in N% of re-draws". A project with a single review cannot be
+re-drawn and shows no estimate, but still acts as a fixed competitor for the others.
+
+On the fixture data (seed = the event id, so the numbers are reproducible):
+
+| Published rank | Project | Reviews | First in | Top 3 in | Expected rank |
+|---:|---|---:|---:|---:|---:|
+| 1 | prj_34 Iron Switch | 3 | 47% | 98% | 1.7 |
+| 2 | prj_11 Salt Ledger | 4 | 0% | 35% | 4.2 |
+| 3 | prj_33 Slow Trail | 3 | 0% | 13% | 5.4 |
+| 4 | prj_37 Salt Loom | 4 | 30% | 33% | 8.6 |
+| 5 | prj_25 Dry Relay | 3 | 7% | 21% | 7.5 |
+
+Read honestly: the winner is a clear top-three project but holds first place in fewer than half
+the re-draws, and the fourth-placed Salt Loom takes first in almost a third of them. Two or three
+reviews per project is not enough to separate neighbours — which is the point of showing it.
+
 ## 4. Pairwise mode (Bradley-Terry)
 
 Judges can also compare two of their assigned projects at a time (Judge console → Compare; the
@@ -141,7 +164,12 @@ with one virtual win and one virtual loss for every project against a fixed refe
 strength 1, so the comparison graph is always connected and every strength is finite even for
 projects compared once. Strengths are normalised to geometric mean 1 and reported as
 log-strength. The Results page shows the Bradley-Terry ranking beside the normalized one with
-Spearman's ρ between them.
+Spearman's ρ between them, computed on the projects both rankings know and re-ranked densely
+within that shared set (ranks from sets of different sizes are not comparable; an earlier build
+printed ρ = −251 for exactly that reason). ρ is reported twice: over every comparison, and over
+the comparisons judges actually made in the compare tab. Only the second one measures agreement.
+Derived comparisons are built from the scores themselves, so their ρ is circular by construction
+and the page says so.
 
 On the fixture data Podium derives comparisons from the scored reviews (every pair of projects a
 judge scored differently becomes a comparison, flagged *derived* and never mixed up with real
