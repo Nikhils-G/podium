@@ -38,6 +38,11 @@ class Conflict(PodiumError):
     code = "conflict"
 
 
+class PayloadTooLarge(PodiumError):
+    status_code = 413
+    code = "payload_too_large"
+
+
 class ValidationFailed(PodiumError):
     status_code = 422
     code = "validation_failed"

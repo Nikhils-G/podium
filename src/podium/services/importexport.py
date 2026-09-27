@@ -9,6 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from podium import __version__
+from podium.config import Settings
+from podium.errors import Conflict, Forbidden, ValidationFailed
 from podium.models import (
     Assignment,
     AuditLog,
@@ -31,7 +33,9 @@ from podium.models import (
     Vote,
     utcnow,
 )
-from podium.seed.fixtures import ImportReport, import_fixtures
+from podium.security.deps import is_organizer
+from podium.seed.fixtures import ImportReport, foreign_ids, import_fixtures
+from podium.services import audit
 
 
 def _iso(value):
@@ -342,11 +346,36 @@ def validate_shape(data) -> list[str]:
 
 
 def import_event(
-    db: DbSession, data: dict, *, dry_run: bool, default_password: str
+    db: DbSession,
+    data: dict,
+    *,
+    dry_run: bool,
+    default_password: str,
+    actor: User | None = None,
+    source_sha256: str = "",
 ) -> ImportOutcome:
     errors = validate_shape(data)
     if errors:
         return ImportOutcome(report=ImportReport(), dry_run=dry_run, errors=errors)
+    event = db.execute(
+        select(Event).where(Event.public_id == data["event"]["id"])
+    ).scalar_one_or_none()
+    foreign = foreign_ids(db, data, event)
+    if foreign:
+        shown = ", ".join(foreign[:5]) + (", …" if len(foreign) > 5 else "")
+        which = (
+            "1 id in this file already belongs"
+            if len(foreign) == 1
+            else (f"{len(foreign)} ids in this file already belong")
+        )
+        return ImportOutcome(
+            report=ImportReport(),
+            dry_run=dry_run,
+            errors=[
+                f"{which} to another event ({shown}); "
+                "export that event again or give these rows new ids."
+            ],
+        )
     if dry_run:
         # SAVEPOINT: run the whole import, then roll it back — the report is what apply would do.
         db.begin_nested()
@@ -355,5 +384,64 @@ def import_event(
         finally:
             db.rollback()
         return ImportOutcome(report=report, dry_run=True, event_slug=report.event_slug)
-    report = import_fixtures(db, data, default_password=default_password, commit=True)
+    report = import_fixtures(db, data, default_password=default_password, commit=False)
+    event = db.execute(select(Event).where(Event.slug == report.event_slug)).scalar_one()
+    audit.record(
+        db,
+        "event.imported",
+        "event",
+        event.public_id,
+        event_id=event.id,
+        actor_id=actor.id if actor else None,
+        meta={"counts": dict(report.counts), "sha256": source_sha256},
+    )
+    db.commit()
     return ImportOutcome(report=report, dry_run=False, event_slug=report.event_slug)
+
+
+def import_for_user(
+    db: DbSession,
+    data,
+    user: User,
+    *,
+    settings: Settings,
+    dry_run: bool,
+    source_sha256: str = "",
+) -> ImportOutcome:
+    """The import rules for one account: update only an event you organize, create one only where
+    event creation is allowed to you, and refuse (409) a file that reaches into another event."""
+    errors = validate_shape(data)
+    if errors:
+        raise ValidationFailed("; ".join(errors), errors={"file": "; ".join(errors)})
+    existing = db.execute(
+        select(Event).where(Event.public_id == data["event"]["id"])
+    ).scalar_one_or_none()
+    if existing is not None and not is_organizer(db, existing, user):
+        raise Forbidden("An event with that id exists and you don't organize it.")
+    if existing is None and not (user.is_admin or settings.open_event_creation):
+        raise Forbidden("Only instance admins can create events on this Podium.")
+    outcome = import_event(
+        db,
+        data,
+        dry_run=dry_run,
+        default_password=settings.demo_password,
+        actor=user,
+        source_sha256=source_sha256,
+    )
+    if outcome.errors:
+        raise Conflict(" ".join(outcome.errors))
+    if not dry_run and existing is None:
+        event = db.execute(select(Event).where(Event.slug == outcome.event_slug)).scalar_one()
+        if not is_organizer(db, event, user):
+            db.add(EventRole(event_id=event.id, user_id=user.id, role=Role.organizer))
+            audit.record(
+                db,
+                "organizer.added",
+                "user",
+                user.public_id,
+                event_id=event.id,
+                actor_id=user.id,
+                meta={"email": user.email, "via": "import"},
+            )
+            db.commit()
+    return outcome

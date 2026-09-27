@@ -56,12 +56,15 @@ def _user_by_email(db: DbSession, email: str) -> User | None:
     return db.execute(select(User).where(User.email == email.lower())).scalar_one_or_none()
 
 
-def _ensure_user(db: DbSession, email: str, name: str, password_hash: str) -> User:
+def _ensure_user(
+    db: DbSession, email: str, name: str, password_hash: str, report: ImportReport
+) -> User:
     user = _user_by_email(db, email)
     if user is None:
         user = User(email=email.lower(), name=name, password_hash=password_hash)
         db.add(user)
         db.flush()
+        report.counts["accounts"] = report.counts.get("accounts", 0) + 1
     return user
 
 
@@ -75,6 +78,32 @@ def _ensure_role(db: DbSession, event: Event, user: User, role: Role, report: Im
         report.warnings.append(
             f"{user.email} is already {row.role} in this event; not changed to {role}"
         )
+
+
+def foreign_ids(db: DbSession, data: dict, event: Event | None) -> list[str]:
+    """Ids in the file that already belong to another event (any match, for a new event).
+    Rows are matched by instance-wide public ids, so without this check a file could rewrite
+    another event's tracks, teams, projects or prizes."""
+    ext = data.get("podium") if isinstance(data.get("podium"), dict) else {}
+    sections = [data.get(k) for k in ("tracks", "teams", "projects")] + [ext.get("prizes")]
+    ids = {
+        row["id"]
+        for rows in sections
+        if isinstance(rows, list)
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("id"), str)
+    }
+    if not ids:
+        return []
+    from podium.models import Prize
+
+    found: set[str] = set()
+    for model in (Track, Team, Project, Prize):
+        query = select(model.public_id).where(model.public_id.in_(ids))
+        if event is not None:
+            query = query.where(model.event_id != event.id)
+        found.update(db.execute(query).scalars())
+    return sorted(found)
 
 
 def import_fixtures_file(db: DbSession, path: Path, *, default_password: str) -> ImportReport:
@@ -143,6 +172,7 @@ def import_fixtures(
             db.add(user)
             db.flush()
             counts["judges"] = counts.get("judges", 0) + 1
+            counts["accounts"] = counts.get("accounts", 0) + 1
         judges[j["id"]] = user
         _ensure_role(db, event, user, Role.judge, report)
         for track_id in j.get("tracks", []):
@@ -178,7 +208,7 @@ def import_fixtures(
         teams[t["id"]] = team
         for index, email in enumerate(t.get("members", [])):
             name = email.split("@")[0].replace(".", " ").replace("_", " ").title()
-            user = _ensure_user(db, email, name, password_hash)
+            user = _ensure_user(db, email, name, password_hash, report)
             _ensure_role(db, event, user, Role.participant, report)
             member = db.execute(
                 select(TeamMember).where(

@@ -1,5 +1,6 @@
 """Integrations (webhooks, embed, API), data (import/export) and certificates for organizers."""
 
+import hashlib
 import json
 import re
 import secrets
@@ -246,9 +247,23 @@ async def data_import(
             ),
         )
     dry_run = mode == "dry_run"
-    outcome = importexport.import_event(
-        db, data, dry_run=dry_run, default_password=settings.demo_password
-    )
+    try:
+        outcome = importexport.import_for_user(
+            db,
+            data,
+            ctx.user,
+            settings=settings,
+            dry_run=dry_run,
+            source_sha256=hashlib.sha256(raw).hexdigest(),
+        )
+    except PodiumError as exc:
+        return render(
+            request,
+            "organizer/data.html",
+            status_code=exc.status_code,
+            title="Import & export",
+            **_console(ctx, "data", outcome=None, error=exc.message),
+        )
     import_token = None
     if dry_run:
         import_token = secrets.token_urlsafe(24)

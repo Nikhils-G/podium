@@ -1,5 +1,6 @@
 """Account & tokens, webhooks, certificates, import/export — the T4 API surface."""
 
+import hashlib
 import json
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -8,8 +9,8 @@ from sqlalchemy.orm import Session as DbSession
 
 from podium.config import Settings, get_settings
 from podium.db import get_db
-from podium.errors import Forbidden, NotFound, ValidationFailed
-from podium.models import Event, Role, User
+from podium.errors import NotFound, PayloadTooLarge, ValidationFailed
+from podium.models import Role, User
 from podium.schemas.integrations import (
     TokenCreate,
     WebhookCreate,
@@ -21,7 +22,6 @@ from podium.schemas.integrations import (
 from podium.schemas.responses import MeOut, TokensOut, VerifyOut
 from podium.security.deps import (
     EventContext,
-    is_organizer,
     require_event_role,
     require_organizer,
     require_user,
@@ -267,30 +267,24 @@ async def import_event(
     """Import a fixtures/export JSON.
     Creates the event (you become organizer) or updates it in place
     if you organize it. `dry_run=true` (default) reports what would change without writing."""
+    limit = 20 * 1024 * 1024
+    if int(request.headers.get("content-length") or 0) > limit:
+        raise PayloadTooLarge("That file is larger than 20 MB.")
+    raw = await request.body()
+    if len(raw) > limit:
+        raise PayloadTooLarge("That file is larger than 20 MB.")
     try:
-        data = json.loads(await request.body())
+        data = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise ValidationFailed(errors={"body": f"Invalid JSON: {exc}"}) from exc
-    errors = importexport.validate_shape(data)
-    if errors:
-        raise ValidationFailed(errors={"file": "; ".join(errors)})
-    from sqlalchemy import select
-
-    existing = db.execute(
-        select(Event).where(Event.public_id == data["event"]["id"])
-    ).scalar_one_or_none()
-    if existing is not None and not is_organizer(db, existing, user):
-        raise Forbidden("An event with that id exists and you don't organize it.")
-    outcome = importexport.import_event(
-        db, data, dry_run=dry_run, default_password=settings.demo_password
+    outcome = importexport.import_for_user(
+        db,
+        data,
+        user,
+        settings=settings,
+        dry_run=dry_run,
+        source_sha256=hashlib.sha256(raw).hexdigest(),
     )
-    if not dry_run and existing is None and outcome.event_slug:
-        from podium.models import EventRole
-
-        event = db.execute(select(Event).where(Event.slug == outcome.event_slug)).scalar_one()
-        if not is_organizer(db, event, user):
-            db.add(EventRole(event_id=event.id, user_id=user.id, role=Role.organizer))
-            db.commit()
     return {
         "dry_run": outcome.dry_run,
         "event": outcome.event_slug,

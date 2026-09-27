@@ -21,6 +21,30 @@ def run_seed(db: DbSession, settings: Settings) -> SeedSummary:
         summary.report = import_fixtures_file(
             db, settings.fixtures_path, default_password=settings.demo_password
         )
+        if summary.report.counts:  # only the boot that actually loaded something is recorded
+            import hashlib
+
+            from sqlalchemy import select
+
+            from podium.models import Event
+            from podium.services import audit
+
+            event = db.execute(
+                select(Event).where(Event.slug == summary.report.event_slug)
+            ).scalar_one()
+            audit.record(
+                db,
+                "event.imported",
+                "event",
+                event.public_id,
+                event_id=event.id,
+                meta={
+                    "source": settings.fixtures_path.name,
+                    "sha256": hashlib.sha256(settings.fixtures_path.read_bytes()).hexdigest(),
+                    "counts": dict(summary.report.counts),
+                },
+            )
+            db.commit()
     if settings.demo_accounts:
         summary.logins = ensure_demo_accounts(db, settings)
     if summary.report is not None and summary.report.event_slug:
