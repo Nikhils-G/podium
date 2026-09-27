@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 — unreleased
+## 1.0.0 — 2026-09-27
 
 The first release: every tier of the DOGFOOD 2026 brief and all four bonuses.
 

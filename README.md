@@ -29,7 +29,14 @@ projects, 30 judges, 8 tracks and 126 reviews — and prints test logins for eve
    from now to an hour from now with *Signed-in accounts* → sign in as the participant → open
    `/e/sample-hack-2026/vote` → cast a vote. Counts stay hidden until the window closes *and* the
    results are published.
-5. **The five-minute demo video** is linked here once it is published.
+5. **Watch the demo video:** <https://vimeo.com/1230731798> — the full lifecycle (set-up, submission,
+   judging, publishing) shown with the demo accounts.
+
+## Screenshots
+
+| Organizer dashboard | Results and normalization | Judge scoring |
+|---|---|---|
+| ![The organizer dashboard: run-of-show timeline, key numbers and the Attention panel](docs/screenshots/dashboard.png) | ![Results: raw and normalized ranks side by side with the rank-shift chart](docs/screenshots/results.png) | ![A judge's review form with weighted criteria and the privacy note](docs/screenshots/review.png) |
 
 ## What it does
 
@@ -110,7 +117,7 @@ python3 tools/run.py .dogfood.toml --fixtures fixtures/fixtures.json
 `acceptance-report.txt` in this repo is that command's output against the Docker build. Every T1
 and T2 check passes. The checker has no automated checks for T3 and T4, so it prints
 `claimed but not verified: T3 T4` for any submission that claims them; those tiers are demonstrated
-in the UI, the API, the test suite (`tests/test_voting.py`, `tests/test_t4.py`) and the demo video.
+in the UI, the API, the test suite (`tests/test_voting.py`, `tests/test_t4.py`) and the [demo video](https://vimeo.com/1230731798).
 
 The checker's requests are mirrored in `tests/test_acceptance.py`, so a regression on any checked
 route fails `make test` before it fails the judges' run.
