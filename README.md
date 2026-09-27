@@ -204,7 +204,7 @@ make clean-verify   # what a judge does: rebuild without cache, boot, run the ch
 CI (`.github/workflows/ci.yml`) runs lint, the migration round trip and drift check, and the
 tests grouped by tier on every push to main and every pull request.
 
-## Honest limitations
+## Known limits and trade-offs
 
 - Rate limiting and the webhook worker are in-process; run one container per instance (or move
   both to a shared store before scaling out).
