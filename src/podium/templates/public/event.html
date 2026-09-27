@@ -8,7 +8,7 @@
     <div class="page-header__meta">{{ stage_badge(stage, stage_label) }}<span>Submissions {{ 'close' if submissions_open else 'closed' }} {{ when(event.submissions_close_at) }}</span></div>
   </div>
 </div>
-<div class="two-col two-col--wide">
+<div class="two-col two-col--wide two-col--action-first">
   <div class="stack-lg">
     {% if event.description %}<p class="text-lg ink-2">{{ event.description }}</p>{% endif %}
     <section class="stack">

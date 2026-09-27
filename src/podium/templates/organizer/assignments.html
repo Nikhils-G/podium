@@ -5,7 +5,7 @@
 {% if request.query_params.get('applied') %}{{ alert('success', request.query_params.get('applied')|plural('assignment') ~ ' created.') }}{% endif %}
 {% if request.query_params.get('saved') == 'assigned' %}{{ alert('success', 'Assigned. The projects are in the judge\'s queue now.') }}{% elif request.query_params.get('saved') == 'unassigned' %}{{ alert('success', 'Assignment removed.') }}{% endif %}
 {% if errors.manual %}{{ alert('critical', errors.manual) }}{% endif %}
-<div class="two-col two-col--wide mt-4">
+<div class="two-col two-col--wide two-col--aside-first-lg mt-4">
   <section class="stack">
     <h2>By judge</h2>
     {% if loads %}

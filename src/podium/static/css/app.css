@@ -181,6 +181,13 @@
     .menu--mobile .menu { position: static; }
     .menu--mobile .menu > summary { display: flex; }
     .menu--mobile .menu__panel .menu__panel { position: static; box-shadow: none; border: 0; padding-left: var(--s-3); }
+    /* phone menu rows: 44 px targets with a visible current page */
+    .menu--mobile .menu__panel > a:not(.btn) { display: flex; align-items: center; min-height: 44px; padding: 0 var(--s-3); border-radius: var(--r-1); color: var(--ink); font-weight: 500; }
+    .menu--mobile .menu__panel > a:not(.btn):hover { background: var(--surface-sunken); text-decoration: none; }
+    .menu--mobile .menu__panel > a[aria-current="page"] { background: var(--surface-sunken); font-weight: 600; }
+    .menu--mobile .menu__panel > a.btn { min-height: 44px; }
+    .two-col--action-first > aside { order: -1; }  /* your status and next step right under the title */
+    .publish-note { justify-items: start; text-align: left; }
     .topbar__stage { display: none; }
     .topbar__event { max-width: 140px; }
   }
@@ -196,9 +203,9 @@
   .card--next h2 { font-size: 20px; }
   details.more > summary { cursor: pointer; color: var(--ink-2); }
   .meta { white-space: pre-wrap; overflow-wrap: anywhere; }
-  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; position: relative; }  /* keeps visually-hidden cells inside the scroller */
   .container--wide { max-width: 1400px; }
-  .topbar__crumb { margin-inline: -4px; }
+  @media (min-width: 768px) { .topbar__crumb { margin-inline: -4px; } }  /* phones keep the slash apart */
   .topbar__event { color: var(--ink); font-weight: 500; }
   .shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-5); padding-block: var(--s-5) var(--s-8); }
   .shell > * { min-width: 0; }
@@ -294,8 +301,8 @@
   .card__summary { color: var(--ink-2); font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .card__meta { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; font-size: 13px; color: var(--ink-muted); }
   .card__links { display: flex; gap: var(--s-2); margin-top: auto; position: relative; z-index: 1; }
-  .card__links a { font-size: 13px; padding: 4px 8px; border-radius: var(--r-1); background: var(--surface-sunken); color: var(--ink-2); }
-  .card__links a:hover { color: var(--ink); text-decoration: none; }
+  .card__links a:not(.btn) { font-size: 13px; padding: 4px 8px; border-radius: var(--r-1); background: var(--surface-sunken); color: var(--ink-2); }
+  .card__links a:not(.btn):hover { color: var(--ink); text-decoration: none; }
   .card--event { gap: var(--s-2); }
   .card--event .card__title { font-family: var(--font-display); font-weight: 500; font-size: 24px; letter-spacing: 0; }
 
@@ -758,4 +765,11 @@
   .review-privacy { flex-basis: 100%; }
   @media (pointer: coarse) { .kbd-hint { display: none; } }
   @media (max-width: 767px) { .compare__arrow { display: none; } }
+}
+
+@layer components {
+  /* below the two-column breakpoint the side panel with the actions comes first */
+  @media (max-width: 1023px) { .two-col--aside-first-lg > aside { order: -1; } .shell__main { padding-top: 0; } }
+  /* 44 px touch targets in the phone menu (these beat .btn--sm, which lives in this layer) */
+  @media (max-width: 767px) { .menu--mobile .menu__panel > a.btn, .menu--mobile .menu > summary { min-height: 44px; } }
 }

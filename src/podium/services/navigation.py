@@ -33,6 +33,7 @@ class Membership:
     done: int = 0
     total: int = 0
     next_at: datetime | None = None  # a date the label ends with, rendered in local time
+    next_verb: str = ""  # the button text: what the link opens
 
     @property
     def role_label(self) -> str:
@@ -87,32 +88,32 @@ def _judge_next(db, event, user) -> tuple[str, str, int, int]:
     return "All reviews submitted · compare or view records", f"{base}/compare", done, total
 
 
-def _participant_next(db, event, user, stage: Stage) -> tuple[str, str]:
+def _participant_next(db, event, user, stage: Stage) -> tuple[str, str, str]:
+    """(what's next, where, the button text)."""
     from podium.security.deps import submissions_are_open
 
     team, project = participant_state(db, event, user)
     base = f"/e/{event.slug}"
     if stage == Stage.published:
-        return "Results are out", f"{base}/results"
+        return "Results are out", f"{base}/results", "See the results"
     if team is None:
         if submissions_are_open(event):
-            return "Create or join a team", f"{base}/team"
-        return "Submissions are closed", base
+            return "Create or join a team", f"{base}/team", "Set up your team"
+        return "Submissions are closed", base, "Open the event"
     if project is None:
         if submissions_are_open(event):
-            return "Submit your project", f"{base}/submit"
-        return "Submissions closed before you submitted", f"{base}/team"
+            return "Submit your project", f"{base}/submit", "Start your submission"
+        return "Submissions closed before you submitted", f"{base}/team", "Open your team"
     if project.status == ProjectStatus.draft:
-        return (
-            "Finish and submit your draft"
-            if submissions_are_open(event)
-            else "Draft was never submitted"
-        ), f"{base}/submit"
+        if submissions_are_open(event):
+            return "Finish and submit your draft", f"{base}/submit", "Finish your draft"
+        return "Draft was never submitted", f"{base}/submit", "Open your draft"
+    page = f"{base}/projects/{project.public_id}"
     if project.status == ProjectStatus.withdrawn:
-        return "Your project is withdrawn", f"{base}/projects/{project.public_id}"
+        return "Your project is withdrawn", page, "Open your project"
     if submissions_are_open(event):
-        return "Submitted · edit until the deadline", f"{base}/projects/{project.public_id}"
-    return "Submitted · awaiting results", f"{base}/projects/{project.public_id}"
+        return "Submitted · edit until the deadline", page, "Open your project"
+    return "Submitted · awaiting results", page, "Open your project"
 
 
 def _organizer_next(db, event) -> tuple[str, str, datetime | None]:
@@ -138,12 +139,13 @@ def memberships(db: DbSession, user: User | None) -> list[Membership]:
         stage = stage_of(event)
         done = total = 0
         at = None
+        verb = ""
         if role_row.role == Role.organizer:
             label, href, at = _organizer_next(db, event)
         elif role_row.role == Role.judge:
             label, href, done, total = _judge_next(db, event, user)
         else:
-            label, href = _participant_next(db, event, user, stage)
+            label, href, verb = _participant_next(db, event, user, stage)
         out.append(
             Membership(
                 event=event,
@@ -155,6 +157,7 @@ def memberships(db: DbSession, user: User | None) -> list[Membership]:
                 done=done,
                 total=total,
                 next_at=at,
+                next_verb=verb,
             )
         )
     if user.is_admin:
