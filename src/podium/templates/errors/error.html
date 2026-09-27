@@ -9,6 +9,7 @@
     {% if status == 401 %}<a class="btn btn--primary" href="/login?next={{ request.url.path|urlencode }}">Sign in</a>
     {% elif status == 403 and user %}<form method="post" action="/logout" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--secondary" type="submit">Sign in as a different account</button></form>
     {% endif %}
+    {% if queue_href %}<a class="btn btn--primary" href="{{ queue_href }}">Back to your queue</a>{% endif %}
     <a class="btn btn--ghost" href="/">Back to home</a>
   </div>
 </div>

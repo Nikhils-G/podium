@@ -355,7 +355,8 @@
   }
   document.addEventListener("submit", function (e) {
     var form = e.target;
-    if (!(form instanceof HTMLFormElement) || !form.hasAttribute("data-confirm")) return;
+    var submitterConfirm = e.submitter && e.submitter.getAttribute("data-confirm");
+    if (!(form instanceof HTMLFormElement) || !(form.hasAttribute("data-confirm") || submitterConfirm)) return;
     if (form.dataset.confirmed === "1") { delete form.dataset.confirmed; return; }
     e.preventDefault();
     e.stopImmediatePropagation();  // htmx must not send the request until the person confirms
@@ -363,7 +364,7 @@
     var label = submitter ? submitter.textContent.trim() : "Confirm";
     // "Remove X? It stops working." → title "Remove X?", body "It stops working."; a statement
     // without a question gets the button's verb as its title ("Close now?").
-    var text = (form.getAttribute("data-confirm") || "").trim();
+    var text = (submitterConfirm || form.getAttribute("data-confirm") || "").trim();
     var title = form.getAttribute("data-confirm-title");
     var body = text;
     if (!title) {
@@ -374,7 +375,7 @@
     askConfirm({
       title: title, body: body, label: label,
       danger: !!(submitter && (submitter.classList.contains("btn--danger") || submitter.classList.contains("btn--danger-text"))) ||
-        /^(Remove|Delete|Revoke|Void|Withdraw|Leave|Archive|Unpublish)/i.test(label),
+        /^(Remove|Delete|Revoke|Void|Withdraw|Leave|Archive|Unpublish|Return)/i.test(label),
       onOk: function () { form.dataset.confirmed = "1"; form.requestSubmit(submitter || undefined); }
     });
   }, true);

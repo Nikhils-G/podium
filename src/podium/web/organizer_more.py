@@ -241,9 +241,10 @@ async def data_import(
                 ctx,
                 "data",
                 outcome=None,
-                error=f"This file describes event {data['event'].get('id')}, "
-                f"not {ctx.event.public_id}. "
-                "Import it from the events page to create a separate event.",
+                error=f"This file describes event {data['event'].get('id')}, not "
+                f"{ctx.event.public_id} ({ctx.event.name}). To create a separate event from "
+                "it, send it to POST /api/v1/events/import "
+                "(see /api/docs#op-post-api-v1-events-import).",
             ),
         )
     dry_run = mode == "dry_run"

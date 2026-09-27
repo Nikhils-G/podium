@@ -15,3 +15,4 @@
     <button class="btn btn--secondary" type="submit">Add track</button>
   </form>
 </section>
+{% if oob_prizes %}{% with oob=True %}{% include "partials/settings_prizes.html" %}{% endwith %}{% endif %}

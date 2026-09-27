@@ -340,6 +340,7 @@ def _section(request, ctx, db, section: str, errors: dict, status_code: int = 20
         status_code=status_code,
         event=ctx.event,
         errors=errors,
+        oob_prizes=section == "tracks",  # the prize form lists the tracks too
     )
 
 

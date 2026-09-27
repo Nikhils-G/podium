@@ -65,3 +65,48 @@ def test_the_ballot_without_an_open_vote_is_just_the_notice(client):
         or "Voting closed" in page
     )
     assert '<ol class="ballot">' not in page and "Browse the projects" in page
+
+
+def test_organizer_forms_keep_what_was_typed_and_refresh_related_lists(app, client, auth):
+    from datetime import UTC, datetime, timedelta
+
+    org, now = auth("organizer"), datetime.now(UTC)
+    slug = client.post(
+        "/api/v1/events",
+        headers=org,
+        json={
+            "name": "Forms Night",
+            "is_public": True,
+            "submissions_open_at": (now - timedelta(hours=1)).isoformat(),
+            "submissions_close_at": (now + timedelta(days=1)).isoformat(),
+        },
+    ).json()["event"]["slug"]
+    browser = demo(app, "organizer")
+    r = browser.post(
+        f"/e/{slug}/organizer/rubric",
+        {"name": "Impact", "weight": "2", "min_score": "5", "max_score": "1"},
+    )
+    assert r.status_code == 422 and 'value="Impact"' in r.text and 'value="5"' in r.text
+    r = browser.post(f"/e/{slug}/organizer/tracks", {"name": "Health"}, htmx=True)
+    assert r.status_code == 200 and 'id="prizes" hx-swap-oob="true"' in r.text
+
+
+def test_participants_and_judges_get_a_way_forward(app):
+    page = demo(app, "participant").get(f"/e/{SLUG}").text
+    assert f'href="/e/{SLUG}/projects/prj_01"' in page and "My project" in page
+    queue = demo(app, "judge_a").get(f"/e/{SLUG}/judge").text
+    import re
+
+    assigned = set(re.findall(r"/judge/review/(prj_\d+)", queue))
+    other = next(f"prj_{i:02d}" for i in range(1, 42) if f"prj_{i:02d}" not in assigned)
+    r = demo(app, "judge_a").get(f"/e/{SLUG}/judge/review/{other}")
+    assert r.status_code == 403 and "Back to your queue" in r.text
+
+
+def test_return_to_draft_asks_first():
+    from pathlib import Path
+
+    html = (
+        Path(__file__).resolve().parent.parent / "src/podium/templates/participant/submit.html"
+    ).read_text()
+    assert 'value="unsubmit" data-confirm="Return to draft?' in html

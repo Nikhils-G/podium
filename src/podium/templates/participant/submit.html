@@ -49,7 +49,7 @@
         <button class="btn btn--secondary" type="submit" name="action" value="save">Save draft</button>
       {% else %}
         <button class="btn btn--primary" type="submit" name="action" value="save">Save changes</button>
-        <button class="btn btn--ghost" type="submit" name="action" value="unsubmit">Return to draft</button>
+        <button class="btn btn--ghost" type="submit" name="action" value="unsubmit" data-confirm="Return to draft? Your project leaves the gallery and the judging pool until you submit it again.">Return to draft</button>
       {% endif %}
       <span class="muted text-sm">Drafts are visible only to your team and the organizers.</span>
     </div>

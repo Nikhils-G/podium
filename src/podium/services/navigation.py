@@ -199,6 +199,7 @@ class EventLinks:
     judge_total: int = 0
     has_team: bool = False
     has_project: bool = False
+    project_id: str | None = None
 
 
 def event_links(db: DbSession, user: User | None, event: Event) -> EventLinks:
@@ -215,6 +216,7 @@ def event_links(db: DbSession, user: User | None, event: Event) -> EventLinks:
     if role == Role.participant:
         team, project = participant_state(db, event, user)
         links.has_team, links.has_project = team is not None, project is not None
+        links.project_id = project.public_id if project is not None else None
     return links
 
 

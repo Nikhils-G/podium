@@ -1,5 +1,5 @@
 {% from "macros/ui.html" import field %}
-<section class="stack mt-6" id="prizes">
+<section class="stack mt-6" id="prizes"{% if oob %} hx-swap-oob="true"{% endif %}>
   <h2>Prizes <span class="count">{{ event.prizes|length }}</span></h2>
   {% if event.prizes %}
   <ul class="row-list">

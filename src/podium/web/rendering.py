@@ -119,6 +119,8 @@ HEADINGS = {
 
 
 def error_page(request: Request, status: int, message: str, user=None) -> HTMLResponse:
+    parts = request.url.path.split("/")
+    in_judge_console = len(parts) > 3 and parts[1] == "e" and parts[3] == "judge"
     return render(
         request,
         "errors/error.html",
@@ -128,4 +130,5 @@ def error_page(request: Request, status: int, message: str, user=None) -> HTMLRe
         message=message,
         title=HEADINGS.get(status, "Error"),
         user=user,
+        queue_href=f"/e/{parts[2]}/judge" if in_judge_console and user else None,
     )

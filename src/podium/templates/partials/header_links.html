@@ -6,7 +6,7 @@
   {% if links and links.role == 'judge' %}<a href="/e/{{ event.slug }}/judge" {% if console == 'judge' %}aria-current="page"{% endif %}>Judge{% if links.judge_total %} <span class="pill">{{ links.judge_done }}/{{ links.judge_total }}</span>{% endif %}</a>{% endif %}
   {% if links and links.role == 'participant' %}
     <a href="/e/{{ event.slug }}/team" {% if nav == 'team' %}aria-current="page"{% endif %}>My team</a>
-    <a href="/e/{{ event.slug }}/submit" {% if nav == 'submit' %}aria-current="page"{% endif %}>{{ 'My project' if links.has_project else 'Submit' }}</a>
+    <a href="/e/{{ event.slug }}/{{ 'projects/' ~ links.project_id if links.project_id else 'submit' }}" {% if nav == 'submit' %}aria-current="page"{% endif %}>{{ 'My project' if links.has_project else 'Submit' }}</a>
   {% endif %}
   <a href="/e/{{ event.slug }}/projects" {% if nav == 'gallery' %}aria-current="page"{% endif %}>Gallery</a>
   {% if event.results_published_at or (links and links.is_organizer) %}<a href="/e/{{ event.slug }}/results" {% if nav == 'results' %}aria-current="page"{% endif %}>Results</a>{% endif %}

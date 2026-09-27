@@ -66,6 +66,13 @@ def rubric_add(
     except PodiumError as exc:
         c = _rubric_ctx(ctx, db)
         c["errors"] = getattr(exc, "errors", None) or {"name": exc.message}
+        c["values"] = {
+            "name": name,
+            "description": description,
+            "weight": weight,
+            "min_score": min_score,
+            "max_score": max_score,
+        }
         return render(
             request, "organizer/rubric.html", status_code=exc.status_code, title="Rubric", **c
         )

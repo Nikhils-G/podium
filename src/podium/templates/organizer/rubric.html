@@ -29,11 +29,12 @@
 <form class="card stack mt-6 form-narrow" method="post" action="/e/{{ event.slug }}/organizer/rubric" hx-boost="false">
   <h2>Add a criterion</h2>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  {{ field('name', 'Name', required=True, placeholder='e.g. Functionality', maxlength=120) }}
-  {{ field('description', 'Description (shown to judges)', placeholder='What a 5 looks like, what a 1 looks like.') }}
+  {% set v = values if values is defined and values else {} %}
+  {{ field('name', 'Name', value=v.name or '', required=True, placeholder='e.g. Functionality', maxlength=120, error=errors.name) }}
+  {{ field('description', 'Description (shown to judges)', value=v.description or '', placeholder='What a 5 looks like, what a 1 looks like.') }}
   <div class="field-grid">
-    {{ field('weight', 'Weight', value='1', type='number', error=errors.weight, help='Relative importance. 2 counts twice as much as 1.') }}
-    <div class="field"><span class="field__label">Scale</span><div class="cluster"><input class="input input--num" name="min_score" type="number" value="1" aria-label="Minimum"><span>to</span><input class="input input--num" name="max_score" type="number" value="5" aria-label="Maximum"></div>{% if errors.scale %}<p class="field__error">{{ errors.scale }}</p>{% endif %}</div>
+    {{ field('weight', 'Weight', value=v.weight or '1', type='number', error=errors.weight, help='Relative importance. 2 counts twice as much as 1.') }}
+    <div class="field"><span class="field__label">Scale</span><div class="cluster"><input class="input input--num" name="min_score" type="number" value="{{ v.min_score or '1' }}" aria-label="Minimum"><span>to</span><input class="input input--num" name="max_score" type="number" value="{{ v.max_score or '5' }}" aria-label="Maximum"></div>{% if errors.scale %}<p class="field__error">{{ errors.scale }}</p>{% endif %}</div>
   </div>
   <div><button class="btn btn--primary" type="submit">Add criterion</button></div>
 </form>
