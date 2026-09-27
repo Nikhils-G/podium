@@ -34,7 +34,7 @@
   {{ field('description', 'Description (shown to judges)', value=v.description or '', placeholder='What a 5 looks like, what a 1 looks like.') }}
   <div class="field-grid">
     {{ field('weight', 'Weight', value=v.weight or '1', type='number', error=errors.weight, help='Relative importance. 2 counts twice as much as 1.') }}
-    <div class="field"><span class="field__label">Scale</span><div class="cluster"><input class="input input--num" name="min_score" type="number" value="{{ v.min_score or '1' }}" aria-label="Minimum"><span>to</span><input class="input input--num" name="max_score" type="number" value="{{ v.max_score or '5' }}" aria-label="Maximum"></div>{% if errors.scale %}<p class="field__error">{{ errors.scale }}</p>{% endif %}</div>
+    <div class="field"><span class="field__label">Scale</span><div class="cluster"><input class="input input--num" id="f-scale" name="min_score" type="number" value="{{ v.min_score or '1' }}" aria-label="Minimum"{% if errors.scale %} aria-invalid="true"{% endif %}><span>to</span><input class="input input--num" name="max_score" type="number" value="{{ v.max_score or '5' }}" aria-label="Maximum"></div>{% if errors.scale %}<p class="field__error">{{ errors.scale }}</p>{% endif %}</div>
   </div>
   <div><button class="btn btn--primary" type="submit">Add criterion</button></div>
 </form>

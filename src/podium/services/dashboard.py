@@ -617,7 +617,12 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
                     f"{utc_text(shifted(event, 'submissions_close_at', '+60m', now))}.",
                 ),
             ]
-        elif event.submissions_close_at and event.judging_opened_at is None:
+        elif (
+            event.submissions_close_at
+            and event.submissions_close_at <= now
+            and event.judging_opened_at is None
+            and event.results_published_at is None
+        ):
             sub.actions.append(
                 PhaseAction(
                     "Reopen for 1 h",
@@ -628,7 +633,7 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
                     "submit and edit again.",
                 )
             )
-        elif event.submissions_close_at:
+        elif event.submissions_close_at and event.submissions_close_at <= now:
             sub.actions.append(
                 PhaseAction(
                     "Reopen for 1 h",

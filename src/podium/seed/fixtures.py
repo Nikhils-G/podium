@@ -39,6 +39,7 @@ class ImportReport:
     counts: dict[str, int] = field(default_factory=dict)
     duplicates: list[tuple[str, str]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    scores_changed: int = 0  # existing score items the file changed
 
 
 def parse_ts(value: str) -> datetime:
@@ -124,7 +125,11 @@ def import_fixtures(
     event = db.execute(select(Event).where(Event.public_id == ev["id"])).scalar_one_or_none()
     closes = parse_ts(ev["submissions_close"])
     if event is None:
-        event = Event(public_id=ev["id"], slug=slugify(ev["name"]), name=ev["name"])
+        base = slug = slugify(ev["name"])
+        n = 2
+        while db.execute(select(Event.id).where(Event.slug == slug)).scalar() is not None:
+            slug, n = f"{base}-{n}", n + 1  # a new event never takes an existing event's address
+        event = Event(public_id=ev["id"], slug=slug, name=ev["name"])
         db.add(event)
         counts["events"] = 1
     event.name = ev["name"]
@@ -163,8 +168,13 @@ def import_fixtures(
     for j in data.get("judges", []):
         user = _user_by_email(db, j["email"])
         if user is None:
+            taken = db.execute(select(User.id).where(User.public_id == j["id"])).scalar()
+            if taken is not None:
+                report.warnings.append(
+                    f"judge id {j['id']} belongs to another account; {j['email']} gets a new id"
+                )
             user = User(
-                public_id=j["id"],
+                public_id=new_public_id("usr") if taken is not None else j["id"],
                 email=j["email"].lower(),
                 name=j["name"],
                 password_hash=password_hash,
@@ -337,8 +347,9 @@ def import_fixtures(
                 db.add(
                     ScoreItem(review_id=review.id, criterion_id=criteria[key].id, value=int(value))
                 )
-            else:
+            elif item.value != int(value):
                 item.value = int(value)
+                report.scores_changed += 1  # not a row count: the boot seed stays quiet
     _apply_extension(
         db, event, data.get("podium") or {}, tracks, projects, criteria, judges, report
     )

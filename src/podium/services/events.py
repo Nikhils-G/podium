@@ -226,6 +226,7 @@ def update_event(
     clean, errors = validate_event(data)
     if errors:
         raise ValidationFailed(errors=errors)
+    _submissions_can_move(event, clean["submissions_close_at"], quick=False)
     changes = {}
     for field in ("name", "description", "is_public", "max_team_size", *DATE_FIELDS):
         old = getattr(event, field)
@@ -313,6 +314,20 @@ def shifted(event: Event, field: str, preset: str, now: datetime | None = None) 
     return max(current, now) + DATE_PRESETS[preset] if current else now + DATE_PRESETS[preset]
 
 
+def _submissions_can_move(event: Event, value: datetime | None, *, quick: bool) -> None:
+    """Published results are final, so the deadline no longer moves; and once judging has
+    started, the timeline's quick moves never reopen submissions (the settings form can, with
+    an explicit confirmation)."""
+    if value == event.submissions_close_at:
+        return
+    if event.results_published_at is not None:
+        raise Conflict("Results are published, so the submission deadline can't change.")
+    reopens = value is None or value > utcnow()
+    closed = event.submissions_close_at is not None and event.submissions_close_at <= utcnow()
+    if quick and closed and reopens and event.judging_opened_at is not None:
+        raise Conflict("Judging has started, so submissions can't reopen from the timeline.")
+
+
 def shift_date(
     db: DbSession, event: Event, user: User, field: str, preset: str, *, ip_hash=None
 ) -> Event:
@@ -322,6 +337,8 @@ def shift_date(
     if field not in SHIFTABLE or preset not in DATE_PRESETS:
         raise ValidationFailed(errors={"field": "Choose a known date and preset."})
     value = shifted(event, field, preset)
+    if field == "submissions_close_at":
+        _submissions_can_move(event, value, quick=True)
     if field == "voting_close_at" and event.voting_open_at and value <= event.voting_open_at:
         raise Conflict("Voting must close after it opens.")
     if field == "voting_open_at" and event.voting_close_at and value >= event.voting_close_at:

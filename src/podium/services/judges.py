@@ -9,7 +9,7 @@ from datetime import timedelta
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session as DbSession
 
-from podium.errors import Conflict, Forbidden, NotFound, ValidationFailed
+from podium.errors import Closed, Conflict, Forbidden, NotFound, ValidationFailed
 from podium.models import (
     Assignment,
     AssignmentStatus,
@@ -325,6 +325,8 @@ def remove_judge(db: DbSession, event: Event, organizer: User, judge_public_id: 
     )
     if judge is None or role is None or role.role != Role.judge:
         raise NotFound("That person isn't a judge in this event.")
+    if event.judging_closed_at is not None:
+        raise Closed("Judging is closed, so judges and their assignments can't change.")
     done = db.execute(
         select(func.count())
         .select_from(Assignment)

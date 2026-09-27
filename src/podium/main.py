@@ -144,9 +144,10 @@ def _document_api(app: FastAPI) -> None:
                                 "not_found",
                                 "conflict",
                                 "closed",
+                                "payload_too_large",
                                 "validation_failed",
                                 "rate_limited",
-                                "internal",
+                                "server_error",
                             ],
                         },
                         "message": {"type": "string"},
@@ -188,6 +189,11 @@ def _document_api(app: FastAPI) -> None:
                         continue
                     operation["responses"][status] = {
                         "description": text,
+                        "content": {"application/json": {"schema": error_ref}},
+                    }
+                if (method, path) == ("post", "/api/v1/events/import"):
+                    operation["responses"]["413"] = {
+                        "description": "The file is larger than 20 MB.",
                         "content": {"application/json": {"schema": error_ref}},
                     }
         for name in ("HTTPValidationError", "ValidationError"):  # FastAPI's own 422 shape

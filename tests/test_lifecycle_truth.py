@@ -176,8 +176,15 @@ def test_every_lifecycle_action_confirms_itself(app, client, auth):
         assert notice in browser.get(r.headers["location"]).text, action
     page = browser.get(f"/e/{slug}/organizer?saved=publish_results").text
     assert f'href="/e/{slug}/results"' in page, "the notice links to the public results"
+    open_slug = _new_event(
+        client,
+        org,
+        "Notice Extend Night",
+        submissions_open_at=now - timedelta(hours=1),
+        submissions_close_at=now + timedelta(days=1),
+    )
     r = browser.post(
-        f"/e/{slug}/organizer/dates", {"field": "submissions_close_at", "preset": "+60m"}
+        f"/e/{open_slug}/organizer/dates", {"field": "submissions_close_at", "preset": "+60m"}
     )
     page = browser.get(r.headers["location"]).text
     assert "Submissions now close" in page, "the notice names the new deadline"

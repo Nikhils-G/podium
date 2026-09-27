@@ -6,7 +6,7 @@
     <div class="page-header__meta"><span>{{ groups.done|length }} of {{ items|length }} reviewed</span><span class="muted text-sm">Only you and the organizers see your scores.</span>{% if items %}<progress class="meter meter--inline" value="{{ groups.done|length }}" max="{{ items|length }}" aria-label="Review progress"></progress>{% endif %}</div></div>
   {% if items %}<a class="btn btn--secondary" href="/e/{{ event.slug }}/judge/compare">Compare projects</a>{% endif %}
 </div>
-{% if request.query_params.get('saved') == 'joined' %}{{ alert('success', 'You\'re judging ' ~ event.name ~ '. Your assigned projects are below.') }}{% endif %}
+{% if request.query_params.get('saved') == 'joined' %}{{ alert('success', 'You\'re judging ' ~ event.name ~ '. ' ~ ('Your assigned projects are below.' if items else 'The organizer hasn\'t assigned you projects yet; they appear here when they do.')) }}{% endif %}
 {% if not judging_open %}{{ alert('info', 'Judging is not open right now. You can read your assignments; scoring opens when the organizer starts judging.') }}{% endif %}
 {% if items and not groups.todo and not groups.in_progress %}
 <section class="card card--next mt-4">

@@ -161,6 +161,11 @@ def test_prize_awards_drive_public_results_certificates_and_export(client, auth,
         r = client.post(
             "/api/v1/events/import", headers=org, params={"dry_run": "true"}, json=export
         )
+        assert r.status_code == 409, "published results are final: no import on top of them"
+        client.post(f"{S}/actions/unpublish_results", headers=org)
+        r = client.post(
+            "/api/v1/events/import", headers=org, params={"dry_run": "true"}, json=export
+        )
         assert r.status_code == 200, r.text
     finally:
         client.post(f"{S}/actions/unpublish_results", headers=org)

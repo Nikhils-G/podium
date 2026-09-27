@@ -243,6 +243,7 @@ def assign_manually(
 
 
 def remove_assignment(db: DbSession, event: Event, organizer: User, assignment_id: int) -> None:
+    _assignments_open(event)
     assignment = db.get(Assignment, assignment_id)
     if assignment is None or assignment.event_id != event.id:
         raise NotFound("No such assignment.")

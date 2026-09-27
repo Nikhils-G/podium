@@ -423,7 +423,28 @@
     document.querySelectorAll(".btn.is-loading").forEach(function (b) { b.classList.remove("is-loading"); b.removeAttribute("aria-disabled"); });
   });
   // an error summary takes focus so keyboard and screen-reader users land on what to fix
-  function focusErrorSummary() { var box = document.querySelector("[data-error-summary]"); if (box) box.focus(); }
+  // Error keys and field ids don't always match (track_name → f-track-name, keyed fields, errors
+  // that belong to no field). Link each item to the real field; an item with no field becomes
+  // plain text, and one the page already shows as a notice is dropped.
+  function fixErrorSummary(box) {
+    var notices = Array.prototype.map.call(document.querySelectorAll("main .alert"), function (a) { return a.textContent.trim(); });
+    box.querySelectorAll("a[href^='#']").forEach(function (link) {
+      var id = link.getAttribute("href").slice(1), key = id.replace(/^f-/, "");
+      var target = document.getElementById(id) || document.getElementById("f-" + key.replace(/_/g, "-")) ||
+        document.querySelector('[name="' + key + '"]');
+      if (target && target.id) { link.setAttribute("href", "#" + target.id); return; }
+      var item = link.closest("li");
+      if (notices.indexOf(link.textContent.trim()) !== -1) { item.remove(); return; }
+      var text = document.createElement("span"); text.textContent = link.textContent; link.replaceWith(text);
+    });
+    if (!box.querySelector("li")) box.remove();
+  }
+  function focusErrorSummary() {
+    var box = document.querySelector("[data-error-summary]");
+    if (!box) return;
+    fixErrorSummary(box);
+    if (document.body.contains(box)) box.focus();
+  }
   focusErrorSummary();
   document.body.addEventListener("htmx:load", function (e) { if (e.detail.elt === document.body) focusErrorSummary(); });
 

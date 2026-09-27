@@ -345,6 +345,25 @@ def validate_shape(data) -> list[str]:
     return errors
 
 
+def _lifecycle_problem(db: DbSession, report: ImportReport) -> str | None:
+    """A file may not publish results that the lifecycle rules would refuse to publish."""
+    from podium.services.events import publish_blocker
+
+    event = db.execute(select(Event).where(Event.slug == report.event_slug)).scalar_one()
+    changed = report.scores_changed
+    if changed and event.judging_closed_at is not None:
+        return (
+            f"Judging is closed for this event and the file changes {changed} submitted "
+            "score(s). Reopen judging first if the change is intended."
+        )
+    if event.results_published_at is None:
+        return None
+    blocker = publish_blocker(event)
+    if blocker is None:
+        return None
+    return f"The file marks results as published, but they can't be yet: {blocker[1]}"
+
+
 def import_event(
     db: DbSession,
     data: dict,
@@ -376,15 +395,37 @@ def import_event(
                 "export that event again or give these rows new ids."
             ],
         )
+    if event is not None and event.archived_at is not None:
+        return ImportOutcome(
+            report=ImportReport(),
+            dry_run=dry_run,
+            errors=["This event is archived and read-only, so nothing can be imported into it."],
+        )
+    if event is not None and event.results_published_at is not None:
+        return ImportOutcome(
+            report=ImportReport(),
+            dry_run=dry_run,
+            errors=[
+                "Results for this event are published. Unpublish them before importing into it, "
+                "so the published ranking can't change silently."
+            ],
+        )
     if dry_run:
         # SAVEPOINT: run the whole import, then roll it back — the report is what apply would do.
         db.begin_nested()
         try:
             report = import_fixtures(db, data, default_password=default_password, commit=False)
+            problem = _lifecycle_problem(db, report)
         finally:
             db.rollback()
+        if problem:
+            return ImportOutcome(report=ImportReport(), dry_run=True, errors=[problem])
         return ImportOutcome(report=report, dry_run=True, event_slug=report.event_slug)
     report = import_fixtures(db, data, default_password=default_password, commit=False)
+    problem = _lifecycle_problem(db, report)
+    if problem:
+        db.rollback()
+        return ImportOutcome(report=ImportReport(), dry_run=False, errors=[problem])
     event = db.execute(select(Event).where(Event.slug == report.event_slug)).scalar_one()
     audit.record(
         db,
@@ -393,7 +434,11 @@ def import_event(
         event.public_id,
         event_id=event.id,
         actor_id=actor.id if actor else None,
-        meta={"counts": dict(report.counts), "sha256": source_sha256},
+        meta={
+            "counts": dict(report.counts),
+            "scores_changed": report.scores_changed,
+            "sha256": source_sha256,
+        },
     )
     db.commit()
     return ImportOutcome(report=report, dry_run=False, event_slug=report.event_slug)
