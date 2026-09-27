@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from podium.config import Settings, get_settings
 from podium.db import get_db
-from podium.errors import PodiumError
+from podium.errors import NotFound, PodiumError
 from podium.models import User
 from podium.security.csrf import verify_csrf
 from podium.security.deps import EventContext, load_event, require_organizer, require_user
@@ -204,6 +204,57 @@ def unvote(
     if is_htmx(request):
         return _control(request, db, ctx, project, voter, compact=compact)
     return RedirectResponse(f"/e/{ctx.event.slug}/projects/{pid}", status_code=303)
+
+
+@router.get("/e/{slug}/judging")
+def how_judged_page(
+    request: Request,
+    ctx: EventContext = Depends(load_event),
+    db: DbSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """Everything a participant needs to trust the result: rubric, coverage, what normalization
+    did, how votes counted, pairwise summary, and the signed audit anchor. Public once results
+    are published; organizers can always preview it."""
+    from statistics import median
+
+    from podium.services import audit as audit_service
+    from podium.services import dashboard, pairwise, rubric
+
+    event = ctx.event
+    if not voting_service.results_visible(event, organizer=ctx.is_organizer):
+        raise NotFound("Results haven't been published yet.")
+    results = scoring.compute(db, event)
+    progress = dashboard.progress(db, event)
+    counts = [p.n for p in results.projects if p.n]
+    movers = sorted(
+        [p for p in results.projects if p.rank_delta],
+        key=lambda p: -abs(p.rank_delta or 0),
+    )[:5]
+    stage = stage_of(event)
+    return render(
+        request,
+        "public/judging.html",
+        title=f"How this event was judged · {event.name}",
+        event=event,
+        user=ctx.user,
+        ctx=ctx,
+        stage=stage.value,
+        stage_label=STAGE_LABELS[stage],
+        nav="results",
+        criteria=rubric.criteria(db, event),
+        results=results,
+        progress=progress,
+        coverage={
+            "min": min(counts) if counts else 0,
+            "median": int(median(counts)) if counts else 0,
+            "max": max(counts) if counts else 0,
+        },
+        movers=movers,
+        pairwise=pairwise.results(db, event),
+        anchor=audit_service.anchor(db, settings),
+        confidence=scoring.confidence(results, seed=event.id),
+    )
 
 
 @router.get("/e/{slug}/vote")

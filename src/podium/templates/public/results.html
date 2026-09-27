@@ -33,6 +33,7 @@
     <ul class="row-list">{% for prize in awards %}<li><strong>{{ prize.name }}</strong>{% if prize.amount_text %}<span class="ink-2">{{ prize.amount_text }}</span>{% endif %}{% if prize.track %}<span class="muted text-sm">{{ prize.track.name }}</span>{% endif %}<span class="grow"></span><a href="/e/{{ event.slug }}/projects/{{ prize.project.public_id }}">{{ prize.project.title }}</a><span class="muted text-sm">{{ prize.project.team.name }}</span></li>{% endfor %}</ul>
   </section>
   {% endif %}
+  <p class="text-sm"><a href="/e/{{ event.slug }}/judging">How this event was judged →</a> rubric, review coverage, what normalization changed, how votes counted.</p>
   <section class="stack mt-6">
     <h2>Full ranking</h2>
     {% set normalized_means_something = results.basis.value == 'normalized' and results.judges|length >= 2 and results.method.value == 'zscore' %}

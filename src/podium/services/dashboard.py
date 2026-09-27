@@ -513,7 +513,9 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
                     "Close now",
                     date_field="submissions_close_at",
                     preset="now",
-                    consequence="Submissions close this minute; teams can no longer submit or edit.",
+                    consequence=(
+                        "Submissions close this minute; teams can no longer submit or edit."
+                    ),
                     kind="danger",
                 ),
                 PhaseAction(
@@ -581,7 +583,8 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
                     "Close judging",
                     action="close_judging",
                     consequence=(
-                        f"Judges can no longer edit or submit reviews; {plural(pending, 'pending review')} stay unsubmitted."
+                        "Judges can no longer edit or submit reviews; "
+                        f"{plural(pending, 'pending review')} stay unsubmitted."
                         if pending
                         else "Judges can no longer edit or submit reviews."
                     ),
@@ -651,7 +654,10 @@ def timeline(db: DbSession, event: Event, now: datetime | None = None) -> list[P
                 PhaseAction(
                     "Unpublish results",
                     action="unpublish_results",
-                    consequence="Results are hidden again and issued winner certificates are revoked. This is logged.",
+                    consequence=(
+                        "Results are hidden again and issued winner certificates are revoked. "
+                        "This is logged."
+                    ),
                     kind="danger",
                 )
             )

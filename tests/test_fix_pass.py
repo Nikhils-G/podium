@@ -766,3 +766,28 @@ def test_ballot_page_and_gallery_chips(app, client, auth):
         and "Open the ballot" in gallery
     )
     assert gallery.count('name="compact" value="1"') >= 2, "other entries carry a vote chip"
+
+
+def test_how_this_event_was_judged_page(client, auth, app):
+    org = auth("organizer")
+    assert client.get(f"/e/{SLUG}/judging").status_code == 404, "hidden until results are published"
+    preview = demo(app, "organizer").get(f"/e/{SLUG}/judging")
+    assert preview.status_code == 200 and "Preview" in preview.text
+    client.post(f"{S}/actions/close_judging", headers=org)
+    client.post(f"{S}/actions/publish_results", headers=org)
+    try:
+        page = client.get(f"/e/{SLUG}/judging")
+        assert page.status_code == 200
+        for text in (
+            "The rubric",
+            "Review coverage",
+            "What normalization did",
+            "How votes counted",
+            "Signed audit anchor",
+            "Functionality",
+        ):
+            assert text in page.text, text
+        assert "How this event was judged" in client.get(f"/e/{SLUG}/results").text
+    finally:
+        client.post(f"{S}/actions/unpublish_results", headers=org)
+        client.post(f"{S}/actions/open_judging", headers=org)

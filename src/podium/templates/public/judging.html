@@ -1,0 +1,75 @@
+{% extends "layouts/public.html" %}
+{% from "macros/ui.html" import stage_badge, when, badge %}
+{% block content %}
+{% set normalized = results.basis.value == 'normalized' and results.method.value == 'zscore' and results.judges|length >= 2 %}
+<div class="page-header">
+  <div>
+    <p class="page-header__eyebrow"><a href="/e/{{ event.slug }}/results">{{ event.name }} · Results</a></p>
+    <h1 class="serif">How this event was judged</h1>
+    <div class="page-header__meta">{{ stage_badge(stage, stage_label) }}<span>{{ results.reviews|length|plural('review') }} from {{ results.judges|length|plural('judge') }} across {{ results.projects|length|plural('project') }}</span></div>
+  </div>
+</div>
+{% if not event.results_published_at %}<div class="alert alert--info" role="status">Preview — this page becomes public when results are published.</div>{% endif %}
+<div class="two-col two-col--wide">
+  <div class="stack">
+    <section class="stack">
+      <h2>The rubric</h2>
+      <p class="text-sm ink-2">Every judge scored every assigned project on the same criteria. A project's raw score is the weighted mean of its criteria, shown out of 100.</p>
+      {% if criteria %}
+      <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Criterion</th><th>What it measures</th><th class="num">Weight</th><th class="num">Scale</th></tr></thead>
+        <tbody>{% for c in criteria %}<tr><td><strong>{{ c.name }}</strong></td><td class="text-sm">{{ c.description or '—' }}</td><td class="num">{{ '%g'|format(c.weight) }}</td><td class="num">{{ c.min_score }}–{{ c.max_score }}</td></tr>{% endfor %}</tbody></table></div>
+      {% else %}<p class="muted">No rubric was published.</p>{% endif %}
+    </section>
+    <section class="stack">
+      <h2>Review coverage</h2>
+      <section class="kpis">
+        <div class="kpi"><span class="kpi__label">Projects at target</span><span class="kpi__value">{{ progress.projects_reviewed }}<span class="kpi__of">/ {{ progress.projects_total }}</span></span><span class="kpi__sub">target {{ event.reviews_per_project|plural('review') }} each</span></div>
+        <div class="kpi"><span class="kpi__label">Reviews per project</span><span class="kpi__value">{{ coverage.median }}</span><span class="kpi__sub">median · from {{ coverage.min }} to {{ coverage.max }}</span></div>
+        <div class="kpi"><span class="kpi__label">Judges</span><span class="kpi__value">{{ results.judges|length }}</span><span class="kpi__sub">{{ results.judges|selectattr('flat')|list|length|plural('flat scorer') }} neutralised</span></div>
+        <div class="kpi"><span class="kpi__label">Reviews submitted</span><span class="kpi__value">{{ results.reviews|length }}</span><span class="kpi__sub">{{ results.unscored|length|plural('project') }} without any</span></div>
+      </section>
+      {% if progress.below_target %}<p class="text-sm ink-2">{{ progress.below_target|length|plural('project') }} received fewer reviews than the target; their scores are marked "treat with caution" on the results page.</p>{% endif %}
+    </section>
+    <section class="stack">
+      <h2>What normalization did</h2>
+      {% if normalized %}
+      <p class="text-sm ink-2">Judges differ in how generously they score. Each judge's scores were standardised against their own mean and spread (with shrinkage k = {{ '%g'|format(results.k) }} towards the event-wide mean {{ '%.1f'|format(results.global_mean) }} and spread {{ '%.1f'|format(results.global_std) }}, so judges with few reviews are not over-corrected). A judge who scored every project identically contributed no ranking information. The published ranking uses these normalized scores.</p>
+      {% if movers %}<p class="text-sm ink-2">Largest moves against the raw ranking:</p>
+      <ul class="row-list">{% for p in movers %}<li><a href="/e/{{ event.slug }}/projects/{{ p.project.public_id }}">{{ p.project.title }}</a><span class="grow"></span><span class="text-sm">raw #{{ p.rank_raw }} → normalized #{{ p.rank_norm }} <span class="{{ 'delta-up' if p.rank_delta > 0 else 'delta-down' }}">({{ '+' if p.rank_delta > 0 }}{{ p.rank_delta }})</span></span></li>{% endfor %}</ul>
+      {% else %}<p class="text-sm ink-2">No project changed rank: the judges were already consistent with each other.</p>{% endif %}
+      {% else %}
+      <p class="text-sm ink-2">The published ranking uses raw mean scores{% if results.judges|length < 2 %} — with a single judge there is nothing to normalize{% endif %}.</p>
+      {% endif %}
+    </section>
+    <section class="stack">
+      <h2>How sure is the ranking?</h2>
+      <p class="text-sm ink-2">A bootstrap re-drew every project's reviews {{ (confidence.values()|first).samples if confidence else 300 }} times and re-ranked the field each time. The share of re-draws in which a project kept its medal is shown on the results page; a rank that survives most re-draws is robust, a coin flip between two neighbours is exactly that.</p>
+    </section>
+    <section class="stack">
+      <h2>How votes counted</h2>
+      {% if event.voting_open_at %}
+      <p class="text-sm ink-2">Community voting ran {{ when(event.voting_open_at) }} → {{ when(event.voting_close_at) }}. {% if event.voting_mode.value == 'account' %}One ballot per signed-in account.{% elif event.voting_mode.value == 'email' %}One ballot per voting code issued by the organizers.{% else %}One ballot per browser through the open link (the weakest mode, chosen by the organizers).{% endif %}{% if event.quadratic_enabled %} Quadratic voting: every voter had {{ event.voting_credits }} credits and the n-th vote on one project cost 2n−1.{% endif %} Votes never change the judged ranking; they name the community favourite and are shown beside it.</p>
+      {% else %}<p class="text-sm ink-2">This event had no community vote.</p>{% endif %}
+    </section>
+    {% if pairwise.judge_comparisons %}
+    <section class="stack">
+      <h2>Pairwise comparisons</h2>
+      <p class="text-sm ink-2">Judges also compared projects head to head ({{ pairwise.judge_comparisons|plural('comparison') }}). A Bradley-Terry fit of those picks agrees with the published ranking at Spearman ρ {{ '%.2f'|format(pairwise.rho_judges if pairwise.rho_judges is not none else pairwise.rho) }}. Pairwise results are advisory; they do not change the ranking.</p>
+    </section>
+    {% endif %}
+  </div>
+  <aside class="stack">
+    <div class="card">
+      <h3>Signed audit anchor</h3>
+      <p class="text-sm ink-2">Every sensitive action was appended to a hash-chained log. This is its head at {{ when(anchor.at|replace('T', ' ')|replace('+00:00', '')|truncate(16, True, '')) if false else anchor.at[:16].replace('T', ' ') }} UTC, signed with the instance key, so the history behind these results can be checked later.</p>
+      <p class="text-sm"><code>{{ anchor.head_hash[:24] }}…</code> · {{ anchor.entries|plural('entry', 'entries') }}</p>
+      <p class="text-sm muted">Verify with <a href="/.well-known/podium-signing-key.json">the public key</a> and <code>GET /api/v1/events/{{ event.slug }}/audit/anchor</code>.</p>
+    </div>
+    <div class="card">
+      <h3>Read more</h3>
+      <p class="text-sm ink-2">The full method — assignment, scoring, normalization with a worked example, pairwise mode and isolation — is documented in the project's <code>JUDGING.md</code>.</p>
+      <a class="btn btn--secondary btn--block" href="/e/{{ event.slug }}/results">Back to results</a>
+    </div>
+  </aside>
+</div>
+{% endblock %}
