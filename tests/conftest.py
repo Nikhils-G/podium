@@ -39,6 +39,17 @@ def database():
     yield
 
 
+@pytest.fixture(scope="session", autouse=True)
+def audit_chain_intact(database):
+    """After the whole suite: every write any test made kept the audit chain verifiable."""
+    yield
+    from podium.services.audit import verify_chain
+
+    with get_sessionmaker()() as db:
+        report = verify_chain(db)
+    assert report.ok, f"audit chain broken at row {report.first_bad_id}"
+
+
 @pytest.fixture(scope="session")
 def app():
     from podium.main import app

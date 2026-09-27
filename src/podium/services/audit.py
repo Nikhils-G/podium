@@ -7,10 +7,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session as DbSession
 
 from podium.models import AuditLog, utcnow
+from podium.services.text import plural
 
 GENESIS = "0" * 64
 
@@ -43,21 +44,34 @@ def record(
     meta: dict | None = None,
     ip_hash: str | None = None,
 ) -> AuditLog:
-    """Append one entry. Caller commits; the chain is computed inside a flush-ordered read."""
-    last = db.execute(select(AuditLog.row_hash).order_by(AuditLog.id.desc()).limit(1)).scalar()
+    """Append one entry. Caller commits.
+
+    Insert first, link second: the placeholder INSERT takes the database write lock (SQLite's
+    implicit BEGIN before the first DML; an advisory lock on PostgreSQL), so no other writer can
+    commit a row until this transaction ends. Only then is the previous row read and hashed. The
+    old read-then-insert let two concurrent requests link to the same head and fork the chain.
+    """
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(text("SELECT pg_advisory_xact_lock(7340031)"))  # constant: "the audit chain"
     row = AuditLog(
         event_id=event_id,
         actor_id=actor_id,
         action=action,
         entity_type=entity_type,
-        entity_id=str(entity_id),
+        entity_id=str(entity_id)[:64],  # failed sign-ins store the typed email; column is 64
         meta=meta or {},
         ip_hash=ip_hash,
         created_at=utcnow(),
-        prev_hash=last or GENESIS,
+        prev_hash="",
+        row_hash="",
     )
-    row.row_hash = hashlib.sha256((row.prev_hash + _canonical(row)).encode()).hexdigest()
     db.add(row)
+    db.flush()
+    last = db.execute(
+        select(AuditLog.row_hash).where(AuditLog.id < row.id).order_by(AuditLog.id.desc()).limit(1)
+    ).scalar()
+    row.prev_hash = last or GENESIS
+    row.row_hash = hashlib.sha256((row.prev_hash + _canonical(row)).encode()).hexdigest()
     db.flush()
     return row
 
@@ -106,8 +120,17 @@ def describe(entry: "AuditLog") -> str:
             parts.append(f"changed the {label} {_short(old)} → {_short(new)}")
         sentence = "; ".join(parts)  # capitalise the first letter only: keep "Mar", "UTC", names
         return sentence[:1].upper() + sentence[1:] if parts else "Saved the event settings"
+    if action == "event.imported":
+        return _imported(meta.get("counts") or {})
     table = {
         "event.created": "Created the event",
+        "event.publish_event": "Made the event public",
+        "event.unpublish_event": "Made the event private",
+        "event.open_judging": "Opened judging",
+        "event.close_judging": "Closed judging",
+        "event.publish_results": "Published the results",
+        "event.unpublish_results": "Unpublished the results",
+        "event.archive": "Archived the event",
         "judging.opened": "Opened judging",
         "judging.closed": "Closed judging",
         "results.published": "Published the results",
@@ -120,7 +143,8 @@ def describe(entry: "AuditLog") -> str:
         "judge.invite_revoked": f"Revoked the invitation for {meta.get('email', '?')}",
         "judge.accepted": f"Accepted a judge invitation ({eid})",
         "judge.removed": f"Removed judge {eid}",
-        "organizer.added": f"Added organizer {eid}",
+        "organizer.added": f"Added organizer {eid}"
+        + (" (by importing an event file)" if meta.get("via") == "import" else ""),
         "organizer.removed": f"Removed organizer {eid}",
         "prize.added": f"Added prize “{meta.get('name', eid)}”",
         "prize.removed": f"Removed prize “{meta.get('name', eid)}”",
@@ -181,6 +205,18 @@ def describe(entry: "AuditLog") -> str:
         "signing.key": "Generated the instance signing key",
     }
     return table.get(action) or f"{action.replace('.', ' ').replace('_', ' ').capitalize()} ({eid})"
+
+
+SINGULAR = {"criteria": "criterion"}  # import counts are keyed by plural nouns
+
+
+def _imported(counts: dict) -> str:
+    """'Imported 41 projects, 30 judges and 126 reviews' from an import's counts."""
+    parts = [plural(n, SINGULAR.get(key, key.removesuffix("s")), key) for key, n in counts.items()]
+    if not parts:
+        return "Imported an event file"
+    listed = ", ".join(parts[:-1]) + " and " + parts[-1] if len(parts) > 1 else parts[0]
+    return f"Imported {listed}"
 
 
 def _short(value) -> str:
