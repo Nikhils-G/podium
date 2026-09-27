@@ -792,3 +792,11 @@ def test_how_this_event_was_judged_page(client, auth, app):
     finally:
         client.post(f"{S}/actions/unpublish_results", headers=org)
         client.post(f"{S}/actions/open_judging", headers=org)
+
+
+def test_unsaved_changes_guard_is_wired(client, auth):
+    """The guard's state variable was once deleted, which made every page throw on unload."""
+    script = client.get("/static/js/app.js").text
+    assert "var dirty = false;" in script and 'closest("form[data-guard]")' in script
+    for path in (f"/e/{SLUG}/organizer/settings", "/events/new"):
+        assert "data-guard" in client.get(path, headers=auth("organizer")).text

@@ -3,41 +3,53 @@
 {% macro typ(t) -%}
 {%- for tok in t.split(' ') %}{% if tok in ref.schema_names %}<a href="#schema-{{ tok }}">{{ tok }}</a>{% else %}{{ tok }}{% endif %}{% if not loop.last %} {% endif %}{% endfor -%}
 {%- endmacro %}
-{% macro fields_table(rows, caption) -%}
-<div class="table-wrap"><table class="table api-table"><caption class="visually-hidden">{{ caption }}</caption>
-<thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead><tbody>
-{% for f in rows %}<tr><td><code>{{ f.name }}</code>{% if f.required %} <span class="api-req">required</span>{% endif %}</td><td class="api-type">{{ typ(f.type) }}</td><td>{% if f.description %}{{ f.description }}{% endif %}{% if f.constraints %}{% if f.description %} {% endif %}<span class="muted">{{ f.constraints }}</span>{% endif %}{% if not f.description and not f.constraints %}<span class="muted">—</span>{% endif %}</td></tr>
-{% endfor %}</tbody></table></div>
+{% macro rows(items) -%}
+<dl class="api-rows">{% for f in items %}
+  <div class="api-row">
+    <dt><code class="api-row__name">{{ f.name }}</code><span class="api-type">{{ typ(f.type) }}</span>{% if f.location is defined %}<span class="api-row__in">in {{ f.location }}</span>{% endif %}{% if f.required %}<span class="api-req">required</span>{% endif %}</dt>
+    {% if f.description or f.constraints %}<dd>{% if f.description %}{{ f.description }}{% endif %}{% if f.constraints %}{% if f.description %} {% endif %}<span class="api-row__rule">{{ f.constraints }}</span>{% endif %}</dd>{% endif %}
+  </div>{% endfor %}
+</dl>
 {%- endmacro %}
 {% macro code_block(label, text) -%}
-<div class="api-code-head"><span class="text-sm muted">{{ label }}</span><button class="btn btn--ghost btn--sm" type="button" data-copy="{{ text }}">Copy</button></div>
-<pre class="api-code"><code>{{ text }}</code></pre>
+<div class="api-panel">
+  <div class="api-panel__head"><span class="api-panel__title">{{ label }}</span><button class="api-copy" type="button" data-copy="{{ text }}">Copy</button></div>
+  <pre><code>{{ text|highlight }}</code></pre>
+</div>
 {%- endmacro %}
 {% block content %}
 <div class="page-header">
   <div>
     <p class="page-header__eyebrow">Developers</p>
     <h1>API reference</h1>
-    <p class="ink-2 mt-2">Everything the console can do, the API can do: {{ ref.total }} endpoints under <code>{{ ref.base_url }}/api/v1</code>, JSON in and out, the same permissions as the web app.</p>
+    <p class="ink-2 mt-2">Everything the console can do, the API can do: JSON in and out, with the same permissions as the web app.</p>
+    <p class="api-version"><span>Podium {{ version }}</span><span>OpenAPI 3.1</span><span>{{ ref.total }} endpoints</span></p>
   </div>
   <div class="cluster"><a class="btn btn--secondary" href="/api/openapi.json" hx-boost="false">OpenAPI document</a><a class="btn btn--ghost" href="/api/docs/console" hx-boost="false">Interactive console</a></div>
 </div>
 
 <form class="toolbar api-filter" method="get" action="/api/docs" role="search" hx-boost="false"{% if query %} data-server-filtered="1"{% endif %}>
   <label class="visually-hidden" for="api-q">Filter endpoints</label>
-  <input class="input" id="api-q" type="search" name="q" value="{{ query }}" placeholder="Filter endpoints — try vote, certificate or /judges" data-api-filter data-search autocomplete="off">
+  <input class="input" id="api-q" type="search" name="q" value="{{ query }}" placeholder="Filter endpoints: try vote, certificate or /judges" data-api-filter data-search autocomplete="off">
   <button class="btn btn--secondary" type="submit">Filter</button>
   {% if query %}<a class="btn btn--ghost" href="/api/docs">Clear</a>{% endif %}
   <span class="muted text-sm" data-api-count data-total="{{ ref.total }}" aria-live="polite">{{ shown }} of {{ ref.total }} endpoints</span>
+  <span class="api-kbd-hint"><kbd class="kbd">/</kbd> to filter</span>
 </form>
 
 {% if not query %}
 <section class="api-section" id="overview" data-api-guide>
   <h2>Overview</h2>
   <div class="api-guide">
-    <p>The base URL is <code>{{ ref.base_url }}/api/v1</code>. Requests and responses are JSON (<code>Content-Type: application/json</code>). Timestamps are ISO 8601 in UTC, for example <code>2026-10-03T18:00:00Z</code>. Every record has a stable public id with a type prefix — <code>evt_</code> events, <code>prj_</code> projects, <code>tm_</code> teams, <code>usr_</code> accounts, <code>crt_</code> criteria, <code>prz_</code> prizes, <code>trk_</code> tracks, <code>whk_</code> webhooks — and imported data keeps the ids it arrived with (the sample event's judges are <code>jdg_…</code>).</p>
+    <p>The Podium API is organised around REST: predictable resource URLs, JSON request and response bodies, standard HTTP verbs and status codes. Timestamps are ISO 8601 in UTC, for example <code>2026-10-03T18:00:00Z</code>. Every record has a stable public id with a type prefix — <code>evt_</code> events, <code>prj_</code> projects, <code>tm_</code> teams, <code>usr_</code> accounts, <code>crt_</code> criteria, <code>prz_</code> prizes, <code>trk_</code> tracks, <code>whk_</code> webhooks — and imported data keeps the ids it arrived with (the sample event's judges are <code>jdg_…</code>).</p>
+    {{ code_block("Base URL", ref.base_url ~ "/api/v1") }}
+    <h3>Quick start</h3>
+    <ol class="api-steps">
+      <li><strong>Create a token</strong> on <a href="/account">your account page</a>. Read-only is enough to read; it is shown once.</li>
+      <li><strong>Keep it in your environment</strong>, never in code or a repository.{{ code_block("Shell", "export PODIUM_TOKEN=pdm_…") }}</li>
+      <li><strong>Make a request.</strong> Public endpoints need no token at all.{{ code_block("Your first request", "curl " ~ ref.base_url ~ "/api/v1/events") }}</li>
+    </ol>
     <p>The version lives in the path: <code>/api/v1</code> only ever gains fields. This page is rendered from the <a href="/api/openapi.json" hx-boost="false">OpenAPI 3.1 document</a> the server generates, so the two cannot disagree.</p>
-    {{ code_block("Your first request — no sign-in needed", "curl " ~ ref.base_url ~ "/api/v1/events") }}
   </div>
 </section>
 
@@ -52,11 +64,11 @@
     <h3>Who can call what</h3>
     <p>Every endpoint below states who may call it. Roles belong to an event, not to an account: the same person can organize one event and judge another. An <strong>instance admin</strong> passes every check.</p>
     <ul class="api-list">
-      <li><strong>Public</strong> — no sign-in; anonymous voters are identified by the event's voting mode (account, emailed code or link).</li>
-      <li><strong>Signed in</strong> — any account; the service layer then limits what is returned (a judge only ever sees their own reviews).</li>
-      <li><strong>Team member</strong> — a participant on a team in that event.</li>
-      <li><strong>Judge of the event</strong> — accepted a judge invitation for that event.</li>
-      <li><strong>Event organizer</strong> — created the event or was added as a co-organizer.</li>
+      <li><span class="api-chip api-chip--public">Public</span> no sign-in; anonymous voters are identified by the event's voting mode (account, emailed code or link).</li>
+      <li><span class="api-chip api-chip--signed">Signed in</span> any account; the service layer then limits what is returned (a judge only ever sees their own reviews).</li>
+      <li><span class="api-chip api-chip--team">Team member</span> a participant on a team in that event.</li>
+      <li><span class="api-chip api-chip--judge">Judge of the event</span> accepted a judge invitation for that event.</li>
+      <li><span class="api-chip api-chip--organizer">Event organizer</span> created the event or was added as a co-organizer.</li>
     </ul>
   </div>
 </section>
@@ -87,7 +99,7 @@
   <div class="api-guide">
     <p>Organizers register endpoints under <strong>Integrations</strong> (or with the webhook endpoints below). Each delivery is a JSON <code>POST</code> with three headers: <code>X-Podium-Event</code> (the type), <code>X-Podium-Delivery</code> (a unique id — use it to ignore duplicates) and <code>X-Podium-Signature</code>, an HMAC-SHA256 of the raw body with the webhook's secret, formatted <code>sha256=&lt;hex&gt;</code>. Verify it before trusting the payload.</p>
     {{ code_block("Verifying a signature (Python)", "import hashlib, hmac\n\nexpected = \"sha256=\" + hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()\nassert hmac.compare_digest(expected, headers[\"X-Podium-Signature\"])") }}
-    <p>A delivery counts as accepted on any 2xx within 5 seconds. Otherwise it is retried after 30 seconds, 5 minutes and 30 minutes, then marked failed — except for a 4xx other than 408, 425 or 429, which is final. Failed deliveries can be resent from Integrations or with the redeliver endpoint, and <strong>Send a test ping</strong> queues a <code>ping</code> through the same path.</p>
+    <p>A delivery counts as accepted on any 2xx within 5 seconds. Otherwise it is retried after 30 seconds, 5 minutes and 30 minutes, then marked failed — except for a 4xx other than 408, 425 or 429, which is final. Failed deliveries can be resent from Integrations or with the redeliver endpoint, and <strong>Send test</strong> queues a <code>ping</code> through the same path.</p>
     <h3>Event types</h3>
     <ul class="api-list">{% for t in webhook_types %}<li><code>{{ t }}</code> — {{ webhook_descriptions[t] }}</li>{% endfor %}</ul>
   </div>
@@ -98,36 +110,44 @@
 <section class="api-section" id="{{ s.key }}" data-api-section>
   <h2>{{ s.name }}</h2>
   {% if s.description %}<p class="ink-2">{{ s.description }}</p>{% endif %}
+  <ul class="api-index" aria-label="{{ s.name }} endpoints">{% for op in s.operations %}<li data-api-index-for="{{ op.key }}"><a href="#{{ op.key }}"><span class="method method--{{ op.method }}">{{ op.method|upper }}</span><code>{{ op.path[7:] if op.path.startswith('/api/v1') else op.path }}</code><span class="api-index__summary">{{ op.summary }}</span></a></li>{% endfor %}</ul>
   {% for op in s.operations %}
   <article class="api-op" id="{{ op.key }}" data-api-op data-search="{{ op.search }}">
-    <div class="api-op__head">
-      <span class="method method--{{ op.method }}">{{ op.method|upper }}</span>
-      <code class="api-path">{% for seg, is_param in op.path_parts %}{% if is_param %}<b>{{ seg }}</b>{% else %}{{ seg }}{% endif %}{% endfor %}</code>
-      <a class="api-op__anchor" href="#{{ op.key }}" aria-label="Link to {{ op.summary }}">#</a>
+    <div class="api-op__main">
+      <h3 class="api-op__title">{{ op.summary }}<a class="api-op__anchor" href="#{{ op.key }}" aria-label="Link to {{ op.summary }}">#</a></h3>
+      <p class="api-op__line"><span class="method method--{{ op.method }}">{{ op.method|upper }}</span><code class="api-path">{% for seg, is_param in op.path_parts %}{% if is_param %}<b>{{ seg }}</b>{% else %}{{ seg }}{% endif %}{% endfor %}</code></p>
+      {% if op.description %}<p class="api-op__desc">{{ op.description }}</p>{% endif %}
+      <dl class="api-meta">
+        <div><dt>Who can call it</dt><dd><span class="api-chip api-chip--{{ op.access_kind }}">{{ op.access }}</span></dd></div>
+        {% if op.rate_limit %}<div><dt>Rate limit</dt><dd>{{ op.rate_limit }}</dd></div>{% endif %}
+      </dl>
+      {% if op.params %}<h4>Parameters</h4>{{ rows(op.params) }}{% endif %}
+      {% if op.body_fields %}<h4>Request body <span class="api-op__sub">application/json{% if op.body_schema %} · {{ typ(op.body_schema) }}{% endif %}</span></h4>{{ rows(op.body_fields) }}{% endif %}
+      <h4>Returns</h4>
+      <ul class="api-responses">
+        {% for r in op.success %}<li><code class="api-status api-status--{{ r.status[0] }}">{{ r.status }}</code> {{ r.description }}{% if op.returns == 'csv' %} <span class="muted">→ text/csv</span>{% elif r.schema and r.schema != 'object' %} <span class="muted">→ {{ typ(r.schema) }}</span>{% elif r.schema == 'object' %} <span class="muted">→ a JSON object</span>{% endif %}</li>{% endfor %}
+        {% if op.error_codes %}<li class="api-errors"><span class="muted">Errors</span> {% for code in op.error_codes %}<a href="#errors"><code class="api-status api-status--{{ code[0] }}">{{ code }}</code></a>{% if not loop.last %} {% endif %}{% endfor %}</li>{% endif %}
+      </ul>
     </div>
-    <h3 class="api-op__summary">{{ op.summary }}</h3>
-    {% if op.description %}<p class="api-op__desc">{{ op.description }}</p>{% endif %}
-    <p class="api-access"><strong>Who can call it:</strong> {{ op.access }}{% if op.rate_limit %} · <strong>Rate limit:</strong> {{ op.rate_limit }}{% endif %}</p>
-    <div class="api-op__grid">
-      <div>
-        {% if op.params %}
-        <h4>Parameters</h4>
-        <div class="table-wrap"><table class="table api-table"><caption class="visually-hidden">Parameters</caption>
-          <thead><tr><th scope="col">Name</th><th scope="col">In</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead>
-          <tbody>{% for p in op.params %}<tr><td><code>{{ p.name }}</code>{% if p.required %} <span class="api-req">required</span>{% endif %}</td><td>{{ p.location }}</td><td class="api-type">{{ typ(p.type) }}</td><td>{% if p.description %}{{ p.description }} {% endif %}{% if p.constraints %}<span class="muted">{{ p.constraints }}</span>{% elif not p.description %}<span class="muted">—</span>{% endif %}</td></tr>{% endfor %}</tbody>
-        </table></div>
-        {% endif %}
-        {% if op.body_fields %}
-        <h4>Request body <span class="muted">application/json{% if op.body_schema %} · {{ typ(op.body_schema) }}{% endif %}</span></h4>
-        {{ fields_table(op.body_fields, "Request body") }}
-        {% endif %}
-        <h4>Responses</h4>
-        <ul class="api-responses">
-          {% for r in op.success %}<li><code class="api-status api-status--{{ r.status[0] }}">{{ r.status }}</code> {{ r.description }}{% if r.schema %} <span class="muted">→ {{ typ(r.schema) }}</span>{% endif %}</li>{% endfor %}
-          {% if op.error_codes %}<li class="api-errors"><span class="muted">Errors:</span> {% for code in op.error_codes %}<a href="#errors"><code class="api-status api-status--{{ code[0] }}">{{ code }}</code></a>{% if not loop.last %} {% endif %}{% endfor %}</li>{% endif %}
-        </ul>
+    <div class="api-op__code">
+      <div class="api-panel">
+        {% for smp in op.samples %}<input class="api-panel__radio" type="radio" name="lang-{{ op.key }}" id="{{ op.key }}-{{ smp.key }}" value="{{ smp.key }}"{% if loop.first %} checked{% endif %}>{% endfor %}
+        <div class="api-panel__head">
+          <span class="api-panel__title">Request</span>
+          <span class="api-tabs">{% for smp in op.samples %}<label for="{{ op.key }}-{{ smp.key }}" data-lang="{{ smp.key }}">{{ smp.label }}</label>{% endfor %}</span>
+          {% for smp in op.samples %}<button class="api-copy" type="button" data-lang="{{ smp.key }}" data-copy="{{ smp.text }}">Copy</button>{% endfor %}
+        </div>
+        {% for smp in op.samples %}<pre class="api-sample" data-lang="{{ smp.key }}"><code>{{ smp.html }}</code></pre>{% endfor %}
       </div>
-      <div>{{ code_block("Example request", op.curl) }}</div>
+      <div class="api-panel api-panel--response">
+        <div class="api-panel__head"><span class="api-panel__title">Response</span><span class="api-panel__status"><code class="api-status api-status--{{ op.response_status[0] }}">{{ op.response_status }}</code> {{ op.response_label }}{% if op.response_schema %} · {{ op.response_schema }}{% endif %}</span>{% if op.response_example %}<button class="api-copy" type="button" data-copy="{{ op.response_example }}">Copy</button>{% endif %}</div>
+        {% if op.response_example %}
+        <pre><code>{{ op.response_head }}</code></pre>
+        {% if op.response_tail %}<details class="api-more"><summary>Show {{ op.response_tail_lines|plural('more line') }}</summary><pre><code>{{ op.response_tail }}</code></pre></details>{% endif %}
+        {% elif op.returns == 'none' %}<p class="api-panel__note">No body. The status code is the answer.</p>
+        {% elif op.returns == 'csv' %}<p class="api-panel__note">A CSV file with a header row, streamed as <code>text/csv</code>. Cells that start with <code>=</code>, <code>+</code>, <code>-</code> or <code>@</code> get a leading apostrophe, so spreadsheets never run them as formulas.</p>
+        {% else %}<p class="api-panel__note">Returns a JSON object. Errors use the <a href="#errors">shared error shape</a>.</p>{% endif %}
+      </div>
     </div>
   </article>
   {% endfor %}
@@ -139,13 +159,15 @@
 {% if not query %}
 <section class="api-section" id="schemas" data-api-guide>
   <h2>Schemas</h2>
-  <p class="ink-2">Request and response bodies, as named in the endpoint tables above.</p>
+  <p class="ink-2">Request and response bodies, as named in the endpoints above.</p>
+  <div class="api-schemas">
   {% for sd in ref.schemas %}
   <article class="api-schema" id="schema-{{ sd.name }}">
     <h3><code>{{ sd.name }}</code></h3>
-    {% if sd.fields %}{{ fields_table(sd.fields, sd.name) }}{% else %}<p class="muted">Free-form object.</p>{% endif %}
+    {% if sd.fields %}{{ rows(sd.fields) }}{% else %}<p class="muted">Free-form object.</p>{% endif %}
   </article>
   {% endfor %}
+  </div>
 </section>
 {% endif %}
 {% endblock %}

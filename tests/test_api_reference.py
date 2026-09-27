@@ -66,3 +66,39 @@ def test_validation_errors_share_the_error_shape(client, auth):
         ]["$ref"]
         == "#/components/schemas/ErrorResponse"
     )
+
+
+def _article(html: str, key: str) -> str:
+    start = html.index(f'id="{key}"')
+    return html[start : html.index("</article>", start)]
+
+
+def test_every_endpoint_has_three_request_samples_and_a_response_panel(client):
+    html = client.get("/api/docs").text
+    total = int(re.search(r"(\d+) of \d+ endpoints", html).group(1))
+    assert html.count('class="api-panel__radio"') == 3 * total
+    events = _article(html, "op-get-api-v1-events")
+    assert "requests.get(" in events and "await fetch(" in events
+    assert "&#34;events&#34;: [" in events  # the typed response example, in its Copy button
+    tracks = _article(html, "op-post-api-v1-events-slug-tracks")
+    assert "Returns a JSON object" in tracks
+    delete = _article(html, "op-delete-api-v1-events-slug-tracks-track-id")
+    assert "No body. The status code is the answer." in delete
+    csv = _article(html, "op-get-api-v1-events-slug-exports-name-csv")
+    assert "text/csv" in csv and "print(response.text)" in csv
+    samples = re.findall(r'data-lang="(?:curl|python|javascript)" data-copy="([^"]*)"', html)
+    assert len(samples) == 3 * total
+    assert not [text for text in samples if re.search(r"\{[a-z_]+\}", text)]  # no unfilled path
+
+
+def test_endpoint_index_rows_point_at_real_cards(client):
+    html = client.get("/api/docs").text
+    keys = re.findall(r'data-api-index-for="([^"]+)"', html)
+    assert keys and all(f'id="{key}"' in html for key in keys)
+
+
+def test_code_is_highlighted_on_the_server(client):
+    html = client.get("/api/docs").text
+    assert '<span class="tok-p">&#34;events&#34;</span>' in html
+    assert '<span class="tok-f">-H</span>' in html
+    assert "<script" not in html.split("</head>")[1].split('src="/static/js/app.js"')[0]

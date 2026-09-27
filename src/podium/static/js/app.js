@@ -289,6 +289,9 @@
     confirmDialog.addEventListener("click", function (e) { if (e.target === confirmDialog) closeConfirm(); });
     confirmDialog.addEventListener("cancel", function () { confirmPending = null; });
   }
+  // ---- unsaved changes: a guarded form that was edited asks before the page is left -------------
+  var dirty = false;
+  document.addEventListener("input", function (e) { if (e.target.closest && e.target.closest("form[data-guard]")) dirty = true; });
   document.addEventListener("submit", function () { dirty = false; });
   window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
   document.body.addEventListener("htmx:confirm", function (e) {
@@ -374,6 +377,10 @@
     document.querySelectorAll("[data-api-section]").forEach(function (section) {
       section.hidden = !section.querySelector("[data-api-op]:not([hidden])");
     });
+    document.querySelectorAll("[data-api-index-for]").forEach(function (row) {
+      var op = document.getElementById(row.getAttribute("data-api-index-for"));
+      row.hidden = !op || op.hidden;
+    });
     document.querySelectorAll("[data-api-guide]").forEach(function (guide) { guide.hidden = !!needle; });
     var count = document.querySelector("[data-api-count]");
     if (count) count.textContent = shown + " of " + (count.getAttribute("data-total") || ops.length) + " endpoints";
@@ -382,4 +389,45 @@
     var input = e.target && e.target.closest ? e.target.closest("[data-api-filter]") : null;
     if (input) filterApiReference(input);
   });
+
+  // ---- API reference: one language for every example (remembered) and a rail that follows ----------
+  var LANG_KEY = "podium-api-lang";
+  function applyApiLang(lang) {
+    document.querySelectorAll('input.api-panel__radio[value="' + lang + '"]').forEach(function (radio) { radio.checked = true; });
+  }
+  document.addEventListener("change", function (e) {
+    var radio = e.target;
+    if (!radio.classList || !radio.classList.contains("api-panel__radio")) return;
+    applyApiLang(radio.value);
+    try { localStorage.setItem(LANG_KEY, radio.value); } catch (err) { /* private mode: still works for this page */ }
+  });
+  var apiSpy = null;
+  function startScrollSpy() {
+    if (apiSpy) { apiSpy.disconnect(); apiSpy = null; }
+    var links = Array.prototype.slice.call(document.querySelectorAll('.rail__nav a[href^="#"]'));
+    if (!links.length || !("IntersectionObserver" in window)) return;
+    var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); }).filter(Boolean);
+    targets.sort(function (a, b) { return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1; });
+    var visible = {};
+    apiSpy = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { visible[entry.target.id] = entry.isIntersecting; });
+      var current = null;
+      for (var i = 0; i < targets.length; i++) { if (visible[targets[i].id]) { current = targets[i].id; break; } }
+      if (!current) return;
+      links.forEach(function (a) {
+        if (a.getAttribute("href") === "#" + current) a.setAttribute("aria-current", "true");
+        else a.removeAttribute("aria-current");
+      });
+    }, { rootMargin: "-88px 0px -55% 0px" });
+    targets.forEach(function (target) { apiSpy.observe(target); });
+  }
+  function initApiReference() {
+    if (!document.querySelector("[data-api-op]")) { if (apiSpy) { apiSpy.disconnect(); apiSpy = null; } return; }
+    var stored = null;
+    try { stored = localStorage.getItem(LANG_KEY); } catch (err) { stored = null; }
+    if (stored && /^(curl|python|javascript)$/.test(stored)) applyApiLang(stored);
+    startScrollSpy();
+  }
+  initApiReference();
+  document.body.addEventListener("htmx:load", initApiReference);  // boosted visits to or from the page
 })();

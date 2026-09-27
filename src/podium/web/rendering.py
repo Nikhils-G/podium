@@ -14,6 +14,7 @@ from podium.security.csrf import COOKIE_NAME as CSRF_COOKIE
 from podium.security.csrf import ensure_csrf_cookie
 from podium.services.audit import describe
 from podium.services.text import plural
+from podium.web.apiref import highlight
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 jinja_env = Environment(
@@ -26,6 +27,7 @@ templates.env.globals["now_utc"] = utcnow
 jinja_env.filters["plural"] = plural
 jinja_env.filters["hue"] = lambda value: sum(ord(c) for c in str(value)) % 8 + 1
 jinja_env.globals["describe"] = describe
+jinja_env.filters["highlight"] = highlight
 
 
 def wants_partial(request: Request, target: str | None = None) -> bool:
