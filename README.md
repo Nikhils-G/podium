@@ -1,5 +1,7 @@
 # Podium
 
+[![CI](https://github.com/Nikhils-G/podium/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Nikhils-G/podium/actions/workflows/ci.yml)
+
 **Open-source, self-hostable hackathon submission and judging platform.** One container, one
 command, no cloud dependencies. Built for organizers who need weighted rubrics, judging that
 can't leak, documented score normalization, community voting that resists stuffing, and a way to
@@ -96,6 +98,11 @@ in the UI, the API, the test suite (`tests/test_voting.py`, `tests/test_t4.py`) 
 The checker's requests are mirrored in `tests/test_acceptance.py`, so a regression on any checked
 route fails `make test` before it fails the judges' run.
 
+CI re-runs this command on every push against a fresh `docker compose up` and inside a container
+with no network, and fails if the output differs from the committed `acceptance-report.txt` by a
+single byte. `tools/fixtures.json` is a byte-identical copy kept beside the checker, as the spec
+suggests, so `python3 tools/run.py .dogfood.toml` also works without the flag.
+
 ## Configuration
 
 All configuration is environment variables with the `PODIUM_` prefix (or a `.env` file).
@@ -149,6 +156,9 @@ make lint      # ruff
 make check     # run the organizer's checker against a running portal → acceptance-report.txt
 make clean-verify   # what a judge does: rebuild without cache, boot, run the checker
 ```
+
+CI (`.github/workflows/ci.yml`) runs lint, the migration round trip and drift check, and the
+tests grouped by tier on every push.
 
 ## Honest limitations
 
