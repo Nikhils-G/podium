@@ -1,47 +1,66 @@
 {% extends "layouts/console.html" %}
-{% from "macros/ui.html" import field, alert, badge, when %}
+{% from "macros/ui.html" import field, alert, badge, when, empty %}
 {% block content %}
-<div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Integrations</h1><p class="ink-2 mt-2">Everything the console can do, the <a href="/api/docs">REST API</a> can do. Webhooks push events to your systems; the embed drops the gallery into any site.</p></div></div>
+<div class="page-header">
+  <div><p class="page-header__eyebrow">Organizer</p><h1>Integrations</h1><p class="ink-2 mt-2">Everything the console can do, the <a href="/api/docs">REST API</a> can do. Webhooks push events to your systems; the embed drops the gallery into any site.</p></div>
+  <a class="btn btn--primary" href="#add-webhook">Add webhook</a>
+</div>
+<nav class="subnav" aria-label="On this page"><a href="#webhooks">Webhooks</a><a href="#deliveries">Deliveries</a><a href="#embed">Embed</a><a href="#api">API</a></nav>
 {% if request.query_params.get('saved') == 'test' %}{{ alert('success', 'Test delivery queued. It appears under Deliveries within a few seconds, signed like any other call.') }}{% endif %}
+{% if request.query_params.get('saved') == 'paused' %}{{ alert('success', 'Webhook paused. Nothing is sent to it until you resume it.') }}{% endif %}
+{% if request.query_params.get('saved') == 'resumed' %}{{ alert('success', 'Webhook resumed.') }}{% endif %}
+{% if request.query_params.get('saved') == 'deleted' %}{{ alert('success', 'Webhook deleted.') }}{% endif %}
 {% if new_secret %}<div class="alert alert--success" role="status"><div><strong>Webhook added.</strong> Signing secret (shown once): <code>{{ new_secret }}</code> — deliveries carry <code>X-Podium-Signature: sha256=HMAC(secret, body)</code>.</div></div>{% endif %}
-<div class="two-col two-col--wide mt-4">
-  <section class="stack">
-    <h2>Webhooks <span class="count">{{ hooks|length }}</span></h2>
-    {% if hooks %}
-    <ul class="row-list">{% for h in hooks %}<li><code class="text-sm">{{ h.url }}</code><span class="text-sm ink-2 nowrap">{{ h.event_types|length }} event type{{ '' if h.event_types|length == 1 else 's' }}</span>{{ badge('active' if h.active else 'paused', 'good' if h.active else 'plain') }}<span class="grow"></span>
-      <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/test" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit" {% if not h.active %}disabled{% endif %}>Send test</button></form>
-      <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/toggle" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">{{ 'Pause' if h.active else 'Resume' }}</button></form>
-      <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/delete" hx-boost="false" data-confirm="Delete this webhook and its delivery history?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Delete</button></form></li>{% endfor %}</ul>
-    {% else %}<p class="muted">No webhooks yet.</p>{% endif %}
-    <h3 class="mt-4" id="deliveries">Recent deliveries</h3>
-    {% if deliveries %}
-    <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Type</th><th>Status</th><th class="num">Attempts</th><th>Detail</th><th></th></tr></thead><tbody>
-    {% for d in deliveries %}<tr><td><code>{{ d.event_type }}</code><br><span class="muted text-sm">{{ when(d.created_at) }}</span></td><td>{{ badge(d.status.value, 'good' if d.status.value == 'delivered' else ('critical' if d.status.value == 'failed' else 'warning')) }}</td><td class="num">{{ d.attempts }}</td><td class="text-sm">{{ d.last_error or (d.last_status_code and 'HTTP ' ~ d.last_status_code) or '' }}{% if d.next_attempt_at and d.status.value == 'pending' %}<br><span class="muted">retry {{ when(d.next_attempt_at) }}</span>{% endif %}</td>
-      <td>{% if d.status.value != 'pending' %}<form method="post" action="/e/{{ event.slug }}/organizer/webhooks/deliveries/{{ d.id }}/redeliver" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Redeliver</button></form>{% endif %}</td></tr>{% endfor %}
-    </tbody></table></div>
-    {% else %}<p class="muted text-sm">Nothing delivered yet.</p>{% endif %}
+
+<section class="card stack mt-4" id="webhooks">
+  <h2>Webhooks <span class="count">{{ hooks|length }}</span></h2>
+  {% if hooks %}
+  <ul class="row-list">{% for h in hooks %}<li><code class="text-sm">{{ h.url }}</code><span class="text-sm ink-2 nowrap">{{ h.event_types|length|plural('event type') }}</span>{{ badge('active' if h.active else 'paused', 'good' if h.active else 'warning') }}
+    <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/test" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit" {% if not h.active %}disabled title="Resume the webhook to send a test"{% endif %}>Send test</button></form>
+    <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/toggle" hx-boost="false"{% if h.active %} data-confirm="Pause this webhook? Events that happen while it is paused are not delivered later." data-confirm-title="Pause this webhook?"{% endif %}><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">{{ 'Pause' if h.active else 'Resume' }}</button></form>
+    <form method="post" action="/e/{{ event.slug }}/organizer/webhooks/{{ h.public_id }}/delete" hx-boost="false" data-confirm="Delete this webhook and its delivery history?" data-confirm-title="Delete this webhook?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm btn--danger-text" type="submit">Delete</button></form></li>{% endfor %}</ul>
+  {% else %}<p class="ink-2">No webhooks yet. Add one below to get an HTTP POST for every event you tick.</p>{% endif %}
+  <form class="stack" id="add-webhook" method="post" action="/e/{{ event.slug }}/organizer/webhooks" hx-boost="false">
+    <h3>Add a webhook</h3>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field-grid">
+      {{ field('url', 'Endpoint URL', value=values.url, type='url', required=True, error=errors.url, placeholder='https://example.org/hooks/podium', maxlength=500) }}
+      <div class="field"><label class="field__label" for="f-secret">Signing secret <span class="muted">(optional)</span></label>
+        <div class="cluster"><div class="grow"><input class="input" id="f-secret" name="secret" type="password" maxlength="128" autocomplete="new-password"></div><button class="btn btn--ghost btn--sm" type="button" data-reveal="f-secret" aria-pressed="false">Show</button></div>
+        <p class="field__help">Leave empty to generate one. It is shown once, after saving.</p></div>
+    </div>
+    <fieldset class="field{% if errors.events %} is-invalid{% endif %}" data-check-group>
+      <legend class="field__label">Events</legend>
+      <div class="check-tools" data-js-only hidden><button class="btn btn--ghost btn--sm" type="button" data-check-all>Select all</button><button class="btn btn--ghost btn--sm" type="button" data-check-none>Clear</button><span class="muted text-sm" data-check-count aria-live="polite"></span></div>
+      <div class="check-grid">{% for t in event_types %}<label class="check check--card"><input type="checkbox" name="events" value="{{ t }}"{% if values.events is none or t in values.events %} checked{% endif %}><span><code>{{ t }}</code><span class="check__desc">{{ event_descriptions[t] }}</span></span></label>{% endfor %}</div>
+      {% if errors.events %}<p class="field__error" id="e-events">{{ errors.events }}</p>{% endif %}
+      <p class="field__help"><code>vote.cast</code> carries a project's running vote total while voting is open — keep that endpoint as private as the tally page.</p>
+    </fieldset>
+    <div><button class="btn btn--primary" type="submit">Add webhook</button></div>
+  </form>
+</section>
+
+<section class="stack mt-6" id="deliveries">
+  <h2>Recent deliveries</h2>
+  {% if deliveries %}
+  <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Type</th><th>Status</th><th class="num">Attempts</th><th>Detail</th><th></th></tr></thead><tbody>
+  {% for d in deliveries %}<tr><td><code>{{ d.event_type }}</code><br><span class="muted text-sm">{{ when(d.created_at) }}</span></td><td>{{ badge(d.status.value, 'good' if d.status.value == 'delivered' else ('critical' if d.status.value == 'failed' else 'warning')) }}</td><td class="num">{{ d.attempts }}</td><td class="text-sm ink-2">{% if d.last_error %}{{ d.last_error }}{% elif d.next_attempt_at and d.status.value == 'pending' %}next try {{ when(d.next_attempt_at) }}{% elif d.status.value == 'delivered' %}HTTP {{ d.response_status }}{% endif %}</td>
+    <td>{% if d.status.value != 'pending' %}<form method="post" action="/e/{{ event.slug }}/organizer/webhooks/deliveries/{{ d.id }}/redeliver" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Redeliver</button></form>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}{{ empty('Nothing delivered yet', 'Add a webhook and press Send test — the ping shows up here, signed like any other call.') }}{% endif %}
+</section>
+
+<div class="two-col mt-6">
+  <section class="card stack" id="embed">
+    <h2>Embed the gallery</h2>
+    <p class="text-sm ink-2">Paste this where you want the projects to appear. Add <code>?theme=dark</code> or <code>&amp;track=trk_id</code> to the URL.</p>
+    <div class="copy-field"><code class="copy-field__value">&lt;iframe src="{{ base_url }}/e/{{ event.slug }}/embed" width="100%" height="600" loading="lazy" title="{{ event.name }} projects"&gt;&lt;/iframe&gt;</code><button class="btn btn--secondary btn--sm" type="button" data-copy='<iframe src="{{ base_url }}/e/{{ event.slug }}/embed" width="100%" height="600" loading="lazy" title="{{ event.name }} projects"></iframe>'>Copy snippet</button></div>
+    <p class="text-sm"><a href="/e/{{ event.slug }}/embed" target="_blank" rel="noopener">Preview the embed ↗</a> · JSON for custom widgets: <code>GET /api/v1/events/{{ event.slug }}/projects</code> (CORS enabled).</p>
   </section>
-  <aside class="stack">
-    <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/webhooks" hx-boost="false">
-      <h2>Add a webhook</h2>
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      {{ field('url', 'Endpoint URL', type='url', required=True, error=errors.url, placeholder='https://example.org/hooks/podium') }}
-      <div class="cluster align-end"><div class="grow">{{ field('secret', 'Signing secret (optional)', type='password', help='Leave empty to generate one.', autocomplete='new-password') }}</div><button class="btn btn--ghost btn--sm" type="button" data-reveal="f-secret" aria-pressed="false">Show</button></div>
-      <div class="field"><span class="field__label">Events</span><div class="checklist">{% for t in event_types %}<label><input type="checkbox" name="events" value="{{ t }}" checked> <code>{{ t }}</code></label>{% endfor %}</div></div>
-      <p class="text-sm muted"><code>vote.cast</code> carries a project's running vote total while voting is open — keep that endpoint as private as the tally page.</p>
-      <div><button class="btn btn--primary" type="submit">Add webhook</button></div>
-    </form>
-    <section class="card stack">
-      <h2>Embed the gallery</h2>
-      <p class="text-sm ink-2">Paste this where you want the projects to appear. Add <code>?theme=dark</code> or <code>&amp;track=trk_id</code> to the URL.</p>
-      <div class="copy-field"><code class="copy-field__value">&lt;iframe src="{{ base_url }}/e/{{ event.slug }}/embed" width="100%" height="600" loading="lazy" title="{{ event.name }} projects"&gt;&lt;/iframe&gt;</code><button class="btn btn--secondary btn--sm" type="button" data-copy='<iframe src="{{ base_url }}/e/{{ event.slug }}/embed" width="100%" height="600" loading="lazy" title="{{ event.name }} projects"></iframe>'>Copy</button></div>
-      <p class="text-sm"><a href="/e/{{ event.slug }}/embed" target="_blank" rel="noopener">Preview the embed ↗</a> · JSON for custom widgets: <code>GET /api/v1/events/{{ event.slug }}/projects</code> (CORS enabled).</p>
-    </section>
-    <section class="card stack">
-      <h2>API</h2>
-      <p class="text-sm ink-2">OpenAPI spec at <a href="/api/openapi.json">/api/openapi.json</a>, the reference at <a href="/api/docs">/api/docs</a>, an interactive console at <a href="/api/docs/console" hx-boost="false">/api/docs/console</a>. Create a token on your <a href="/account">account page</a>.</p>
-      <pre class="meta">curl -H "Authorization: Bearer pdm_…" {{ base_url }}/api/v1/events/{{ event.slug }}/exports/scores.csv</pre>
-    </section>
-  </aside>
+  <section class="card stack" id="api">
+    <h2>API</h2>
+    <p class="text-sm ink-2">OpenAPI document at <a href="/api/openapi.json" hx-boost="false">/api/openapi.json</a>, the reference at <a href="/api/docs">/api/docs</a>, an interactive console at <a href="/api/docs/console" hx-boost="false">/api/docs/console</a>. Create a token on your <a href="/account">account page</a>.</p>
+    <pre class="meta">curl -H "Authorization: Bearer pdm_…" {{ base_url }}/api/v1/events/{{ event.slug }}/exports/scores.csv</pre>
+  </section>
 </div>
 {% endblock %}

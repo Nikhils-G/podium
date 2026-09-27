@@ -383,6 +383,7 @@ def test_boosted_navigation_never_gets_a_bare_partial(app):
         headers={"HX-Request": "true", "HX-Target": "progress-body"},
     )
     assert partial.status_code == 200 and "<html" not in partial.text and "kpis" in partial.text
+    assert "data-sticky" in partial.text  # a re-rendered poll is re-classified by app.js
     judge = demo(app, "judge_a")
     assert "<html" in judge.get(f"/e/{SLUG}/judge/compare", headers=boosted).text
 

@@ -31,6 +31,21 @@ EVENT_TYPES = [
     "comment.added",
     "ping",
 ]
+EVENT_DESCRIPTIONS = {
+    "project.submitted": "A team submitted a project, or re-submitted a draft.",
+    "project.withdrawn": "A project was withdrawn from the gallery and from judging.",
+    "review.submitted": "A judge submitted a review (scores stay private to organizers).",
+    "assignment.created": "Projects were assigned to judges, by hand or by auto-assign.",
+    "judging.opened": "The organizer opened judging.",
+    "judging.closed": "The organizer closed judging; scores are final.",
+    "results.published": "Results went public.",
+    "results.unpublished": "Results were taken back down.",
+    "certificate.issued": "A certificate or judge record was issued.",
+    "vote.cast": "A community vote landed; carries the project's running total, "
+    "coalesced while voting is open.",
+    "comment.added": "Someone commented on a project.",
+    "ping": "A test delivery sent from the Integrations page.",
+}
 BACKOFF = [timedelta(seconds=30), timedelta(minutes=5), timedelta(minutes=30)]
 TIMEOUT = 5
 

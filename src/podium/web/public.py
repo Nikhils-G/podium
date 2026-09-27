@@ -231,6 +231,7 @@ def api_docs(request: Request, q: str = "", user: User | None = Depends(current_
         query=query,
         shown=sum(len(s.operations) for s in sections),
         webhook_types=webhooks_service.EVENT_TYPES,
+        webhook_descriptions=webhooks_service.EVENT_DESCRIPTIONS,
         console="API",
         nav_groups=[("Guide", API_GUIDE), ("Endpoints", endpoints)],
         nav_items=[],

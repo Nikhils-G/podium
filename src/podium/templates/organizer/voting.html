@@ -58,7 +58,7 @@
       {% else %}<p class="muted text-sm">No votes yet.</p>{% endif %}
     </section>
   </section>
-  <aside class="stack">
+  <aside class="stack" data-sticky>
     <section class="card stack">
       <h2>Tally</h2>
       <p class="text-sm ink-2">{{ tally.total_votes|plural('vote') }} from {{ tally.total_voters|plural('voter') }} · {{ tally.voided }} voided · {{ tally.flagged }} flagged. Public only after the window closes and results are published.</p>

@@ -45,7 +45,7 @@
       <form method="post" action="/e/{{ event.slug }}/organizer/judges/invites/{{ row.invite.id }}/revoke" hx-boost="false" data-confirm="Revoke the invitation for {{ row.invite.email }}? Its link stops working immediately."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Revoke</button></form></li>{% endfor %}</ul>
     {% endif %}
   </section>
-  <form class="card stack stack--aside" method="post" action="/e/{{ event.slug }}/organizer/judges/invite" hx-boost="false">
+  <form class="card stack stack--aside" method="post" action="/e/{{ event.slug }}/organizer/judges/invite" hx-boost="false" data-sticky>
     <h2>Invite a judge</h2>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {{ field('email', 'Email', type='email', required=True, error=errors.email, autocomplete='off') }}

@@ -58,7 +58,7 @@
     </section>
     {% endif %}
   </div>
-  <aside class="stack">
+  <aside class="stack" data-sticky>
     <div class="card">
       <h3>Signed audit anchor</h3>
       <p class="text-sm ink-2">Every sensitive action was appended to a hash-chained log. This is its head at {{ when(anchor.at|replace('T', ' ')|replace('+00:00', '')|truncate(16, True, '')) if false else anchor.at[:16].replace('T', ' ') }} UTC, signed with the instance key, so the history behind these results can be checked later.</p>

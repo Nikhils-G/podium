@@ -33,8 +33,10 @@ def _integrations(ctx, db, settings, **extra):
         "hooks": webhooks_service.list_hooks(db, ctx.event),
         "deliveries": webhooks_service.recent_deliveries(db, ctx.event),
         "event_types": webhooks_service.EVENT_TYPES,
+        "event_descriptions": webhooks_service.EVENT_DESCRIPTIONS,
         "base_url": settings.base_url,
         "errors": {},
+        "values": {"url": "", "events": None},
         "new_secret": None,
     }
     defaults.update(extra)
@@ -64,17 +66,21 @@ async def webhook_create(
     settings: Settings = Depends(get_settings),
 ):
     form = await request.form()
+    url = str(form.get("url", ""))
+    events = [str(v) for v in form.getlist("events")]
+    values = {"url": url, "events": events}
+    if not events:  # the service would subscribe to everything; a cleared form must not
+        c = _integrations(ctx, db, settings, values=values)
+        c["errors"] = {"events": "Choose at least one event type."}
+        return render(
+            request, "organizer/integrations.html", status_code=422, title="Integrations", **c
+        )
     try:
         hook = webhooks_service.create_hook(
-            db,
-            ctx.event,
-            ctx.user,
-            str(form.get("url", "")),
-            [str(v) for v in form.getlist("events")],
-            str(form.get("secret", "")),
+            db, ctx.event, ctx.user, url, events, str(form.get("secret", ""))
         )
     except PodiumError as exc:
-        c = _integrations(ctx, db, settings)
+        c = _integrations(ctx, db, settings, values=values)
         c["errors"] = getattr(exc, "errors", None) or {"url": exc.message}
         return render(
             request,
@@ -97,7 +103,10 @@ def webhook_toggle(
 ):
     hook = webhooks_service.get_hook(db, ctx.event, hook_id)
     webhooks_service.set_active(db, ctx.event, ctx.user, hook, not hook.active)
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/integrations", status_code=303)
+    saved = "resumed" if hook.active else "paused"
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/integrations?saved={saved}#webhooks", status_code=303
+    )
 
 
 @router.post("/e/{slug}/organizer/webhooks/{hook_id}/test", dependencies=[Depends(verify_csrf)])
@@ -127,7 +136,9 @@ def webhook_delete(
 ):
     hook = webhooks_service.get_hook(db, ctx.event, hook_id)
     webhooks_service.delete_hook(db, ctx.event, ctx.user, hook)
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/integrations", status_code=303)
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/integrations?saved=deleted#webhooks", status_code=303
+    )
 
 
 @router.post(

@@ -34,7 +34,7 @@
       <ol class="steps"><li><strong>Form a team</strong> — create one or join with an invite link (solo is fine).</li><li><strong>Submit your project</strong> — draft, then submit before the deadline; edit until it closes.</li><li><strong>Judging</strong> — assigned judges score every project on the organizer's rubric; scores are normalized across judges.</li><li><strong>Results</strong> — published by the organizers{% if event.voting_open_at %}, alongside the community vote{% endif %}.</li></ol></section>
     {% endif %}
   </div>
-  <aside class="stack">
+  <aside class="stack" data-sticky>
     <div class="card card--action">
       {% if links and links.is_organizer %}
         <h3>You organize this event</h3>

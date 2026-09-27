@@ -301,6 +301,64 @@
     });
   });
 
+  // ---- sticky columns: stick when they fit under the header, otherwise scroll with the page --------
+  var STICKY_TOP = 76, STICKY_GAP = 16, stickyTimer;
+  function stickyColumns() {
+    var wide = window.matchMedia("(min-width: 1024px)").matches;
+    document.querySelectorAll("[data-sticky]").forEach(function (el) {
+      el.classList.remove("is-sticky-top", "is-sticky-bottom");  // measure in normal flow
+      if (!wide) return;
+      el.classList.add(el.offsetHeight + STICKY_TOP + STICKY_GAP <= window.innerHeight ? "is-sticky-top" : "is-sticky-bottom");
+    });
+  }
+  function stickySoon() { clearTimeout(stickyTimer); stickyTimer = setTimeout(stickyColumns, 120); }
+  stickyColumns();
+  window.addEventListener("resize", stickySoon);
+  window.addEventListener("load", stickyColumns);
+  document.body.addEventListener("htmx:afterSwap", stickyColumns);  // boosted pages and polled regions
+  document.addEventListener("toggle", stickySoon, true);  // an opened <details> changes a column's height
+
+  // ---- checkbox groups: select all / clear, live filter, count (plain checkboxes without JS) -------
+  function checkCount(group) {
+    var count = group.querySelector("[data-check-count]");
+    if (!count) return;
+    var boxes = group.querySelectorAll('input[type="checkbox"]'), on = 0;
+    boxes.forEach(function (box) { if (box.checked) on += 1; });
+    count.textContent = on + " of " + boxes.length + " selected";
+  }
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-check-all], [data-check-none]");
+    if (!btn) return;
+    var group = btn.closest("[data-check-group]");
+    if (!group) return;
+    var on = btn.hasAttribute("data-check-all");
+    group.querySelectorAll('input[type="checkbox"]:not(:disabled)').forEach(function (box) {
+      var label = box.closest("label");
+      if (!label || !label.hidden) box.checked = on;
+    });
+    checkCount(group);
+  });
+  document.addEventListener("input", function (e) {
+    var input = e.target.closest && e.target.closest("[data-check-filter]");
+    if (!input) return;
+    var group = input.closest("[data-check-group]");
+    if (!group) return;
+    var needle = input.value.trim().toLowerCase();
+    group.querySelectorAll("label.check").forEach(function (label) {
+      label.hidden = !!needle && label.textContent.toLowerCase().indexOf(needle) === -1;
+    });
+  });
+  document.addEventListener("change", function (e) {
+    var group = e.target.closest && e.target.closest("[data-check-group]");
+    if (group) checkCount(group);
+  });
+  function revealJsOnly(root) {
+    (root || document).querySelectorAll("[data-js-only]").forEach(function (el) { el.removeAttribute("hidden"); });
+    (root || document).querySelectorAll("[data-check-group]").forEach(checkCount);
+  }
+  revealJsOnly();
+  document.body.addEventListener("htmx:load", function (e) { revealJsOnly(e.detail && e.detail.elt); });
+
   // ---- API reference: instant filter (the form still works without JavaScript) ------------------
   function filterApiReference(input) {
     var form = input.form;

@@ -25,7 +25,7 @@
     </div>
     {% else %}<p class="muted">Invite judges first.</p>{% endif %}
   </section>
-  <aside class="stack">
+  <aside class="stack" data-sticky>
     <form class="card stack" method="post" action="/e/{{ event.slug }}/organizer/assignments/auto/preview" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/assignments/auto/preview" hx-target="#assign-preview" hx-swap="innerHTML">
       <h2>Auto-assign</h2>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -40,8 +40,9 @@
       <h2>Assign manually</h2>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="field"><label class="field__label" for="f-judge">Judge</label><select class="select" id="f-judge" name="judge" required><option value="">— Choose —</option>{% for load in loads %}<option value="{{ load.judge.public_id }}">{{ load.judge.name }}</option>{% endfor %}</select></div>
-      <div class="field"><span class="field__label">Projects</span>
-        <div class="checklist">{% for p in projects %}<label><input type="checkbox" name="projects" value="{{ p.public_id }}"> <span>{{ p.title }}</span> <span class="muted text-sm">{{ p.track.name if p.track else '' }}</span></label>{% endfor %}</div></div>
+      <fieldset class="field" data-check-group><legend class="field__label">Projects</legend>
+        <div class="check-tools" data-js-only hidden><input class="input" type="search" placeholder="Filter projects" aria-label="Filter projects" data-check-filter autocomplete="off"><button class="btn btn--ghost btn--sm" type="button" data-check-all>Select all</button><button class="btn btn--ghost btn--sm" type="button" data-check-none>Clear</button><span class="muted text-sm" data-check-count aria-live="polite"></span></div>
+        <div class="check-grid check-grid--compact">{% for p in projects %}<label class="check"><input type="checkbox" name="projects" value="{{ p.public_id }}"> <span>{{ p.title }}{% if p.track %} <span class="muted text-sm">{{ p.track.name }}</span>{% endif %}</span></label>{% endfor %}</div></fieldset>
       <div><button class="btn btn--primary" type="submit">Assign</button></div>
     </form>
   </aside>

@@ -13,7 +13,7 @@
 <div id="review-errors">{% if error %}{{ alert('critical', error) }}{% endif %}</div>
 {% if not judging_open %}{{ alert('info', 'Judging is closed. This review is read-only.') }}{% endif %}
 <div class="review-layout">
-  <aside class="review-project stack">
+  <aside class="review-project stack" data-sticky>
     {% if project.summary %}<p class="text-lg ink-2">{{ project.summary }}</p>{% endif %}
     {% if project.description %}<div class="prose text-sm">{% for para in project.description.split('\n\n') %}<p>{{ para|replace('\n', ' ') }}</p>{% endfor %}</div>{% endif %}
     <div class="cluster">

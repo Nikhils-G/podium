@@ -94,8 +94,11 @@ def revoke_token(
 
 @router.get("/events/{slug}/webhooks/types")
 def webhook_types():
-    """Event types a webhook can subscribe to."""
-    return {"types": webhooks_service.EVENT_TYPES}
+    """Event types a webhook can subscribe to, with a one-line description of each."""
+    return {
+        "types": webhooks_service.EVENT_TYPES,
+        "descriptions": webhooks_service.EVENT_DESCRIPTIONS,
+    }
 
 
 @router.get("/events/{slug}/webhooks")

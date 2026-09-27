@@ -88,7 +88,8 @@
     <p>Organizers register endpoints under <strong>Integrations</strong> (or with the webhook endpoints below). Each delivery is a JSON <code>POST</code> with three headers: <code>X-Podium-Event</code> (the type), <code>X-Podium-Delivery</code> (a unique id — use it to ignore duplicates) and <code>X-Podium-Signature</code>, an HMAC-SHA256 of the raw body with the webhook's secret, formatted <code>sha256=&lt;hex&gt;</code>. Verify it before trusting the payload.</p>
     {{ code_block("Verifying a signature (Python)", "import hashlib, hmac\n\nexpected = \"sha256=\" + hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()\nassert hmac.compare_digest(expected, headers[\"X-Podium-Signature\"])") }}
     <p>A delivery counts as accepted on any 2xx within 5 seconds. Otherwise it is retried after 30 seconds, 5 minutes and 30 minutes, then marked failed — except for a 4xx other than 408, 425 or 429, which is final. Failed deliveries can be resent from Integrations or with the redeliver endpoint, and <strong>Send a test ping</strong> queues a <code>ping</code> through the same path.</p>
-    <p><strong>Event types:</strong> {% for t in webhook_types %}<code>{{ t }}</code>{% if not loop.last %} · {% endif %}{% endfor %}.</p>
+    <h3>Event types</h3>
+    <ul class="api-list">{% for t in webhook_types %}<li><code>{{ t }}</code> — {{ webhook_descriptions[t] }}</li>{% endfor %}</ul>
   </div>
 </section>
 {% endif %}
