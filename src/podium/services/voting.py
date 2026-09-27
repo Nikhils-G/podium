@@ -6,6 +6,7 @@ Tallies stay hidden until the window has closed AND the organizer publishes."""
 import hashlib
 import hmac
 import random
+import re
 import secrets
 from dataclasses import dataclass, field
 
@@ -330,8 +331,13 @@ def retract(
 # --- codes (email / code-gated mode) --------------------------------------------------------------
 
 
+def normalize_code(code: str) -> str:
+    """`abcd-efgh`, `ABCDEFGH` and `abcd efgh` are the same code."""
+    return re.sub(r"[^A-Z0-9]", "", (code or "").upper())
+
+
 def _code_hash(code: str) -> str:
-    return hashlib.sha256(code.strip().upper().encode()).hexdigest()
+    return hashlib.sha256(normalize_code(code).encode()).hexdigest()
 
 
 def generate_codes(
@@ -362,7 +368,9 @@ def generate_codes(
 
 
 def redeem_code(db: DbSession, event: Event, code: str) -> str:
-    """Return the voter key for a valid, unused code and mark it used."""
+    """Return the voter key for a valid code and record its first use. The key is derived from
+    the code, so redeeming it again (a second device, a cleared browser) yields the same voter
+    and the same single ballot — locking it out would only punish the person who holds it."""
     row = db.execute(
         select(VoterCode).where(
             VoterCode.event_id == event.id, VoterCode.code_hash == _code_hash(code)
@@ -372,17 +380,13 @@ def redeem_code(db: DbSession, event: Event, code: str) -> str:
         raise NotFound("That code isn't valid for this event.")
     if row.expires_at is not None and row.expires_at <= utcnow():
         raise Forbidden("That code has expired.")
-    if row.used_at is not None:
-        raise Conflict("That code has already been used.")
-    claimed = db.execute(
-        update(VoterCode)
-        .where(VoterCode.id == row.id, VoterCode.used_at.is_(None))
-        .values(used_at=utcnow())
-    ).rowcount
-    if claimed != 1:  # redeemed between our read and this write
-        db.rollback()
-        raise Conflict("That code has already been used.")
-    db.commit()
+    if row.used_at is None:
+        db.execute(
+            update(VoterCode)
+            .where(VoterCode.id == row.id, VoterCode.used_at.is_(None))
+            .values(used_at=utcnow())
+        )
+        db.commit()
     return row.code_hash[:16]
 
 

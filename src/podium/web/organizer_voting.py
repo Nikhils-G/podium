@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
+from podium.config import Settings, get_settings
 from podium.db import get_db
 from podium.errors import PodiumError, ValidationFailed
 from podium.models import Vote
@@ -120,6 +121,35 @@ async def voting_save(
             request, "organizer/voting.html", status_code=exc.status_code, title="Voting", **c
         )
     return RedirectResponse(f"/e/{ctx.event.slug}/organizer/voting?saved=1", status_code=303)
+
+
+@router.post("/e/{slug}/organizer/voting/codes/print", dependencies=[Depends(verify_csrf)])
+async def codes_print(
+    request: Request,
+    ctx: EventContext = Depends(require_organizer),
+    settings: Settings = Depends(get_settings),
+):
+    """Print-ready cards for codes that were just generated. Raw codes are never stored, so the
+    page receives them from the generation response and renders them once."""
+    import segno
+
+    form = await request.form()
+    raw = str(form.get("codes", ""))
+    codes = [line.strip() for line in raw.splitlines() if line.strip()][:5000]
+    cards = []
+    for line in codes:
+        code, _, email = line.partition("\t")
+        link = f"{settings.base_url}/e/{ctx.event.slug}/vote/code?code={code}"
+        qr = segno.make(link, error="m")
+        cards.append({"code": code, "email": email, "link": link, "svg": qr.svg_inline(scale=3)})
+    return render(
+        request,
+        "organizer/codes_print.html",
+        title="Voting code cards",
+        event=ctx.event,
+        cards=cards,
+        base_url=settings.base_url,
+    )
 
 
 @router.post("/e/{slug}/organizer/voting/codes", dependencies=[Depends(verify_csrf)])

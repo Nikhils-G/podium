@@ -226,6 +226,11 @@ def deliver_pending(db: DbSession, *, sender: Sender = http_post, limit: int = 2
             delivery.delivered_at = utcnow()
             delivery.last_error = None
             delivery.next_attempt_at = None
+        elif 400 <= status < 500 and status not in (408, 425, 429):
+            # the endpoint understood us and said no; retrying the same body changes nothing
+            delivery.status = DeliveryStatus.failed
+            delivery.last_error = f"HTTP {status} — not retried"
+            delivery.next_attempt_at = None
         else:
             delivery.last_error = error or f"HTTP {status}"
             if delivery.attempts > len(BACKOFF):

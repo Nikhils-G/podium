@@ -66,7 +66,15 @@
       {% if new_codes %}
       <div class="stack">
         <p class="text-sm"><strong>{{ new_codes|length }} new codes.</strong> Copy them now — they are not shown again.</p>
-        <textarea class="textarea mono" rows="6" readonly>{% for code, email in new_codes %}{{ code }}{% if email %},{{ email }}{% endif %}
+        <textarea class="textarea mono" rows="6" readonly>{% for code, email in new_codes %}{{ code }}{% if email %},{{ email }}
+      <form method="post" action="/e/{{ event.slug }}/organizer/voting/codes/print" hx-boost="false" target="_blank" class="mt-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <textarea class="visually-hidden" name="codes" aria-hidden="true" tabindex="-1">{% for code, email in new_codes %}{{ code }}{% if email %}	{{ email }}{% endif %}
+{% endfor %}</textarea>
+        <button class="btn btn--secondary btn--sm" type="submit">Print cards with QR codes</button>
+      </form>
+
+{% endif %}
 {% endfor %}</textarea>
       </div>
       {% endif %}

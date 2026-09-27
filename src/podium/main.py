@@ -73,6 +73,25 @@ async def lifespan(app: FastAPI):
         await task
 
 
+# Operations anyone can call without a session or token; the schema says so explicitly.
+PUBLIC_OPERATIONS = {
+    ("get", "/api/v1/events"),
+    ("get", "/api/v1/events/{slug}"),
+    ("get", "/api/v1/events/{slug}/projects"),
+    ("get", "/api/v1/events/{slug}/projects/{pid}"),
+    ("get", "/api/v1/events/{slug}/results"),
+    ("get", "/api/v1/events/{slug}/results/pairwise"),
+    ("get", "/api/v1/events/{slug}/tally"),
+    ("post", "/api/v1/events/{slug}/projects/{pid}/votes"),
+    ("delete", "/api/v1/events/{slug}/projects/{pid}/votes"),
+    ("get", "/api/v1/events/{slug}/votes/me"),
+    ("post", "/api/v1/events/{slug}/voting/codes/redeem"),
+    ("get", "/api/v1/events/{slug}/projects/{pid}/comments"),
+    ("get", "/api/v1/events/{slug}/webhooks/types"),
+    ("get", "/api/v1/certificates/{serial}"),
+    ("get", "/api/v1/verify/{serial}"),
+}
+
 ERROR_RESPONSES = {
     "401": "Not signed in (no session cookie or bearer token).",
     "403": "Signed in, but this role can't do that here — or the token is read-only.",
@@ -141,11 +160,22 @@ def _document_api(app: FastAPI) -> None:
         }
         schema["security"] = [{"sessionCookie": []}, {"bearerToken": []}]
         error_ref = {"$ref": "#/components/schemas/ErrorResponse"}
-        for path_item in schema.get("paths", {}).values():
-            for operation in path_item.values():
+        for path, path_item in schema.get("paths", {}).items():
+            for method, operation in path_item.items():
                 if not isinstance(operation, dict) or "responses" not in operation:
                     continue
+                public = (method, path) in PUBLIC_OPERATIONS
+                if public:
+                    operation["security"] = []
                 for status, text in ERROR_RESPONSES.items():
+                    if status in ("401", "403") and public:
+                        continue
+                    if status == "409" and method == "get":
+                        continue
+                    if status == "422" and not (
+                        operation.get("requestBody") or operation.get("parameters")
+                    ):
+                        continue
                     operation["responses"].setdefault(
                         status,
                         {

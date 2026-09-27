@@ -3,6 +3,16 @@
 {% include "partials/header.html" %}
 <div class="container container--wide shell">
   <aside class="rail" aria-label="{{ console|capitalize }} navigation">
+    {% set ns = namespace(current='Menu') %}
+    {% if nav_groups %}{% for group, items in nav_groups %}{% for key, label, href in items %}{% if key == active %}{% set ns.current = label %}{% endif %}{% endfor %}{% endfor %}
+    {% else %}{% for key, label, href in nav_items %}{% if key == active %}{% set ns.current = label %}{% endif %}{% endfor %}{% endif %}
+    <details class="menu rail-menu">
+      <summary class="btn btn--secondary btn--sm" aria-label="Section: {{ ns.current }}. Open the {{ console }} menu">{{ ns.current }} <span class="caret" aria-hidden="true">▾</span></summary>
+      <div class="menu__panel menu__panel--wide rail-menu__panel">
+        {% if nav_groups %}{% for group, items in nav_groups %}{% if group %}<span class="menu__title">{{ group }}</span>{% endif %}{% for key, label, href in items %}<a class="menu__item" href="{{ href }}" {% if key == active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}{% endfor %}
+        {% else %}{% for key, label, href in nav_items %}<a class="menu__item" href="{{ href }}" {% if key == active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}{% endif %}
+      </div>
+    </details>
     <nav class="rail__nav">
       {% if nav_groups %}
         {% for group, items in nav_groups %}

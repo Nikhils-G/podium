@@ -24,7 +24,8 @@
     {% endif %}{% endfor %}
   </section>
   {% endif %}
-  {% if favourite %}<p class="callout"><strong>Community favourite:</strong> <a href="/e/{{ event.slug }}/projects/{{ favourite.project.public_id }}">{{ favourite.project.title }}</a> with {{ favourite.votes }} vote{{ '' if favourite.votes == 1 else 's' }}.</p>{% endif %}
+  {% if favourites %}<p class="callout"><strong>Community favourite{{ 's (tied)' if favourites|length > 1 else '' }}:</strong> {% for f in favourites %}<a href="/e/{{ event.slug }}/projects/{{ f.project.public_id }}">{{ f.project.title }}</a>{{ ', ' if not loop.last }}{% endfor %} with {{ favourites[0].votes|plural('vote') }}{{ ' each' if favourites|length > 1 }}.</p>
+  {% elif tallies and tallies.total_votes %}<p class="muted text-sm">{{ tallies.total_votes|plural('vote') }} cast — too few to name a community favourite.</p>{% endif %}
   {% if awards %}
   <section class="stack mt-6" id="prizes">
     <h2>Prizes</h2>
@@ -33,7 +34,8 @@
   {% endif %}
   <section class="stack mt-6">
     <h2>Full ranking</h2>
-    <p class="text-sm ink-2">Ranked by {{ 'normalized judge score (each judge standardised against their own scoring pattern)' if results.basis.value == 'normalized' else 'raw mean judge score' }}. Ties share a rank.</p>
+    {% set normalized_means_something = results.basis.value == 'normalized' and results.judges|length >= 2 and results.method.value == 'zscore' %}
+    <p class="text-sm ink-2">Ranked by {% if normalized_means_something %}normalized judge score (each judge standardised against their own scoring pattern){% else %}raw mean judge score{% if results.basis.value == 'normalized' and results.judges|length < 2 %} — with a single judge, normalization changes nothing{% endif %}{% endif %}. Ties share a rank.</p>
     <div class="table-wrap"><table class="table table--dense">
       <thead><tr><th class="num">Rank</th><th>Project</th><th>Track</th><th class="num">Score</th><th class="num">Reviews</th>{% if tallies %}<th class="num">Votes</th>{% endif %}</tr></thead>
       <tbody>{% for p in ranked %}

@@ -8,7 +8,7 @@
   {% if event.results_published_at %}{{ badge('Published', 'accent') }}
   {% elif judging_open %}<div class="stack-sm"><button class="btn btn--primary" type="button" disabled aria-disabled="true">Publish results</button><span class="muted text-sm">Close judging first (Dashboard → Next step).</span></div>
   {% else %}<form method="post" action="/e/{{ event.slug }}/organizer/actions/publish_results" hx-boost="false" data-confirm="Publish results? Rankings, scores and vote counts become public. This is logged. Judge names are never shown publicly."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--primary" type="submit">Publish results</button></form>{% endif %}</div>
-<form class="cluster card card--flat" method="post" action="/e/{{ event.slug }}/organizer/results/settings" hx-boost="false">
+<form class="cluster card card--flat settings-bar" method="post" action="/e/{{ event.slug }}/organizer/results/settings" hx-boost="false">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label class="field__label">Normalization <select class="select select--inline" name="method"><option value="zscore" {% if r.method.value == 'zscore' %}selected{% endif %}>Per-judge z-score with shrinkage (k = {{ '%g'|format(r.k) }})</option><option value="none" {% if r.method.value == 'none' %}selected{% endif %}>None (raw means)</option></select></label>
   <label class="field__label">Publish ranking by <select class="select select--inline" name="basis"><option value="normalized" {% if r.basis.value == 'normalized' %}selected{% endif %}>Normalized score</option><option value="raw" {% if r.basis.value == 'raw' %}selected{% endif %}>Raw mean</option></select></label>

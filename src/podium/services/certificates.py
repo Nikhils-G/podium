@@ -408,10 +408,18 @@ def verify(db: DbSession, settings: Settings, serial: str) -> Verification:
     return Verification("valid", cert, public)
 
 
-def revoke(db: DbSession, event: Event, user: User, cert: Certificate) -> Certificate:
+def revoke(
+    db: DbSession, event: Event, user: User, cert: Certificate, *, reason: str = ""
+) -> Certificate:
     cert.revoked_at = utcnow()
     audit.record(
-        db, "certificate.revoked", "certificate", cert.serial, event_id=event.id, actor_id=user.id
+        db,
+        "certificate.revoked",
+        "certificate",
+        cert.serial,
+        event_id=event.id,
+        actor_id=user.id,
+        meta={"reason": reason} if reason else None,
     )
     db.commit()
     return cert

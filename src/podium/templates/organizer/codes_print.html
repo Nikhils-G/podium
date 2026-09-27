@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block shell %}
+<main id="main" class="print-cards">
+  <div class="print-cards__toolbar no-print">
+    <p class="text-sm ink-2">{{ cards|length|plural('card') }} for <strong>{{ event.name }}</strong>. Print this page (Ctrl/⌘+P), cut along the borders, hand one card to each voter.</p>
+    <div class="cluster"><a class="btn btn--secondary btn--sm" href="/e/{{ event.slug }}/organizer/voting">Back to voting</a><button class="btn btn--primary btn--sm" type="button" data-print>Print</button></div>
+  </div>
+  <div class="print-cards__grid">
+    {% for card in cards %}
+    <article class="print-card">
+      <p class="print-card__event">{{ event.name }}</p>
+      <p class="print-card__label">Your voting code</p>
+      <p class="print-card__code">{{ card.code }}</p>
+      <div class="print-card__qr" aria-hidden="true">{{ card.svg|safe }}</div>
+      <p class="print-card__hint">Scan the code or go to <span class="print-card__url">{{ base_url }}/e/{{ event.slug }}/vote/code</span> and type it in. One ballot per card.</p>
+      {% if card.email %}<p class="print-card__email">{{ card.email }}</p>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</main>
+{% endblock %}

@@ -34,6 +34,9 @@ class AttentionItem:
     detail: str
     href: str
     action: str
+    form_action: str | None = None  # a POST the organizer can take right here
+    form_label: str = ""
+    form_confirm: str = ""
 
 
 @dataclass
@@ -101,6 +104,10 @@ def overview(db: DbSession, event: Event) -> Overview:
                 f"{dup.duplicate_of.public_id} by the same team.",
                 f"/e/{event.slug}/projects/{dup.public_id}",
                 "Review",
+                form_action=f"/e/{event.slug}/projects/{dup.public_id}/withdraw",
+                form_label="Withdraw duplicate",
+                form_confirm=f"Withdraw “{dup.title}” ({dup.public_id})? It leaves the gallery and "
+                "the judging pool; the team or you can restore it later.",
             )
         )
     if data.tracks == 0:

@@ -308,8 +308,12 @@ def test_openapi_documents_auth_and_errors_on_every_operation(client):
     assert "ErrorResponse" in schema["components"]["schemas"]
     for path, item in schema["paths"].items():
         for method, op in item.items():
-            if method in ("get", "post", "patch", "put", "delete"):
-                assert "401" in op["responses"] and "422" in op["responses"], (method, path)
+            if method not in ("get", "post", "patch", "put", "delete"):
+                continue
+            if op.get("security") == []:
+                assert "401" not in op["responses"], (method, path)
+            else:
+                assert "401" in op["responses"], (method, path)
     results = schema["paths"]["/api/v1/events/{slug}/results"]["get"]["responses"]["200"]
     assert "ResultsOut" in str(results)
 
@@ -424,3 +428,96 @@ def test_archived_event_console_is_read_only(client, auth, app):
         },
     )
     assert r.status_code == 409 and "Archived events" in r.text and "Event settings" in r.text
+
+
+def test_webhook_4xx_is_final_and_not_retried(db):
+    from podium.models import DeliveryStatus, Event, WebhookDelivery
+    from podium.services import webhooks
+
+    event = db.execute(select(Event).where(Event.slug == SLUG)).scalar_one()
+    organizer = db.execute(select(User).where(User.email == "organizer@podium.local")).scalar_one()
+    hook = webhooks.create_hook(db, event, organizer, "https://hooks.example.test/final", ["ping"])
+    webhooks.emit(db, event, "ping", {"message": "x"}, only_hook=hook)
+    db.commit()
+    webhooks.deliver_pending(db, sender=lambda u, b, h: (405, "HTTP 405"))
+    delivery = (
+        db.execute(
+            select(WebhookDelivery)
+            .where(WebhookDelivery.webhook_id == hook.id)
+            .order_by(WebhookDelivery.id.desc())
+        )
+        .scalars()
+        .first()
+    )
+    assert delivery.status == DeliveryStatus.failed and delivery.attempts == 1
+    assert "not retried" in delivery.last_error and delivery.next_attempt_at is None
+    webhooks.emit(db, event, "ping", {"message": "y"}, only_hook=hook)
+    db.commit()
+    webhooks.deliver_pending(db, sender=lambda u, b, h: (503, "HTTP 503"))
+    retry = (
+        db.execute(
+            select(WebhookDelivery)
+            .where(WebhookDelivery.webhook_id == hook.id)
+            .order_by(WebhookDelivery.id.desc())
+        )
+        .scalars()
+        .first()
+    )
+    assert retry.status == DeliveryStatus.pending and retry.next_attempt_at is not None
+
+
+def test_openapi_marks_public_operations_and_omits_impossible_errors(client):
+    schema = client.get("/api/openapi.json").json()
+    tally = schema["paths"]["/api/v1/events/{slug}/tally"]["get"]
+    assert tally["security"] == [] and "401" not in tally["responses"]
+    assert "409" not in tally["responses"], "a GET never conflicts"
+    export = schema["paths"]["/api/v1/events/{slug}/export.json"]["get"]
+    assert "security" not in export and "401" in export["responses"]
+    invite = schema["paths"]["/api/v1/events/{slug}/judges/invites"]["post"]
+    assert {"401", "403", "409", "422"} <= set(invite["responses"])
+
+
+def test_dashboard_offers_withdrawing_a_flagged_duplicate_and_a_phone_menu(app):
+    page = demo(app, "organizer").get(f"/e/{SLUG}/organizer")
+    assert page.status_code == 200
+    assert "Withdraw duplicate" in page.text and "/projects/prj_41/withdraw" in page.text
+    assert 'class="menu rail-menu"' in page.text and "Dashboard" in page.text
+
+
+def test_printable_code_cards(app):
+    org = demo(app, "organizer")
+    r = org.post(
+        f"/e/{SLUG}/organizer/voting/codes/print",
+        {"codes": "ABCD-EFGH\tsomeone@example.test\nJKLM-NPQR"},
+    )
+    assert r.status_code == 200 and r.text.count("print-card__code") == 2
+    assert "<svg" in r.text and "ABCD-EFGH" in r.text and "someone@example.test" in r.text
+    assert "JKLM-NPQR" in r.text and f"/e/{SLUG}/vote/code" in r.text
+
+
+def test_unpublishing_results_revokes_winner_certificates(client, auth):
+    org = auth("organizer")
+    prize = client.post(f"{S}/prizes", headers=org, json={"name": "Revoke prize"}).json()["prize"]
+    client.post(f"{S}/actions/close_judging", headers=org)
+    try:
+        client.post(f"{S}/prizes/{prize['id']}/award", headers=org, json={"project": "prj_07"})
+        assert client.post(f"{S}/actions/publish_results", headers=org).status_code == 200
+        client.post(f"{S}/certificates/issue/winner", headers=org)
+        winners = [
+            c
+            for c in client.get(f"{S}/certificates", headers=org).json()["certificates"]
+            if c["kind"] == "winner" and c["revoked_at"] is None
+        ]
+        assert winners
+        assert client.post(f"{S}/actions/unpublish_results", headers=org).status_code == 200
+        after = [
+            c
+            for c in client.get(f"{S}/certificates", headers=org).json()["certificates"]
+            if c["kind"] == "winner"
+        ]
+        assert after and all(c["revoked_at"] is not None for c in after)
+        assert client.get(f"/api/v1/verify/{after[0]['serial']}").json()["status"] == "revoked"
+    finally:
+        client.post(f"{S}/actions/unpublish_results", headers=org)
+        client.post(f"{S}/actions/open_judging", headers=org)
+        client.delete(f"{S}/prizes/{prize['id']}", headers=org)

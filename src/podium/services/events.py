@@ -322,6 +322,13 @@ def apply_action(db: DbSession, event: Event, user: User, action: str, *, ip_has
         if event.results_published_at is None:
             raise Conflict("Results aren't published.")
         event.results_published_at = None
+        # winner certificates certify a published result; without one they must not verify
+        from podium.models import CertificateKind
+        from podium.services import certificates
+
+        for cert in certificates.for_event(db, event):
+            if cert.kind == CertificateKind.winner and cert.revoked_at is None:
+                certificates.revoke(db, event, user, cert, reason="results unpublished")
     elif action == "archive":
         event.archived_at = now
     hook_type = {

@@ -3,13 +3,13 @@
 {% block content %}
 <div class="auth-card stack">
   <div><p class="page-header__eyebrow">{{ event.name }}</p><h1>Enter your voting code</h1>
-    <p class="ink-2 mt-2">The organizers issued voting codes to eligible voters. Each code works once.</p></div>
+    <p class="ink-2 mt-2">The organizers issued voting codes to eligible voters. A code is one ballot: you can enter it again on another device to keep voting from the same ballot.</p></div>
   {% if error %}{{ alert('critical', error) }}{% endif %}
   {% if voter %}{{ alert('success', "You're ready to vote — head to the gallery.") }}<a class="btn btn--primary" href="/e/{{ event.slug }}/projects">Go to the ballot</a>
   {% else %}
   <form method="post" action="/e/{{ event.slug }}/vote/code" hx-boost="false" class="stack">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    {{ field('code', 'Voting code', required=True, placeholder='ABCD-EFGH', autocomplete='off') }}
+    {{ field('code', 'Voting code', value=code if code is defined else '', required=True, placeholder='ABCD-EFGH', autocomplete='off', help='Dashes and capitals are optional.') }}
     <button class="btn btn--primary btn--block" type="submit">Continue to the ballot</button>
   </form>
   {% endif %}

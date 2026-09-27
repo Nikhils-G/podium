@@ -5,7 +5,7 @@
 {% if error %}{{ alert('critical', error) }}{% endif %}
 {% if report %}{{ alert('success', report[1].issued ~ ' ' ~ report[0] ~ ' certificate(s) issued, ' ~ report[1].skipped ~ ' already existed or were not eligible.') }}{% endif %}
 <div class="cluster mt-4">
-  {% for kind, label, hint in [('participation', 'Issue participation certificates', 'every member of a team with a submitted project'), ('judge', 'Issue judge records', 'every judge who submitted at least one review, once judging is closed'), ('winner', 'Issue winner certificates', 'members of the top three, once results are published')] %}
+  {% for kind, label, hint in [('participation', 'Issue participation certificates', 'every member of a team with a submitted project'), ('judge', 'Issue judge records', 'every judge who submitted at least one review, once judging is closed'), ('winner', 'Issue winner certificates', 'members of the teams that won a prize (the top three ranks, ties included, when no prize has been awarded), once results are published')] %}
   {% set blocked = (kind == 'judge' and judging_open and 'Close judging first') or (kind == 'winner' and not published and 'Publish results first') %}
   <form method="post" action="/e/{{ event.slug }}/organizer/certificates/issue/{{ kind }}" hx-boost="false" data-confirm="{{ label }} for {{ hint }}?" class="stack-sm"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--secondary" type="submit" {% if blocked %}disabled aria-disabled="true"{% endif %}>{{ label }}</button>{% if blocked %}<span class="muted text-sm">{{ blocked }}</span>{% endif %}</form>
   {% endfor %}

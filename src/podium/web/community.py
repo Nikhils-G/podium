@@ -3,7 +3,7 @@
 import hashlib
 import hmac
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session as DbSession
 
@@ -184,6 +184,7 @@ def code_page(
     request: Request,
     ctx: EventContext = Depends(load_event),
     voter: Voter | None = Depends(current_voter),
+    code: str = Query("", max_length=40),
 ):
     stage = stage_of(ctx.event)
     return render(
@@ -196,6 +197,7 @@ def code_page(
         stage_label=STAGE_LABELS[stage],
         voter=voter,
         error="",
+        code=code,
     )
 
 
@@ -205,7 +207,7 @@ def code_page(
 )
 def code_submit(
     request: Request,
-    code: str = Form(""),
+    code: str = Form(""),  # noqa: B008
     ctx: EventContext = Depends(load_event),
     db: DbSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
@@ -224,6 +226,7 @@ def code_submit(
             stage=stage.value,
             stage_label=STAGE_LABELS[stage],
             voter=None,
+            code=code,
             error=exc.message,
         )
     response = RedirectResponse(f"/e/{ctx.event.slug}/projects", status_code=303)
@@ -330,9 +333,10 @@ def results_page(
         if (p.rank_norm if results.basis.value == "normalized" else p.rank_raw)
     ]
     top = ranked[:3]
-    favourite = (
-        max(tallies.projects, key=lambda t: t.votes) if tallies and tallies.total_votes else None
-    )
+    favourites = []
+    if tallies and tallies.total_votes >= 3:
+        top_votes = max((t.votes for t in tallies.projects), default=0)
+        favourites = [t for t in tallies.projects if t.votes == top_votes and t.votes > 0]
     return render(
         request,
         "public/results.html",
@@ -342,7 +346,7 @@ def results_page(
         top=top,
         tallies=tallies,
         votes_by_project=votes_by_project,
-        favourite=favourite,
+        favourites=favourites,
         awards=events_service.awards(ctx.event),
         **base,
     )

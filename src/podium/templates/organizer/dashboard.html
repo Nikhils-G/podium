@@ -31,7 +31,10 @@
       <li class="attention__item attention__item--{{ item.kind }}">
         <span class="attention__icon" aria-hidden="true">{{ '!' if item.kind != 'info' else 'i' }}</span>
         <div class="grow"><strong>{{ item.title }}</strong><p class="text-sm ink-2">{{ item.detail }}</p></div>
-        <a class="btn btn--secondary btn--sm" href="{{ item.href }}">{{ item.action }}</a>
+        <div class="cluster">
+          {% if item.form_action %}<form method="post" action="{{ item.form_action }}" hx-boost="false" data-confirm="{{ item.form_confirm }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--secondary btn--sm" type="submit">{{ item.form_label }}</button></form>{% endif %}
+          <a class="btn {{ 'btn--ghost' if item.form_action else 'btn--secondary' }} btn--sm" href="{{ item.href }}">{{ item.action }}</a>
+        </div>
       </li>
       {% endfor %}
     </ul>

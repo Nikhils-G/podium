@@ -242,7 +242,7 @@ def compute(db: DbSession, event: Event, *, include_withdrawn: bool = False) -> 
             if method == NormalizationMethod.zscore and mu_g is not None
             else raw_mean
         )
-        disagreement = pstdev([r.z for r in rs]) if len(rs) > 1 else 0.0
+        disagreement = pstdev([r.z for r in rs]) if len(rs) > 1 else None  # one review: no spread
         results.append(
             ProjectResult(
                 project=project,

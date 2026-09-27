@@ -193,13 +193,14 @@ def test_code_mode(world):
         == 200
     )
     assert guest.post(f"/api/v1/events/{slug}/projects/{pid}/votes").status_code == 201
+    # the same code on a second device is the same ballot: it re-redeems, it can't vote twice
     again = TestClient(c.app)
+    relaxed = codes[0]["code"].replace("-", "").lower()
     assert (
-        again.post(
-            f"/api/v1/events/{slug}/voting/codes/redeem", params={"code": codes[0]["code"]}
-        ).status_code
-        == 409
+        again.post(f"/api/v1/events/{slug}/voting/codes/redeem", json={"code": relaxed}).status_code
+        == 200
     )
+    assert again.post(f"/api/v1/events/{slug}/projects/{pid}/votes").status_code == 409
     _switch(c, slug, org, world["now"], voting_mode="account")
 
 
