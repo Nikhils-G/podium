@@ -2,7 +2,7 @@
 {% block shell %}
 {% include "partials/header.html" %}
 <div class="container container--wide shell">
-  <aside class="rail" aria-label="{{ console[:1]|upper ~ console[1:] }} navigation" data-sticky>
+  <nav class="rail" aria-label="{{ console[:1]|upper ~ console[1:] }} sections" data-sticky>
     {% set ns = namespace(current='Menu') %}
     {% if nav_groups %}{% for group, items in nav_groups %}{% for key, label, href in items %}{% if key == active %}{% set ns.current = label %}{% endif %}{% endfor %}{% endfor %}
     {% else %}{% for key, label, href in nav_items %}{% if key == active %}{% set ns.current = label %}{% endif %}{% endfor %}{% endif %}
@@ -14,7 +14,7 @@
         {% else %}{% for key, label, href in nav_items %}<a class="menu__item" href="{{ href }}" {% if key == active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}{% endif %}
       </div>
     </details>
-    <nav class="rail__nav">
+    <div class="rail__nav">
       {% if nav_groups %}
         {% for group, items in nav_groups %}
           {% if group %}<p class="rail__title">{{ group }}</p>{% endif %}
@@ -24,10 +24,11 @@
         <p class="rail__title">Judging</p>
         {% for key, label, href in nav_items %}<a href="{{ href }}" {% if key == active %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
       {% endif %}
-    </nav>
-  </aside>
+    </div>
+  </nav>
   <main id="main" class="shell__main">
     {% if archived is defined and archived %}<div class="alert alert--warning" role="status">This event is archived and read-only. Nothing here can be changed any more.</div>{% endif %}
+    {% if error_items and not own_error_summary %}{% from "macros/ui.html" import error_summary %}{{ error_summary(error_items) }}{% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>

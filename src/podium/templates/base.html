@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}{% if title %}{{ title }} · {% endif %}Podium{% endblock %}</title>
+  <title>{% block title %}{% if title %}{{ title }} · {% if event and event.name not in title %}{{ event.name }} · {% endif %}{% endif %}Podium{% endblock %}</title>
   <meta name="description" content="{{ meta_description }}">
   <meta property="og:title" content="{{ title or 'Podium' }}">
   <meta property="og:description" content="{{ meta_description }}">
@@ -13,7 +13,7 @@
   <link rel="icon" href="/static/img/podium.svg" type="image/svg+xml">
   <link rel="preload" href="/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/app.css">
-  <script nonce="{{ nonce }}">try{var t=localStorage.getItem("podium-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}</script>
+  <script nonce="{{ nonce }}">document.documentElement.classList.add("js");try{var t=localStorage.getItem("podium-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}</script>
   <script src="/static/js/htmx.min.js" defer></script>
   <script src="/static/js/app.js" defer></script>
 </head>
@@ -21,13 +21,13 @@
   <a class="skip" href="#main">Skip to content</a>
   <div class="nav-progress" aria-hidden="true"></div>
   {% block shell %}{% endblock %}
-  <dialog class="confirm" id="confirm-dialog" aria-labelledby="confirm-title">
+  <dialog class="confirm" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-body">
     <div class="confirm__form">
       <h2 class="confirm__title" id="confirm-title" data-confirm-title>Confirm</h2>
-      <p class="confirm__body" data-confirm-body></p>
+      <p class="confirm__body" id="confirm-body" data-confirm-body></p>
       <div class="cluster confirm__actions"><button class="btn btn--secondary" type="button" data-confirm-cancel>Cancel</button><button class="btn btn--primary" type="button" data-confirm-ok>Confirm</button></div>
     </div>
   </dialog>
-  <div id="alerts" class="alerts"></div>
+  <div id="alerts" class="alerts" role="status" aria-live="polite"></div>
 </body>
 </html>

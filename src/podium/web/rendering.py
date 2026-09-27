@@ -62,6 +62,12 @@ def render(request: Request, name: str, status_code: int = 200, **context) -> HT
         stage = stage_of(event_obj)
         context.setdefault("stage", stage.value)
         context["stage_label"] = STAGE_LABELS[stage]
+    errors = context.get("errors")
+    if status_code >= 400 and isinstance(errors, dict) and any(errors.values()):
+        # every form that comes back with errors gets a summary linking to its fields
+        context["error_items"] = [(f"#f-{key}", text) for key, text in errors.items() if text]
+        if context.get("title") and not str(context["title"]).startswith("Error:"):
+            context["title"] = f"Error: {context['title']}"
     context["nonce"] = getattr(request.state, "csp_nonce", "")
     settings = get_settings()
     context["settings"] = settings

@@ -71,7 +71,7 @@
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
   * { margin: 0; }
-  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 72px; }  /* anchors and focus clear the sticky header */
   body { min-height: 100dvh; background: var(--page); color: var(--ink); font-family: var(--font-ui);
     font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
   img, svg, video { display: block; max-width: 100%; }
@@ -772,4 +772,14 @@
   @media (max-width: 1023px) { .two-col--aside-first-lg > aside { order: -1; } .shell__main { padding-top: 0; } }
   /* 44 px touch targets in the phone menu (these beat .btn--sm, which lives in this layer) */
   @media (max-width: 767px) { .menu--mobile .menu__panel > a.btn, .menu--mobile .menu > summary { min-height: 44px; } }
+}
+
+@layer components {
+  /* round 5: sticky footers and bars keep focused fields visible; carets turn when open */
+  @media (min-width: 768px) { html:has(.review-footer) { scroll-padding-bottom: 96px; } }
+  html:has(.ballot-bar) { scroll-padding-top: 136px; }
+  details[open] > summary .caret { display: inline-block; transform: rotate(180deg); }
+  html:not(.js) .theme-menu { display: none; }
+  ol.podium { list-style: none; padding: 0; }
+  .podium__slot--1 { order: 2; } .podium__slot--2 { order: 1; } .podium__slot--3 { order: 3; }
 }

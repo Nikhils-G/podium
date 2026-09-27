@@ -2,6 +2,7 @@
 {% block shell %}
 {% include "partials/header.html" %}
 <main id="main" class="container">
+  {% if error_items and not own_error_summary %}{% from "macros/ui.html" import error_summary %}{{ error_summary(error_items) }}{% endif %}
   {% block content %}{% endblock %}
 </main>
 <footer class="site">

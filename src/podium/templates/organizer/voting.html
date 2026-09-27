@@ -26,12 +26,12 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       {% if settings_locked %}{{ alert('info', 'Voting is open and votes are in, so the mode, quadratic setting and credits are locked until the window closes. Comments can still be switched.') }}{% endif %}
       <fieldset class="stack" {% if settings_locked or archived %}disabled{% endif %}>
-      <div class="field{% if errors.voting_mode %} is-invalid{% endif %}">
-        <span class="field__label">Who can vote</span>
+      <fieldset class="field{% if errors.voting_mode %} is-invalid{% endif %}">
+        <legend class="field__label">Who can vote</legend>
         <label class="radio"><input type="radio" name="voting_mode" value="account" {% if event.voting_mode.value == 'account' %}checked{% endif %}> <span><strong>Signed-in accounts</strong> — one vote per account. Strongest against ballot stuffing.</span></label>
         <label class="radio"><input type="radio" name="voting_mode" value="email" {% if event.voting_mode.value == 'email' %}checked{% endif %}> <span><strong>Voting codes</strong> — you issue single-use codes (optionally tied to emails) and send them yourself.</span></label>
         <label class="radio"><input type="radio" name="voting_mode" value="link" {% if event.voting_mode.value == 'link' %}checked{% endif %}> <span><strong>Open link</strong> — anyone with the link, one vote per browser. Easiest, weakest; suspicious bursts are flagged for review.</span></label>
-      </div>
+      </fieldset>
       <label class="check"><input type="checkbox" name="quadratic_enabled" {% if event.quadratic_enabled %}checked{% endif %}> <span><strong>Quadratic voting</strong> — voters spread a credit budget; the n-th vote on one project costs 2n−1 credits (1, 3, 5…).</span></label>
       {{ field('voting_credits', 'Credits per voter (quadratic)', value=event.voting_credits, type='number', error=errors.voting_credits) }}
       </fieldset>

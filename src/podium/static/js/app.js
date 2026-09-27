@@ -164,7 +164,16 @@
   document.addEventListener("click", function (e) {
     document.querySelectorAll("details.menu[open]").forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute("open"); });
   });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll("details.menu[open]").forEach(function (d) { d.removeAttribute("open"); }); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    var inside = document.activeElement && document.activeElement.closest ? document.activeElement.closest("details.menu[open]") : null;
+    document.querySelectorAll("details.menu[open]").forEach(function (d) { d.removeAttribute("open"); });
+    if (inside) { var summary = inside.querySelector("summary"); if (summary) summary.focus(); }
+  });
+  document.addEventListener("focusout", function (e) {
+    var menu = e.target.closest && e.target.closest("details.menu[open]");
+    if (menu && e.relatedTarget && !menu.contains(e.relatedTarget)) menu.removeAttribute("open");
+  });
 
   // ---- copy buttons ------------------------------------------------------------------------------
   document.addEventListener("click", function (e) {
@@ -177,11 +186,29 @@
     var btn = e.target.closest("[data-copy]");
     if (!btn) return;
     var text = btn.getAttribute("data-copy");
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(function () {
-        var old = btn.textContent; btn.textContent = "Copied"; setTimeout(function () { btn.textContent = old; }, 1500);
-      });
+    function copied() {
+      var old = btn.textContent; btn.textContent = "Copied"; setTimeout(function () { btn.textContent = old; }, 1500);
+      showAlert("success", "Copied to the clipboard.");
     }
+    function fallback() {  // plain http on a LAN has no async clipboard: select the text instead
+      var area = document.createElement("textarea");
+      area.value = text; area.setAttribute("readonly", ""); area.className = "visually-hidden";
+      document.body.appendChild(area); area.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (err) {}
+      area.remove();
+      if (ok) copied(); else showAlert("warning", "Copy isn't available here. Select the text and press Ctrl+C.");
+    }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(copied, fallback);
+    else fallback();
+  });
+
+  // ---- gallery: one status line announces how many projects match -----------------------------------
+  document.body.addEventListener("htmx:afterSettle", function (e) {
+    var status = document.getElementById("gallery-status");
+    if (!status || !(e.detail.target && e.detail.target.id === "gallery-results")) return;
+    var count = document.getElementById("gallery-count");
+    if (count) status.textContent = count.textContent.trim() + " match";
   });
 
   // ---- print button --------------------------------------------------------------------------------
@@ -322,8 +349,9 @@
     var ok = confirmDialog.querySelector("[data-confirm-ok]");
     ok.textContent = opts.label || opts.title;
     ok.className = "btn " + (opts.danger ? "btn--danger" : "btn--primary");
+    confirmDialog.setAttribute("role", opts.danger ? "alertdialog" : "dialog");
     confirmDialog.showModal();
-    ok.focus();
+    (opts.danger ? confirmDialog.querySelector("[data-confirm-cancel]") : ok).focus();
   }
   document.addEventListener("submit", function (e) {
     var form = e.target;

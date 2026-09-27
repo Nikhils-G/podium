@@ -131,16 +131,16 @@
     </div>
     <div class="api-op__code">
       <div class="api-panel">
-        {% for smp in op.samples %}<input class="api-panel__radio" type="radio" name="lang-{{ op.key }}" id="{{ op.key }}-{{ smp.key }}" value="{{ smp.key }}"{% if loop.first %} checked{% endif %}>{% endfor %}
+        {% for smp in op.samples %}<input class="api-panel__radio" type="radio" name="lang-{{ op.key }}" id="{{ op.key }}-{{ smp.key }}" value="{{ smp.key }}" aria-label="{{ smp.label }} example for {{ op.summary }}"{% if loop.first %} checked{% endif %}>{% endfor %}
         <div class="api-panel__head">
           <span class="api-panel__title">Request</span>
           <span class="api-tabs">{% for smp in op.samples %}<label for="{{ op.key }}-{{ smp.key }}" data-lang="{{ smp.key }}">{{ smp.label }}</label>{% endfor %}</span>
-          {% for smp in op.samples %}<button class="api-copy" type="button" data-lang="{{ smp.key }}" data-copy="{{ smp.text }}">Copy</button>{% endfor %}
+          {% for smp in op.samples %}<button class="api-copy" type="button" data-lang="{{ smp.key }}" data-copy="{{ smp.text }}" aria-label="Copy the {{ smp.label }} request for {{ op.summary }}">Copy</button>{% endfor %}
         </div>
         {% for smp in op.samples %}<pre class="api-sample" data-lang="{{ smp.key }}"><code>{{ smp.html }}</code></pre>{% endfor %}
       </div>
       <div class="api-panel api-panel--response">
-        <div class="api-panel__head"><span class="api-panel__title">Response</span><span class="api-panel__status"><code class="api-status api-status--{{ op.response_status[0] }}">{{ op.response_status }}</code> {{ op.response_label }}{% if op.response_schema %} · {{ op.response_schema }}{% endif %}</span>{% if op.response_example %}<button class="api-copy" type="button" data-copy="{{ op.response_example }}">Copy</button>{% endif %}</div>
+        <div class="api-panel__head"><span class="api-panel__title">Response</span><span class="api-panel__status"><code class="api-status api-status--{{ op.response_status[0] }}">{{ op.response_status }}</code> {{ op.response_label }}{% if op.response_schema %} · {{ op.response_schema }}{% endif %}</span>{% if op.response_example %}<button class="api-copy" type="button" data-copy="{{ op.response_example }}" aria-label="Copy the response example for {{ op.summary }}">Copy</button>{% endif %}</div>
         {% if op.response_example %}
         <pre><code>{{ op.response_head }}</code></pre>
         {% if op.response_tail %}<details class="api-more"><summary>Show {{ op.response_tail_lines|plural('more line') }}</summary><pre><code>{{ op.response_tail }}</code></pre></details>{% endif %}
