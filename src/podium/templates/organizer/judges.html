@@ -15,7 +15,7 @@
     <h2>Roster <span class="count">{{ judges|length }}</span></h2>
     {% if judges %}
     <div class="table-wrap"><table class="table table--dense">
-      <thead><tr><th>Judge</th><th>Tracks</th><th class="num">Assigned</th><th class="num">Done</th><th></th></tr></thead>
+      <thead><tr><th>Judge</th><th>Tracks</th><th class="num">Assigned</th><th class="num">Done</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
       <tbody>
       {% for row in judges %}
       <tr>

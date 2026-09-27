@@ -3,10 +3,18 @@
 {% block content %}
 <div class="page-header">
   <div><p class="page-header__eyebrow">Judge</p><h1>Your queue</h1>
-    <div class="page-header__meta"><span>{{ groups.done|length }} of {{ items|length }} reviewed</span>{% if items %}<progress class="meter meter--inline" value="{{ groups.done|length }}" max="{{ items|length }}" aria-label="Review progress"></progress>{% endif %}</div></div>
+    <div class="page-header__meta"><span>{{ groups.done|length }} of {{ items|length }} reviewed</span><span class="muted text-sm">Only you and the organizers see your scores.</span>{% if items %}<progress class="meter meter--inline" value="{{ groups.done|length }}" max="{{ items|length }}" aria-label="Review progress"></progress>{% endif %}</div></div>
   {% if items %}<a class="btn btn--secondary" href="/e/{{ event.slug }}/judge/compare">Compare projects</a>{% endif %}
 </div>
+{% if request.query_params.get('saved') == 'joined' %}{{ alert('success', 'You\'re judging ' ~ event.name ~ '. Your assigned projects are below.') }}{% endif %}
 {% if not judging_open %}{{ alert('info', 'Judging is not open right now. You can read your assignments; scoring opens when the organizer starts judging.') }}{% endif %}
+{% if items and not groups.todo and not groups.in_progress %}
+<section class="card card--next mt-4">
+  <h2>All {{ items|length }} reviews submitted</h2>
+  <p class="ink-2">Thank you. You can still reopen a review while judging is open{% if request.query_params.get('done') %} — the last one just went in{% endif %}.</p>
+  <div class="cluster mt-2"><a class="btn btn--secondary" href="/e/{{ event.slug }}/judge/compare">Compare projects</a><a class="btn btn--ghost" href="/e/{{ event.slug }}/judge/records">Your records</a></div>
+</section>
+{% endif %}
 {% if not items %}
   {{ empty("No assignments yet", "The organizer hasn't assigned you any projects. Check back once judging is set up.") }}
 {% else %}
@@ -21,7 +29,7 @@
         <h3 class="card__title"><a href="/e/{{ event.slug }}/judge/review/{{ item.project.public_id }}">{{ item.project.title }}</a></h3>
         {% if item.project.summary %}<p class="card__summary">{{ item.project.summary }}</p>{% endif %}
         <div class="card__meta"><span>by {{ item.project.team.name }}</span></div>
-        <div class="card__links"><a class="btn {{ 'btn--secondary' if key == 'done' else 'btn--primary' }} btn--sm" href="/e/{{ event.slug }}/judge/review/{{ item.project.public_id }}">{{ 'View review' if key == 'done' else ('Continue' if key == 'in_progress' else 'Score') }}</a></div>
+        <div class="card__links"><a class="btn {{ 'btn--secondary' if key == 'done' else 'btn--primary' }} btn--sm" tabindex="-1" aria-hidden="true" href="/e/{{ event.slug }}/judge/review/{{ item.project.public_id }}">{{ 'View review' if key == 'done' else ('Continue' if key == 'in_progress' else 'Score') }}</a></div>
       </article>
       {% endfor %}
     </div>

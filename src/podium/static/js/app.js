@@ -58,7 +58,9 @@
     e.detail.shouldSwap = true;
     e.detail.isError = false;
   });
+  function inReviewForm(e) { var elt = e.detail && e.detail.elt; return !!(elt && elt.closest && elt.closest("[data-review-form]")); }
   document.body.addEventListener("htmx:responseError", function (e) {
+    if (inReviewForm(e)) return;  // the save status beside the buttons says it, with a Retry
     var xhr = e.detail.xhr;
     if (xhr.status === 401) { showAlert("warning", "Your session has expired. Sign in to continue."); return; }
     var msg = "Something went wrong (" + xhr.status + "). Try again.";
@@ -67,8 +69,14 @@
     }
     showAlert(xhr.status >= 500 ? "critical" : "warning", msg);
   });
-  document.body.addEventListener("htmx:sendError", function () {
+  document.body.addEventListener("htmx:sendError", function (e) {
+    if (inReviewForm(e)) return;
     showAlert("critical", "You're offline. Your changes are kept on this page — try again when you're back.");
+  });
+  // the progress page polls only while it is visible (a hx-trigger filter would need eval, which
+  // the CSP forbids)
+  document.body.addEventListener("htmx:beforeRequest", function (e) {
+    if (document.hidden && e.detail.elt && e.detail.elt.hasAttribute && e.detail.elt.hasAttribute("data-poll")) e.preventDefault();
   });
 
   // ---- date entry in the organizer's local time (stored as UTC by the server) -----------------
@@ -102,9 +110,19 @@
 
   // ---- local time beside UTC ------------------------------------------------------------------
   var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  function fmtLocal(d) {  // one format everywhere, same month names as the server
-    return d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear() + ", " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  function zoneOf(d) {  // "UTC" for UTC viewers, else the browser's short zone ("GMT+5:30", "CEST")
+    if (d.getTimezoneOffset() === 0) return "UTC";
+    try {
+      var part = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" }).formatToParts(d)
+        .filter(function (p) { return p.type === "timeZoneName"; })[0];
+      return part ? part.value : "";
+    } catch (e) { return ""; }
   }
+  function withZone(text, d) { var zone = zoneOf(d); return zone ? text + " " + zone : text; }
+  function fmtLocal(d) {  // one format everywhere, same month names as the server, always with its zone
+    return withZone(d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear() + ", " + pad(d.getHours()) + ":" + pad(d.getMinutes()), d);
+  }
+  function fmtUtcTime(d) { return pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + " UTC"; }
   function fmtDelta(ms) {
     var s = Math.round(Math.abs(ms) / 1000), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
     if (d >= 2) return d + " d " + h + " h";
@@ -119,6 +137,8 @@
       var diff = d - Date.now();
       var time = el.querySelector("time");
       var abs = time ? time.textContent : fmtLocal(d);
+      // deadlines state both clocks: the viewer's and UTC
+      if (d.getTimezoneOffset() !== 0 && abs.indexOf("UTC") === -1) abs += " · " + fmtUtcTime(d);
       el.textContent = diff > 0 ? el.getAttribute("data-before") + " in " + fmtDelta(diff) + " (" + abs + ")" : el.getAttribute("data-after") + " " + fmtDelta(diff) + " ago (" + abs + ")";
     });
   }
@@ -130,8 +150,8 @@
       var utc = t.textContent.trim();
       t.setAttribute("title", utc);
       t.setAttribute("aria-label", fmtLocal(d) + " local time, " + utc);
-      if (t.hasAttribute("data-time-only")) t.textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
-      else if (t.hasAttribute("data-short")) t.textContent = d.getDate() + " " + MONTHS[d.getMonth()] + ", " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+      if (t.hasAttribute("data-time-only")) t.textContent = withZone(pad(d.getHours()) + ":" + pad(d.getMinutes()), d);
+      else if (t.hasAttribute("data-short")) t.textContent = withZone(d.getDate() + " " + MONTHS[d.getMonth()] + ", " + pad(d.getHours()) + ":" + pad(d.getMinutes()), d);
       else t.textContent = fmtLocal(d);
       t.dataset.done = "1";
     });
@@ -196,7 +216,9 @@
   document.addEventListener("DOMContentLoaded", function () { var f = currentReviewForm(); if (f) reviewTotal(f); });
   document.addEventListener("keydown", function (e) {
     var reviewForm = currentReviewForm();
-    if (!reviewForm) return;
+    if (!reviewForm || !(e.target.closest && e.target.closest("[data-review-form]"))) return;
+    var submitCombo = (e.metaKey || e.ctrlKey) && e.key === "Enter";
+    if (!submitCombo && (e.altKey || e.ctrlKey || e.metaKey || e.repeat)) return;
     if (/input|textarea|select/i.test(document.activeElement.tagName) && document.activeElement.type !== "radio") {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); var s = reviewForm.querySelector("[data-submit-review]"); if (s) s.click(); }
       return;
@@ -233,13 +255,47 @@
   });
   document.body.addEventListener("htmx:afterRequest", function (e) {
     var form = e.target.closest && e.target.closest("[data-review-form]");
-    if (form && e.detail.successful) { var box = document.getElementById("review-errors"); if (box) box.innerHTML = ""; }
+    if (form && e.detail.successful) {
+      var box = document.getElementById("review-errors"); if (box) box.innerHTML = "";
+      failedSave = null; dirty = false;
+    }
   });
+  var failedSave = null;  // the review form whose last autosave never reached the server
+  document.body.addEventListener("htmx:beforeRequest", function (e) {
+    if (!inReviewForm(e) || e.defaultPrevented) return;
+    var status = document.getElementById("save-status");
+    if (status) status.innerHTML = '<span class="save-status__pending">Saving…</span>';
+  });
+  function saveFailed(e, text) {
+    if (!inReviewForm(e)) return;
+    var status = document.getElementById("save-status");
+    if (!status) return;
+    failedSave = e.detail.elt.closest("[data-review-form]");
+    dirty = true;  // leaving now would lose the scores, so the guard asks
+    var msg = document.createElement("span");
+    msg.className = "save-status__err";
+    msg.setAttribute("role", "alert");
+    msg.textContent = text + " ";
+    var retry = document.createElement("button");
+    retry.type = "button"; retry.className = "btn btn--ghost btn--sm"; retry.setAttribute("data-retry-save", ""); retry.textContent = "Retry";
+    msg.appendChild(retry);
+    status.innerHTML = ""; status.appendChild(msg);
+  }
+  document.body.addEventListener("htmx:sendError", function (e) { saveFailed(e, "Not saved: you're offline. Your scores are still on this page."); });
+  document.body.addEventListener("htmx:responseError", function (e) {
+    if (e.detail.xhr && e.detail.xhr.status >= 500) saveFailed(e, "Not saved: the server had a problem. Your scores are still on this page.");
+  });
+  function retrySave() { if (failedSave && window.htmx) window.htmx.trigger(failedSave, "change"); }
+  document.addEventListener("click", function (e) { if (e.target.closest && e.target.closest("[data-retry-save]")) retrySave(); });
+  window.addEventListener("online", retrySave);
 
   // ---- compare mode keyboard -------------------------------------------------------------------
   document.addEventListener("keydown", function (e) {
     var box = document.querySelector("[data-compare]");
-    if (!box || /input|textarea|select/i.test(document.activeElement.tagName)) return;
+    if (!box || e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
+    var active = document.activeElement;
+    if (active && active !== document.body && !box.contains(active)) return;
+    if (/input|textarea|select/i.test(active.tagName)) return;
     var map = { ArrowLeft: "[data-compare-pick=left]", ArrowRight: "[data-compare-pick=right]", s: "[data-compare-skip]", u: "[data-compare-undo]" };
     var sel = map[e.key];
     if (!sel) return;
@@ -306,18 +362,41 @@
   }
   // ---- unsaved changes: a guarded form that was edited asks before the page is left -------------
   var dirty = false;
+  function isDirty() { return dirty && !!document.querySelector("form[data-guard]"); }
   document.addEventListener("input", function (e) { if (e.target.closest && e.target.closest("form[data-guard]")) dirty = true; });
   document.addEventListener("submit", function () { dirty = false; });
-  window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+  window.addEventListener("beforeunload", function (e) { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
+  document.body.addEventListener("htmx:afterSettle", function (e) { if (e.detail.target === document.body) dirty = false; });  // a new page
   document.body.addEventListener("htmx:confirm", function (e) {
-    if (!e.detail.boosted) return;
-    if (!dirty) return;
+    var elt = e.detail.elt;  // only a link that loads another page is "leaving"; autosaves and polls are not
+    if (!(elt && elt.tagName === "A" && String(e.detail.verb).toLowerCase() === "get")) return;
+    if (!isDirty()) return;
     e.preventDefault();  // hold the navigation; the dialog decides
     askConfirm({
       title: "Leave this page?", body: "You have unsaved changes. Leaving now discards them.", label: "Leave without saving", danger: true,
       onOk: function () { dirty = false; e.detail.issueRequest(true); }
     });
   });
+
+  // ---- a form being sent can't be sent twice (htmx forms handle their own state) -----------------------
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (!(form instanceof HTMLFormElement) || e.defaultPrevented || form.target === "_blank") return;
+    if (form.dataset.submitting) { e.preventDefault(); return; }
+    form.dataset.submitting = "1";
+    var btn = e.submitter;
+    if (btn) { btn.classList.add("is-loading"); btn.setAttribute("aria-disabled", "true"); }
+    // a download or a stopped request never leaves the form stuck
+    setTimeout(function () { delete form.dataset.submitting; if (btn) { btn.classList.remove("is-loading"); btn.removeAttribute("aria-disabled"); } }, 8000);
+  });
+  window.addEventListener("pageshow", function () {
+    document.querySelectorAll("form[data-submitting]").forEach(function (f) { delete f.dataset.submitting; });
+    document.querySelectorAll(".btn.is-loading").forEach(function (b) { b.classList.remove("is-loading"); b.removeAttribute("aria-disabled"); });
+  });
+  // an error summary takes focus so keyboard and screen-reader users land on what to fix
+  function focusErrorSummary() { var box = document.querySelector("[data-error-summary]"); if (box) box.focus(); }
+  focusErrorSummary();
+  document.body.addEventListener("htmx:load", function (e) { if (e.detail.elt === document.body) focusErrorSummary(); });
 
   // ---- sticky columns: stick when they fit under the header, otherwise scroll with the page --------
   var STICKY_TOP = 76, STICKY_GAP = 16, stickyTimer;

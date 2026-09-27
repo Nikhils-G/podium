@@ -1,7 +1,7 @@
 {% from "macros/ui.html" import stage_badge %}
 {% set links = navctx.links if navctx else None %}
 {% set memberships = navctx.memberships if navctx else [] %}
-{% if demo_mode %}<div class="demo-banner" role="note">Demo mode — demo accounts and the default secret are on. Set <code>PODIUM_SECRET_KEY</code> and <code>PODIUM_DEMO_ACCOUNTS=false</code> before a real event.</div>{% endif %}
+{% if demo_mode %}<aside class="demo-banner" aria-label="Demo mode">Demo mode — demo accounts and the default secret are on. Set <code>PODIUM_SECRET_KEY</code> and <code>PODIUM_DEMO_ACCOUNTS=false</code> before a real event.</aside>{% endif %}
 <header class="topbar">
   <div class="container{% if console %} container--wide{% endif %} topbar__inner">
     <a class="brand" href="/"><img class="brand__mark" src="/static/img/podium.svg" alt="">Podium</a>

@@ -14,7 +14,7 @@
 <section class="stack mt-6">
   <h2>Issued <span class="count">{{ certificates|length }}</span></h2>
   {% if certificates %}
-  <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Serial</th><th>Kind</th><th>Recipient</th><th>Issued</th><th></th></tr></thead><tbody>
+  <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Serial</th><th>Kind</th><th>Recipient</th><th>Issued</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
   {% for c in certificates %}<tr class="{% if c.revoked_at %}is-muted{% endif %}"><td><a href="/certificates/{{ c.serial }}"><code>{{ c.serial }}</code></a></td><td>{{ badge(c.kind.value, 'accent' if c.kind.value == 'winner' else 'plain') }}</td><td>{{ c.payload.recipient.name if c.payload.recipient else '—' }}{% if c.payload.team %} <span class="muted text-sm">· {{ c.payload.team.name }}</span>{% endif %}</td><td class="text-sm">{{ when(c.issued_at) }}{% if c.revoked_at %} · revoked{% endif %}</td>
     <td>{% if not c.revoked_at %}<form method="post" action="/e/{{ event.slug }}/organizer/certificates/{{ c.serial }}/revoke" hx-boost="false" data-confirm="Revoke {{ c.serial }}? Verification will report it as revoked."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Revoke</button></form>{% endif %}</td></tr>{% endfor %}
   </tbody></table></div>

@@ -25,7 +25,7 @@
   <div class="alert alert--success" role="status"><div><strong>Token created.</strong> Copy it now — it won't be shown again.<div class="copy-field mt-2"><code class="copy-field__value">{{ new_token }}</code><button class="btn btn--secondary btn--sm" type="button" data-copy="{{ new_token }}">Copy</button></div></div></div>
   {% endif %}
   {% if tokens %}
-  <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Name</th><th>Prefix</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody>
+  <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Name</th><th>Prefix</th><th>Created</th><th>Last used</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
   {% for t in tokens %}<tr><td>{{ t.name }}<br><span class="muted text-sm">{{ 'read-only' if t.scope == 'read' else 'read & write' }}{% if t.expires_at %} · expires {{ when(t.expires_at) }}{% endif %}</span></td><td><code>{{ t.prefix }}…</code></td><td class="text-sm">{{ when(t.created_at) }}</td><td class="text-sm">{{ when(t.last_used_at) if t.last_used_at else 'never' }}</td>
     <td><form method="post" action="/account/tokens/{{ t.id }}/revoke" hx-boost="false" data-confirm="Revoke “{{ t.name }}”? Anything using it stops working immediately."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Revoke</button></form></td></tr>{% endfor %}
   </tbody></table></div>

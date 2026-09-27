@@ -1,5 +1,5 @@
 {% extends "layouts/console.html" %}
-{% from "macros/ui.html" import badge, alert, when %}
+{% from "macros/ui.html" import badge, alert, when, error_summary %}
 {% block content %}
 <div class="page-header">
   <div><p class="page-header__eyebrow"><a href="/e/{{ event.slug }}/judge">Queue</a> · {{ position }} of {{ count }}</p>
@@ -10,7 +10,12 @@
     {% if next_item %}<a class="btn btn--ghost btn--sm" href="/e/{{ event.slug }}/judge/review/{{ next_item.project.public_id }}">Next →</a>{% endif %}
   </div>
 </div>
-<div id="review-errors">{% if error %}{{ alert('critical', error) }}{% endif %}</div>
+{% set saved = request.query_params.get('saved') %}
+{% if saved == 'submitted' and prev_title %}{{ alert('success', 'Review of “' ~ prev_title ~ '” submitted. ' ~ done_count ~ ' of ' ~ count ~ ' done.') }}
+{% elif saved == 'submitted' %}{{ alert('success', 'Review submitted. It counts toward the results now.') }}
+{% elif saved == 'draft' %}{{ alert('success', 'Draft saved. It counts once you submit it.') }}{% endif %}
+{% if review and review.submitted_at and not submitted %}{{ alert('warning', 'Reopened: this review doesn\'t count toward the results until you submit it again.') }}{% endif %}
+<div id="review-errors">{% if errors %}{% set problems = [] %}{% for c in criteria %}{% if errors[c.public_id] %}{% set _ = problems.append(('#crit-' ~ c.public_id, c.name ~ ': ' ~ errors[c.public_id])) %}{% endif %}{% endfor %}{% if errors.comment %}{% set _ = problems.append(('#f-comment', errors.comment)) %}{% endif %}{{ error_summary(problems) }}{% endif %}{% if error %}{{ alert('critical', error) }}{% endif %}</div>
 {% if not judging_open %}{{ alert('info', 'Judging is closed. This review is read-only.') }}{% endif %}
 <div class="review-layout">
   <aside class="review-project stack" data-sticky>
@@ -21,25 +26,26 @@
       {% if project.demo_url %}<a class="btn btn--secondary btn--sm" href="{{ project.demo_url }}" rel="noopener nofollow ugc" target="_blank">Demo ↗</a>{% endif %}
       {% if project.video_url %}<a class="btn btn--secondary btn--sm" href="{{ project.video_url }}" rel="noopener nofollow ugc" target="_blank">Video ↗</a>{% endif %}
     </div>
-    <p class="muted text-sm">Keyboard: <span class="kbd">1</span>–<span class="kbd">5</span> score the focused criterion · <span class="kbd">j</span>/<span class="kbd">k</span> move · <span class="kbd">⌘/Ctrl</span>+<span class="kbd">Enter</span> submit</p>
+    {% if judging_open and not submitted and criteria %}{% set lo = criteria|map(attribute='min_score')|min %}{% set hi = criteria|map(attribute='max_score')|max %}
+    <p class="muted text-sm kbd-hint">Keyboard, inside the form: <span class="kbd">{{ lo }}</span>–<span class="kbd">{{ hi if hi <= 9 else 9 }}</span> score the focused criterion{% if hi > 9 %} (arrow keys for higher values){% endif %} · <span class="kbd">j</span>/<span class="kbd">k</span> move · <span class="kbd">⌘/Ctrl</span>+<span class="kbd">Enter</span> submit</p>{% endif %}
   </aside>
-  <form class="review-form stack" method="post" action="/e/{{ event.slug }}/judge/review/{{ project.public_id }}" hx-boost="false" data-review-form
+  <form class="review-form stack" method="post" action="/e/{{ event.slug }}/judge/review/{{ project.public_id }}" hx-boost="false" data-review-form data-guard
         hx-post="/e/{{ event.slug }}/judge/review/{{ project.public_id }}" hx-trigger="change delay:400ms, input from:textarea delay:900ms" hx-target="#save-status" hx-swap="innerHTML" hx-vals='{"action": "draft"}' hx-disinherit="*">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% if not criteria %}{{ alert('warning', "The organizer hasn't published a rubric yet.") }}{% endif %}
     <fieldset class="stack" {% if not judging_open or submitted %}disabled{% endif %}>
       {% for c in criteria %}
-      <div class="criterion{% if errors[c.public_id] %} is-invalid{% endif %}" data-criterion data-weight="{{ c.weight }}" data-min="{{ c.min_score }}" data-max="{{ c.max_score }}">
+      <div class="criterion{% if errors[c.public_id] %} is-invalid{% endif %}" id="crit-{{ c.public_id }}" data-criterion data-weight="{{ c.weight }}" data-min="{{ c.min_score }}" data-max="{{ c.max_score }}">
         <div class="criterion__head">
           <div><span class="criterion__name">{{ c.name }}</span> <span class="muted text-sm">× {{ '%g'|format(c.weight) }}</span>
             {% if c.description %}<p class="field__help">{{ c.description }}</p>{% endif %}</div>
         </div>
-        <div class="segmented" role="radiogroup" aria-label="{{ c.name }}: {{ c.min_score }} to {{ c.max_score }}">
+        <div class="segmented" role="radiogroup" aria-label="{{ c.name }}: {{ c.min_score }} to {{ c.max_score }}"{% if errors[c.public_id] %} aria-invalid="true" aria-describedby="e-crit-{{ c.public_id }}"{% endif %}>
           {% for v in range(c.min_score, c.max_score + 1) %}
           <label class="segmented__option"><input type="radio" name="{{ c.public_id }}" value="{{ v }}" {% if values[c.public_id]|string == v|string %}checked{% endif %}><span>{{ v }}</span></label>
           {% endfor %}
         </div>
-        {% if errors[c.public_id] %}<p class="field__error">{{ errors[c.public_id] }}</p>{% endif %}
+        {% if errors[c.public_id] %}<p class="field__error" id="e-crit-{{ c.public_id }}">{{ errors[c.public_id] }}</p>{% endif %}
       </div>
       {% endfor %}
       <div class="field">
@@ -52,10 +58,11 @@
       <div class="score-total" aria-live="polite"><span class="score-total__label">Weighted total</span><span class="score-total__value" data-total>{{ '%.1f'|format(total) if total is not none else '—' }}</span><span class="muted text-sm">/ 100</span></div>
       <span id="save-status" class="save-status" aria-live="polite">{% if review and not submitted %}Draft saved{% endif %}</span>
       <p class="muted text-sm" data-flat-nudge hidden></p>
+      <p class="muted text-sm review-privacy">Only you and the organizers see your scores and comment. Other judges never do.</p>
       <div class="cluster">
         {% if judging_open and criteria %}
           {% if submitted %}
-            <button class="btn btn--secondary" type="submit" name="action" value="reopen" hx-disable>Edit review</button>
+            <button class="btn btn--secondary" type="submit" form="reopen-form" hx-disable>Edit review</button>
           {% else %}
             <button class="btn btn--ghost" type="submit" name="action" value="draft" hx-disable>Save draft</button>
             {% if next_todo %}
@@ -69,6 +76,11 @@
       </div>
     </div>
   </form>
+  {% if judging_open and criteria and submitted %}
+  <form id="reopen-form" method="post" action="/e/{{ event.slug }}/judge/review/{{ project.public_id }}" hx-boost="false" data-confirm="Reopen this review? It stops counting toward the results until you submit it again.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="reopen">
+  </form>
+  {% endif %}
 </div>
 <script nonce="{{ nonce }}" type="application/json" id="rubric-data">{{ criteria|map(attribute='public_id')|list|tojson }}</script>
 {% endblock %}

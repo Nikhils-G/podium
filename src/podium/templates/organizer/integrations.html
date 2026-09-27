@@ -43,7 +43,7 @@
 <section class="stack mt-6" id="deliveries">
   <h2>Recent deliveries</h2>
   {% if deliveries %}
-  <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Type</th><th>Status</th><th class="num">Attempts</th><th>Detail</th><th></th></tr></thead><tbody>
+  <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Type</th><th>Status</th><th class="num">Attempts</th><th>Detail</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
   {% for d in deliveries %}<tr><td><code>{{ d.event_type }}</code><br><span class="muted text-sm">{{ when(d.created_at) }}</span></td><td>{{ badge(d.status.value, 'good' if d.status.value == 'delivered' else ('critical' if d.status.value == 'failed' else 'warning')) }}</td><td class="num">{{ d.attempts }}</td><td class="text-sm ink-2">{% if d.last_error %}{{ d.last_error }}{% elif d.next_attempt_at and d.status.value == 'pending' %}next try {{ when(d.next_attempt_at) }}{% elif d.status.value == 'delivered' %}HTTP {{ d.response_status }}{% endif %}</td>
     <td>{% if d.status.value != 'pending' %}<form method="post" action="/e/{{ event.slug }}/organizer/webhooks/deliveries/{{ d.id }}/redeliver" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Redeliver</button></form>{% endif %}</td></tr>{% endfor %}
   </tbody></table></div>

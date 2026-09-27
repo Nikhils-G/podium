@@ -55,6 +55,7 @@ def _login_context(settings: Settings, **extra):
 def login_page(
     request: Request,
     next: str = "",
+    email: str = "",
     user: User | None = Depends(current_user),
     settings: Settings = Depends(get_settings),
 ):
@@ -65,7 +66,9 @@ def login_page(
         "auth/login.html",
         title="Sign in",
         nav="login",
-        **_login_context(settings, next=safe_next(next) if next else "", email="", error=""),
+        **_login_context(
+            settings, next=safe_next(next) if next else "", email=email[:254], error=""
+        ),
     )
 
 
@@ -122,6 +125,7 @@ def login_demo(
 def register_page(
     request: Request,
     next: str = "",
+    email: str = "",
     user: User | None = Depends(current_user),
     db: DbSession = Depends(get_db),
 ):
@@ -132,7 +136,7 @@ def register_page(
         "auth/register.html",
         title="Create account",
         next=safe_next(next) if next else "",
-        values={"name": "", "email": ""},
+        values={"name": "", "email": email[:254]},  # an invitation link carries the invited address
         errors={},
         error="",
         bootstrap=auth_service.instance_is_empty(db),

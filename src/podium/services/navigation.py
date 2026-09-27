@@ -2,6 +2,7 @@
 role links the header shows for the current event."""
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
@@ -31,6 +32,7 @@ class Membership:
     next_href: str
     done: int = 0
     total: int = 0
+    next_at: datetime | None = None  # a date the label ends with, rendered in local time
 
     @property
     def role_label(self) -> str:
@@ -113,13 +115,11 @@ def _participant_next(db, event, user, stage: Stage) -> tuple[str, str]:
     return "Submitted · awaiting results", f"{base}/projects/{project.public_id}"
 
 
-def _organizer_next(db, event) -> tuple[str, str]:
+def _organizer_next(db, event) -> tuple[str, str, datetime | None]:
     from podium.services.dashboard import next_step
-    from podium.services.text import utc_text
 
     step = next_step(db, event)
-    label = f"{step.label} {utc_text(step.at)}" if step.at else step.label
-    return label, f"/e/{event.slug}/organizer"
+    return step.label, f"/e/{event.slug}/organizer", step.at
 
 
 def memberships(db: DbSession, user: User | None) -> list[Membership]:
@@ -137,8 +137,9 @@ def memberships(db: DbSession, user: User | None) -> list[Membership]:
         seen.add(event.id)
         stage = stage_of(event)
         done = total = 0
+        at = None
         if role_row.role == Role.organizer:
-            label, href = _organizer_next(db, event)
+            label, href, at = _organizer_next(db, event)
         elif role_row.role == Role.judge:
             label, href, done, total = _judge_next(db, event, user)
         else:
@@ -153,6 +154,7 @@ def memberships(db: DbSession, user: User | None) -> list[Membership]:
                 next_href=href,
                 done=done,
                 total=total,
+                next_at=at,
             )
         )
     if user.is_admin:

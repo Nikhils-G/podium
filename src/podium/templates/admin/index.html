@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header"><div><p class="page-header__eyebrow">Instance</p><h1>Admin</h1><p class="ink-2 mt-2">{{ users }} accounts · {{ events|length }} events · {% if demo_mode %}<strong>demo mode on</strong>{% else %}production configuration{% endif %}.</p></div><a class="btn btn--primary" href="/events/new">Create an event</a></div>
 <div class="table-wrap mt-4">
-<div class="table-wrap"><table class="table table--dense"><thead><tr><th>Event</th><th>Stage</th><th>Organizers</th><th></th></tr></thead><tbody>
+<div class="table-wrap"><table class="table table--dense"><thead><tr><th>Event</th><th>Stage</th><th>Organizers</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
 {% for e, stage, label, orgs in events %}<tr><td><a href="/e/{{ e.slug }}">{{ e.name }}</a><br><span class="muted text-sm">{{ e.slug }}{% if not e.is_public %} · private{% endif %}</span></td><td>{{ stage_badge(stage, label) }}</td><td class="text-sm">{{ orgs|join(', ') or '—' }}</td><td><a class="btn btn--secondary btn--sm" href="/e/{{ e.slug }}/organizer">Manage</a></td></tr>{% else %}<tr><td colspan="4" class="muted">No events yet.</td></tr>{% endfor %}
 </tbody></table></div></div>
 <section class="card stack mt-6">

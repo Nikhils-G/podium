@@ -62,21 +62,21 @@
   <aside class="stack" data-sticky>
     {% if event.voting_open_at and not is_draft %}
     <div class="card">
-      <h3>Community vote</h3>
+      <h2 class="card__heading">Community vote</h2>
       {% with voter=vote.voter, status=vote.status, mine=vote.mine, open=vote.open, closed=vote.closed, cost=vote.cost, count=vote.count, mode=vote.mode, own_team=vote.own_team, error='' %}{% include "partials/vote_control.html" %}{% endwith %}
     </div>
     {% elif ctx.is_organizer and not event.voting_open_at %}
-    <div class="card"><h3>Community vote</h3><p class="muted text-sm">Voting isn't configured. Set a window on the <a href="/e/{{ event.slug }}/organizer/voting">Voting page</a>.</p></div>
+    <div class="card"><h2 class="card__heading">Community vote</h2><p class="muted text-sm">Voting isn't configured. Set a window on the <a href="/e/{{ event.slug }}/organizer/voting">Voting page</a>.</p></div>
     {% endif %}
     <div class="card">
-      <h3>Team</h3>
+      <h2 class="card__heading">Team</h2>
       <ul class="member-list">
         {% for m, r in team_view.members %}<li><span class="avatar" aria-hidden="true">{{ m.name[:1]|upper }}</span><span>{{ m.name }}</span>{% if r == 'lead' %}{{ badge('Lead', 'accent') }}{% endif %}</li>{% endfor %}
       </ul>
     </div>
     {% if ctx.is_organizer and project.duplicate_of %}
     <div class="card card--attention">
-      <h3>Organizer note</h3>
+      <h2 class="card__heading">Organizer note</h2>
       <p class="text-sm">Flagged as a possible duplicate of <a href="/e/{{ event.slug }}/projects/{{ project.duplicate_of.public_id }}">{{ project.duplicate_of.title }}</a> ({{ project.duplicate_of.public_id }}) — same team and repository. Withdraw one if it's a re-submission.</p>
     </div>
     {% endif %}

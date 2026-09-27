@@ -43,7 +43,7 @@
       <p class="text-sm ink-2">Votes are flagged when one network address casts more than {{ 12 }} in this event. Voiding a vote keeps it in the audit log with your reason.</p>
       {% if errors.void %}{{ alert('critical', errors.void) }}{% endif %}
       {% if suspicious %}
-      <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Project</th><th>When</th><th>Network</th><th></th></tr></thead><tbody>
+      <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Project</th><th>When</th><th>Network</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
       {% for v in suspicious %}<tr><td>{{ v.project.title }}</td><td class="text-sm">{{ when(v.created_at) }}</td><td><code>{{ v.ip_hash[:10] }}</code></td>
         <td><form class="cluster" method="post" action="/e/{{ event.slug }}/organizer/voting/votes/{{ v.id }}/void" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input class="input input--inline" name="reason" placeholder="Reason" required maxlength="200" aria-label="Reason for voiding this vote"><button class="btn btn--ghost btn--sm btn--danger-text" type="submit">Void</button></form></td></tr>{% endfor %}
       </tbody></table></div>
@@ -51,7 +51,7 @@
       <h3 class="mt-4">Recent votes <span class="count">{{ recent|length }}</span></h3>
       <p class="text-sm ink-2">The last {{ recent|length|plural('vote') }}, newest first. Any vote can be voided with a reason; voided votes stay in the audit log.</p>
       {% if recent %}
-      <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Project</th><th>Voter</th><th class="num">Credits</th><th>When</th><th></th></tr></thead><tbody>
+      <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Project</th><th>Voter</th><th class="num">Credits</th><th>When</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
       {% for v in recent %}<tr class="{% if v.voided_at %}is-muted{% endif %}"><td>{{ v.project.title }}</td><td><code>{{ v.voter_key[:14] }}</code>{% if v.flagged %} {{ badge('flagged', 'warning') }}{% endif %}</td><td class="num">{{ v.credits }}</td><td class="text-sm">{{ when(v.created_at) }}</td>
         <td>{% if v.voided_at %}<span class="muted text-sm">voided {{ when(v.voided_at) }}</span>{% else %}<form class="cluster" method="post" action="/e/{{ event.slug }}/organizer/voting/votes/{{ v.id }}/void" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input class="input input--inline" name="reason" placeholder="Reason" required maxlength="200" aria-label="Reason for voiding this vote"><button class="btn btn--ghost btn--sm btn--danger-text" type="submit">Void</button></form>{% endif %}</td></tr>{% endfor %}
       </tbody></table></div>

@@ -16,7 +16,7 @@
           <article class="card card--event">
             <div class="cluster">{{ stage_badge(m.stage.value, m.stage_label) }}{% if m.total %}<span class="badge badge--plain">{{ m.done }} of {{ m.total }} reviewed</span>{% endif %}</div>
             <h3 class="card__title"><a href="/e/{{ m.event.slug }}">{{ m.event.name }}</a></h3>
-            <p class="card__summary">{{ m.next_label }}</p>
+            <p class="card__summary">{{ m.next_label }}{% if m.next_at %} {{ when(m.next_at) }}{% endif %}</p>
             <div class="card__links"><a class="btn btn--primary btn--sm" href="{{ m.next_href }}">{{ {'organizer': 'Manage', 'judge': 'Judge', 'participant': 'Continue', 'admin': 'Manage'}[role] }}</a><a class="btn btn--ghost btn--sm" href="/e/{{ m.event.slug }}/projects">Gallery</a></div>
           </article>
           {% endfor %}

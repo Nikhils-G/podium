@@ -79,7 +79,7 @@ def invite_accept(
 ):
     invite = judges_service.invite_by_token(db, token)
     event = judges_service.accept_invite(db, invite, user)
-    return RedirectResponse(f"/e/{event.slug}/judge", status_code=303)
+    return RedirectResponse(f"/e/{event.slug}/judge?saved=joined", status_code=303)
 
 
 # --- queue and scoring ----------------------------------------------------------------------------
@@ -141,6 +141,7 @@ def _review_ctx(ctx, db, assignment, review, values=None, errors=None, error="")
         prev_item=prev_item,
         next_item=next_item,
         next_todo=next_todo,
+        done_count=sum(1 for item in items if item.state == "done"),
         submitted=review is not None and review.status.value == "submitted",
         comment=(values or {}).get("comment", review.comment if review else ""),
     )
@@ -155,11 +156,18 @@ def review_page(
 ):
     assignment = reviews_service.assignment_for(db, ctx.event, ctx.user, pid)
     review = reviews_service.review_for(db, assignment)
+    context = _review_ctx(ctx, db, assignment, review)
+    prev = request.query_params.get("prev")
+    if prev:  # "Submit & next" landed here: name the review that was just submitted
+        items = reviews_service.queue(db, ctx.event, ctx.user)
+        context["prev_title"] = next(
+            (i.project.title for i in items if i.project.public_id == prev), None
+        )
     return render(
         request,
         "judge/review.html",
         title=f"Review · {assignment.project.title}",
-        **_review_ctx(ctx, db, assignment, review),
+        **context,
     )
 
 
@@ -203,7 +211,7 @@ async def review_save(
             request,
             "judge/review.html",
             status_code=422,
-            title="Review",
+            title=f"Error: Review · {assignment.project.title}",
             **_review_ctx(
                 ctx, db, assignment, review, values={**raw, "comment": comment}, errors=exc.errors
             ),
@@ -233,11 +241,15 @@ async def review_save(
         following = _next_todo(db, ctx.event, ctx.user, pid)
         if following is not None:
             return RedirectResponse(
-                f"/e/{ctx.event.slug}/judge/review/{following.project.public_id}",
+                f"/e/{ctx.event.slug}/judge/review/{following.project.public_id}"
+                f"?saved=submitted&prev={pid}",
                 status_code=303,
             )
         return RedirectResponse(f"/e/{ctx.event.slug}/judge?done=1", status_code=303)
-    return RedirectResponse(f"/e/{ctx.event.slug}/judge/review/{pid}", status_code=303)
+    saved = {"reopen": "reopened", "submit": "submitted"}.get(action, "draft")
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/judge/review/{pid}?saved={saved}", status_code=303
+    )
 
 
 def _next_todo(db, event, judge, current_pid: str):

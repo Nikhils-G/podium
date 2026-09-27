@@ -43,3 +43,12 @@
 {% macro track_chip(track, href, selected=False) -%}
 <a class="chip t-{{ (track.position % 8) + 1 }}{% if selected %} is-selected{% endif %}" href="{{ href }}" hx-boost="false" hx-get="{{ href }}" hx-target="#gallery-results" hx-push-url="true" hx-swap="outerHTML" {% if selected %}aria-current="true"{% endif %}><span class="chip__dot" aria-hidden="true"></span>{{ track.name }}</a>
 {%- endmacro %}
+
+
+{% macro error_summary(items) -%}
+{# items: (href, message) pairs; app.js focuses the summary on load #}
+{% if items %}<div class="error-summary" role="alert" tabindex="-1" data-error-summary>
+  <h2 class="error-summary__title">There is a problem</h2>
+  <ul class="error-summary__list">{% for href, message in items %}<li><a href="{{ href }}">{{ message }}</a></li>{% endfor %}</ul>
+</div>{% endif %}
+{%- endmacro %}

@@ -1,3 +1,4 @@
+{% from "macros/ui.html" import when %}
 {% set links = navctx.links if navctx else None %}
 {% set memberships = navctx.memberships if navctx else [] %}
 {% if event %}
@@ -18,7 +19,7 @@
       {% for m in memberships %}
       <a class="menu__item" href="{{ m.next_href }}">
         <span class="menu__title">{{ m.event.name }} <span class="badge badge--plain">{{ {'organizer': 'Organizer', 'judge': 'Judge', 'participant': 'Participant', 'admin': 'Admin'}[m.role] }}</span></span>
-        <span class="menu__sub">{{ m.next_label }}</span>
+        <span class="menu__sub">{{ m.next_label }}{% if m.next_at %} {{ when(m.next_at) }}{% endif %}</span>
       </a>
       {% endfor %}
       <a class="menu__item menu__item--foot" href="/">All your events →</a>

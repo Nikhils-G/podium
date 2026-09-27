@@ -19,8 +19,8 @@
       <button class="btn btn--primary btn--block" type="submit">Accept and start judging</button>
     </form>
   {% else %}
-    <p>Sign in or create an account to accept.</p>
-    <div class="cluster"><a class="btn btn--primary" href="/login?next={{ next|urlencode }}">Sign in</a><a class="btn btn--secondary" href="/register?next={{ next|urlencode }}">Create account</a></div>
+    <p>Sign in or create an account as <strong>{{ invite.email }}</strong> to accept.</p>
+    <div class="cluster"><a class="btn btn--primary" href="/login?next={{ next|urlencode }}&amp;email={{ invite.email|urlencode }}">Sign in</a><a class="btn btn--secondary" href="/register?next={{ next|urlencode }}&amp;email={{ invite.email|urlencode }}">Create account</a></div>
   {% endif %}
 </div>
 {% endblock %}
