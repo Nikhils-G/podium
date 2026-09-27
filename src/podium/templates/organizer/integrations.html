@@ -28,6 +28,7 @@
       {{ field('url', 'Endpoint URL', type='url', required=True, error=errors.url, placeholder='https://example.org/hooks/podium') }}
       <div class="cluster align-end"><div class="grow">{{ field('secret', 'Signing secret (optional)', type='password', help='Leave empty to generate one.', autocomplete='new-password') }}</div><button class="btn btn--ghost btn--sm" type="button" data-reveal="f-secret" aria-pressed="false">Show</button></div>
       <div class="field"><span class="field__label">Events</span><div class="checklist">{% for t in event_types %}<label><input type="checkbox" name="events" value="{{ t }}" checked> <code>{{ t }}</code></label>{% endfor %}</div></div>
+      <p class="text-sm muted"><code>vote.cast</code> carries a project's running vote total while voting is open — keep that endpoint as private as the tally page.</p>
       <div><button class="btn btn--primary" type="submit">Add webhook</button></div>
     </form>
     <section class="card stack">

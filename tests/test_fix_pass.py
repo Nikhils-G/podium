@@ -521,3 +521,70 @@ def test_unpublishing_results_revokes_winner_certificates(client, auth):
         client.post(f"{S}/actions/unpublish_results", headers=org)
         client.post(f"{S}/actions/open_judging", headers=org)
         client.delete(f"{S}/prizes/{prize['id']}", headers=org)
+
+
+def test_plural_helper_and_filter():
+    from podium.services.text import plural
+    from podium.web.rendering import jinja_env
+
+    assert plural(1, "review") == "1 review" and plural(3, "review") == "3 reviews"
+    assert plural(2, "entry", "entries") == "2 entries" and plural("4", "vote") == "4 votes"
+    assert jinja_env.from_string("{{ n|plural('judge') }}").render(n=1) == "1 judge"
+
+
+def test_no_empty_stage_badge_on_pages_without_a_stage(client):
+    for path in ("/verify", "/e/no-such/x"):
+        r = client.get(path)
+        assert '<span class="badge"></span>' not in r.text
+    invite = client.get("/verify")
+    assert invite.status_code == 200
+
+
+def test_attention_items_expire_with_their_phase(client, auth, db):
+    org = auth("organizer")
+    client.post(
+        f"{S}/judges/invites", headers=org, json={"email": "phase-judge@example.test", "tracks": []}
+    )
+    event = db.execute(select(Event).where(Event.slug == SLUG)).scalar_one()
+    db.expire_all()
+    titles = [a.title for a in dashboard.overview(db, event).attention]
+    assert any("invitation" in t for t in titles)
+    client.post(f"{S}/actions/close_judging", headers=org)
+    try:
+        db.expire_all()
+        titles = [a.title for a in dashboard.overview(db, event).attention]
+        assert not any("invitation" in t for t in titles)
+        assert not any("duplicate" in t.lower() for t in titles)
+        assert any("fewer than" in t for t in titles), "still relevant until results are published"
+        client.post(f"{S}/actions/publish_results", headers=org)
+        db.expire_all()
+        titles = [a.title for a in dashboard.overview(db, event).attention]
+        assert not any("fewer than" in t or "identically" in t for t in titles)
+    finally:
+        client.post(f"{S}/actions/unpublish_results", headers=org)
+        client.post(f"{S}/actions/open_judging", headers=org)
+
+
+def test_audit_feed_reads_as_sentences(app, db):
+    from podium.models import AuditLog
+    from podium.services.audit import describe
+
+    entry = AuditLog(
+        action="event.updated",
+        entity_type="event",
+        entity_id="evt_01",
+        meta={
+            "changes": {
+                "submissions_close_at": ["2026-03-01 18:00:00+00:00", "2026-03-01 12:30:00+00:00"]
+            }
+        },
+        prev_hash="x",
+        row_hash="y",
+    )
+    assert describe(entry) == "Changed the submission deadline 2026-03-01 18:00 → 2026-03-01 12:30"
+    entry.action, entry.meta = "prize.awarded", {"name": "Best overall", "project": "prj_07"}
+    assert describe(entry) == "Awarded “Best overall” to prj_07"
+    entry.action, entry.meta = "something.new", None
+    assert describe(entry) == "Something new (evt_01)"
+    page = demo(app, "organizer").get(f"/e/{SLUG}/organizer/audit")
+    assert page.status_code == 200 and "What happened" in page.text

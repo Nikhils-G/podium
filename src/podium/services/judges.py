@@ -24,6 +24,7 @@ from podium.models import (
 )
 from podium.services import audit
 from podium.services.auth import EMAIL_RE, normalize_email
+from podium.services.text import plural
 
 
 @dataclass
@@ -334,7 +335,7 @@ def remove_judge(db: DbSession, event: Event, organizer: User, judge_public_id: 
     ).scalar_one()
     if done:
         raise Conflict(
-            f"{judge.name} has submitted {done} review(s). Remove their assignments first."
+            f"{judge.name} has submitted {plural(done, 'review')}. Remove their assignments first."
         )
     for row in db.execute(
         select(JudgeTrack).where(JudgeTrack.event_id == event.id, JudgeTrack.user_id == judge.id)

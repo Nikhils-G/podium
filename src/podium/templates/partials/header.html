@@ -8,7 +8,7 @@
     {% if event %}
       <span class="topbar__crumb muted" aria-hidden="true">/</span>
       <a class="topbar__event" href="/e/{{ event.slug }}" title="{{ event.name }}">{{ event.name }}</a>
-      <span class="topbar__stage">{{ stage_badge(stage, stage_label) }}</span>
+      {% if stage_label %}<span class="topbar__stage">{{ stage_badge(stage, stage_label) }}</span>{% endif %}
     {% endif %}
     <details class="menu menu--mobile">
       <summary class="btn btn--ghost btn--sm">Menu</summary>

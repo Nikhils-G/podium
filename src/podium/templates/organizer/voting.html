@@ -48,12 +48,20 @@
         <td><form class="cluster" method="post" action="/e/{{ event.slug }}/organizer/voting/votes/{{ v.id }}/void" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input class="input input--inline" name="reason" placeholder="Reason" required aria-label="Reason"><button class="btn btn--danger btn--sm" type="submit">Void</button></form></td></tr>{% endfor %}
       </tbody></table></div>
       {% else %}<p class="muted text-sm">Nothing flagged.</p>{% endif %}
+      <h3 class="mt-4">Recent votes <span class="count">{{ recent|length }}</span></h3>
+      <p class="text-sm ink-2">The last {{ recent|length|plural('vote') }}, newest first. Any vote can be voided with a reason; voided votes stay in the audit log.</p>
+      {% if recent %}
+      <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Project</th><th>Voter</th><th class="num">Credits</th><th>When</th><th></th></tr></thead><tbody>
+      {% for v in recent %}<tr class="{% if v.voided_at %}is-muted{% endif %}"><td>{{ v.project.title }}</td><td><code>{{ v.voter_key[:14] }}</code>{% if v.flagged %} {{ badge('flagged', 'warning') }}{% endif %}</td><td class="num">{{ v.credits }}</td><td class="text-sm">{{ when(v.created_at) }}</td>
+        <td>{% if v.voided_at %}<span class="muted text-sm">voided {{ when(v.voided_at) }}</span>{% else %}<form class="cluster" method="post" action="/e/{{ event.slug }}/organizer/voting/votes/{{ v.id }}/void" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input class="input input--inline" name="reason" placeholder="Reason" required aria-label="Reason for voiding this vote"><button class="btn btn--ghost btn--sm" type="submit">Void</button></form>{% endif %}</td></tr>{% endfor %}
+      </tbody></table></div>
+      {% else %}<p class="muted text-sm">No votes yet.</p>{% endif %}
     </section>
   </section>
   <aside class="stack">
     <section class="card stack">
       <h2>Tally</h2>
-      <p class="text-sm ink-2">{{ tally.total_votes }} votes from {{ tally.total_voters }} voters · {{ tally.voided }} voided · {{ tally.flagged }} flagged. Public only after the window closes and results are published.</p>
+      <p class="text-sm ink-2">{{ tally.total_votes|plural('vote') }} from {{ tally.total_voters|plural('voter') }} · {{ tally.voided }} voided · {{ tally.flagged }} flagged. Public only after the window closes and results are published.</p>
       {% if tally.total_votes %}
       <div class="table-wrap"><table class="table table--dense"><thead><tr><th>Project</th><th class="num">Votes</th></tr></thead><tbody>
       {% for t in tally.projects[:15] %}<tr><td>{{ t.project.title }}</td><td class="num">{{ t.votes }}</td></tr>{% endfor %}

@@ -32,7 +32,11 @@
 {%- endmacro %}
 
 {% macro when(value) -%}
-{% if value %}<time datetime="{{ value.isoformat() }}" data-local>{{ value.strftime('%-d %b %Y, %H:%M') }} UTC</time>{% else %}—{% endif %}
+{% if value %}<time datetime="{{ value.isoformat() }}" data-local title="{{ value.strftime('%-d %b %Y, %H:%M') }} UTC">{{ value.strftime('%-d %b %Y, %H:%M') }} UTC</time>{% else %}—{% endif %}
+{%- endmacro %}
+
+{% macro countdown(value, before='closes', after='closed') -%}
+{% if value %}<span data-countdown="{{ value.isoformat() }}" data-before="{{ before }}" data-after="{{ after }}">{{ before }} {{ when(value) }}</span>{% endif %}
 {%- endmacro %}
 
 {% macro track_chip(track, href, selected=False) -%}

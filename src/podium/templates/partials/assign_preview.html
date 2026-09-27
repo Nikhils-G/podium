@@ -4,7 +4,7 @@
   {% elif plan.projects == 0 %}{{ alert('warning', 'No submitted projects to assign.') }}
   {% else %}
   <p><strong>{{ plan.entries|length }}</strong> new assignment{{ '' if plan.entries|length == 1 else 's' }} across {{ plan.judges }} judges and {{ plan.projects }} projects to reach {{ plan.reviews_per_project }} reviews each.</p>
-  {% if plan.shortfalls %}{{ alert('warning', plan.shortfalls|length ~ ' project(s) still can\'t reach the target — not enough eligible judges: ' ~ (plan.shortfalls|map(attribute=0)|map(attribute='title')|list|join(', '))) }}{% endif %}
+  {% if plan.shortfalls %}{{ alert('warning', plan.shortfalls|length|plural('project') ~ ' still can\'t reach the target — not enough eligible judges: ' ~ (plan.shortfalls|map(attribute=0)|map(attribute='title')|list|join(', '))) }}{% endif %}
   {% set fallback = plan.entries|selectattr('fallback')|list %}
   {% if fallback %}<p class="text-sm ink-2">{{ fallback|length }} assignment(s) go outside the judge's tracks because no track judge was available.</p>{% endif %}
   {% if plan.entries %}

@@ -1,5 +1,5 @@
 {% extends "layouts/public.html" %}
-{% from "macros/ui.html" import field, badge, alert %}
+{% from "macros/ui.html" import field, badge, alert, when %}
 {% block content %}
 <div class="auth-card stack">
   <div><h1>Verify a certificate</h1><p class="ink-2 mt-2">Enter a serial to check it against this Podium's signing key.</p></div>
@@ -11,7 +11,7 @@
     {% if verification.status == 'valid' %}
       <div class="alert alert--success"><div><strong>Valid.</strong> {{ verification.certificate.payload.recipient.name if verification.certificate.payload.recipient else verification.certificate.payload.team.name }} — {{ verification.certificate.kind.value }} — {{ event.name }}. <a href="/certificates/{{ verification.certificate.serial }}">View certificate</a>.</div></div>
     {% elif verification.status == 'revoked' %}
-      {{ alert('warning', 'This certificate was revoked by the organizers on ' ~ verification.certificate.revoked_at.strftime('%-d %b %Y') ~ '.') }}
+      <div class="alert alert--warning" role="status">This certificate was revoked by the organizers {{ when(verification.certificate.revoked_at) }}.</div>
     {% elif verification.status == 'invalid' %}
       {{ alert('critical', 'The record exists but its signature does not verify. Treat it as tampered.') }}
     {% else %}

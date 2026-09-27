@@ -23,6 +23,7 @@ def _ctx(ctx, db, **extra):
     defaults = {
         "tally": voting_service.tally(db, ctx.event),
         "suspicious": voting_service.suspicious(db, ctx.event),
+        "recent": voting_service.recent(db, ctx.event),
         "codes_total": total,
         "codes_used": used,
         "open": voting_service.voting_is_open(ctx.event),

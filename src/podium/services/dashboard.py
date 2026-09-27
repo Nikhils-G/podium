@@ -157,7 +157,7 @@ def overview(db: DbSession, event: Event) -> Overview:
             add(
                 AttentionItem(
                     "warning",
-                    f"{len(prog.below_target)} project(s) have fewer than "
+                    f"{plural(len(prog.below_target), 'project')} have fewer than "
                     f"{event.reviews_per_project} submitted reviews",
                     "Assign more judges or nudge the ones who haven't finished.",
                     f"{base}/progress",
@@ -174,7 +174,7 @@ def overview(db: DbSession, event: Event) -> Overview:
         add(
             AttentionItem(
                 "info",
-                f"{pending} judge invitation(s) not accepted yet",
+                f"{plural(pending, 'judge invitation')} not accepted yet",
                 "Judges can't be assigned projects until they accept.",
                 f"{base}/judges#invites",
                 "See invites",
@@ -193,7 +193,7 @@ def overview(db: DbSession, event: Event) -> Overview:
         add(
             AttentionItem(
                 "info",
-                f"{stale} invitation(s) older than a week",
+                f"{plural(stale, 'invitation')} older than a week",
                 "Chase the judge, regenerate the link, or revoke it.",
                 f"{base}/judges#invites",
                 "Review invites",
@@ -225,7 +225,25 @@ def overview(db: DbSession, event: Event) -> Overview:
                     "Invite judges",
                 )
             )
+    data.attention = [item for item in data.attention if _still_relevant(item, event)]
     return data
+
+
+def _still_relevant(item: AttentionItem, event: Event) -> bool:
+    """Attention items expire with the phase they belong to: nobody needs "8 projects below
+    target" on a published event or "invitations pending" once judging has closed."""
+    title = item.title.lower()
+    if event.archived_at is not None:
+        return "not public" in title
+    judging_closed = event.judging_closed_at is not None
+    published = event.results_published_at is not None
+    if "duplicate" in title or "tracks" in title or "deadline" in title:
+        return not judging_closed
+    if "invitation" in title:
+        return not judging_closed
+    if "identically" in title or "fewer than" in title:
+        return not published
+    return True
 
 
 STEPS = [

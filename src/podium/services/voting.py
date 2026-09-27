@@ -457,6 +457,15 @@ def tally(db: DbSession, event: Event) -> Tally:
     )
 
 
+def recent(db: DbSession, event: Event, limit: int = 50) -> list[Vote]:
+    """The latest votes, voided ones included, so an organizer can act on any of them."""
+    return list(
+        db.execute(
+            select(Vote).where(Vote.event_id == event.id).order_by(Vote.id.desc()).limit(limit)
+        ).scalars()
+    )
+
+
 def suspicious(db: DbSession, event: Event) -> list[Vote]:
     return list(
         db.execute(

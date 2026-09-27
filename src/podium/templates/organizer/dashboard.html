@@ -1,5 +1,5 @@
 {% extends "layouts/console.html" %}
-{% from "macros/ui.html" import badge, when %}
+{% from "macros/ui.html" import badge, when, countdown %}
 {% block content %}
 <div class="page-header">
   <div><p class="page-header__eyebrow">Organizer</p><h1>{{ event.name }}</h1></div>
@@ -19,7 +19,7 @@
   <div class="kpi"><span class="kpi__label">Projects submitted</span><span class="kpi__value">{{ overview.projects_submitted }}</span><span class="kpi__sub">{{ overview.projects_draft }} draft · {{ overview.projects_withdrawn }} withdrawn</span></div>
   <div class="kpi"><span class="kpi__label">Teams</span><span class="kpi__value">{{ overview.teams }}</span><span class="kpi__sub">{{ overview.participants }} participants</span></div>
   <div class="kpi"><span class="kpi__label">Judges accepted</span><span class="kpi__value">{{ overview.judges }}</span><span class="kpi__sub">{{ overview.invites_pending }} invitation{{ '' if overview.invites_pending == 1 else 's' }} pending</span></div>
-  <div class="kpi"><span class="kpi__label">Submissions close</span><span class="kpi__value kpi__value--sm">{% if event.submissions_close_at %}{{ event.submissions_close_at.strftime('%-d %b') }}{% else %}—{% endif %}</span><span class="kpi__sub">{% if event.submissions_close_at %}{{ event.submissions_close_at.strftime('%H:%M') }} UTC{% else %}not set{% endif %}</span></div>
+  <div class="kpi"><span class="kpi__label">Submissions close</span><span class="kpi__value kpi__value--sm">{% if event.submissions_close_at %}{{ event.submissions_close_at.strftime('%-d %b') }}{% else %}—{% endif %}</span><span class="kpi__sub">{% if event.submissions_close_at %}{{ countdown(event.submissions_close_at, 'closes', 'closed') }}{% else %}not set{% endif %}</span></div>
 </section>
 
 <div class="two-col two-col--wide mt-6">

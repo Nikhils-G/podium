@@ -12,6 +12,7 @@ from podium.config import get_settings
 from podium.models import utcnow
 from podium.security.csrf import COOKIE_NAME as CSRF_COOKIE
 from podium.security.csrf import ensure_csrf_cookie
+from podium.services.audit import describe
 from podium.services.text import plural
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -23,6 +24,7 @@ templates = Jinja2Templates(env=jinja_env)
 templates.env.globals["version"] = __version__
 templates.env.globals["now_utc"] = utcnow
 jinja_env.filters["plural"] = plural
+jinja_env.globals["describe"] = describe
 
 
 def wants_partial(request: Request, target: str | None = None) -> bool:
@@ -50,6 +52,13 @@ def render(request: Request, name: str, status_code: int = 200, **context) -> HT
         context["meta_description"] = (
             text[:157] + "…" if len(text) > 160 else text
         ) or "Open-source, self-hostable hackathon submissions and judging."
+    event_obj = context.get("event")
+    if event_obj is not None and not context.get("stage_label"):
+        from podium.services.events import STAGE_LABELS, stage_of
+
+        stage = stage_of(event_obj)
+        context.setdefault("stage", stage.value)
+        context["stage_label"] = STAGE_LABELS[stage]
     context["nonce"] = getattr(request.state, "csp_nonce", "")
     settings = get_settings()
     context["settings"] = settings

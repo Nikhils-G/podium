@@ -1,10 +1,11 @@
 {% extends "layouts/public.html" %}
 {% from "macros/ui.html" import badge, alert, when %}
 {% block content %}
-{% if saved_alert %}{{ alert(saved_alert[0], saved_alert[1]) }}{% endif %}
+{% if saved_alert and not is_draft %}{{ alert(saved_alert[0], saved_alert[1]) }}{% endif %}
 {% if is_draft %}
-<div class="card card--attention card--banner" role="status">
+<div class="card card--attention card--banner mb-4" role="status">
   <div class="stack-sm">
+    {% if saved_alert %}<p class="text-sm"><strong>{{ saved_alert[1].split('.')[0] }}.</strong></p>{% endif %}
     <h2 class="card__title">Draft — not submitted</h2>
     <p class="text-sm">Only your team and the organizers can see this page.
       {% if editable and event.submissions_close_at %}Submit before {{ when(event.submissions_close_at) }} to enter the gallery and the judging pool.
@@ -19,7 +20,7 @@
   {% endif %}
 </div>
 {% endif %}
-{% if is_withdrawn %}{{ alert('warning', 'This project was withdrawn on ' ~ project.withdrawn_at.strftime('%-d %b %Y') ~ '.') }}{% endif %}
+{% if is_withdrawn %}<div class="alert alert--warning" role="status">This project was withdrawn {{ when(project.withdrawn_at) }}.</div>{% endif %}
 <div class="page-header">
   <div>
     <p class="page-header__eyebrow"><a href="/e/{{ event.slug }}/projects">{{ event.name }} · Projects</a></p>

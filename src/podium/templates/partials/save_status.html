@@ -1,1 +1,1 @@
-{% if state == 'saved' %}<span class="save-status__ok">{{ message }} · {{ now_utc().strftime('%H:%M:%S') }} UTC</span>{% else %}<span class="save-status__err" role="alert">{{ message }}</span>{% endif %}
+{% if state == 'saved' %}<span class="save-status__ok">{{ message }} · <time datetime="{{ now_utc().isoformat() }}" data-local data-time-only>{{ now_utc().strftime('%H:%M') }} UTC</time></span>{% else %}<span class="save-status__err" role="alert">{{ message }}</span>{% endif %}

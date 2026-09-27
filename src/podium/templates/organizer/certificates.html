@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Certificates &amp; records</h1><p class="ink-2 mt-2">Signed with this Podium's ed25519 key. Anyone can verify a serial at <a href="/verify">/verify</a> — no account needed.</p></div></div>
 {% if error %}{{ alert('critical', error) }}{% endif %}
-{% if report %}{{ alert('success', report[1].issued ~ ' ' ~ report[0] ~ ' certificate(s) issued, ' ~ report[1].skipped ~ ' already existed or were not eligible.') }}{% endif %}
+{% if report %}{{ alert('success', report[1].issued ~ ' ' ~ report[0]|plural('certificate') ~ ' issued, ' ~ report[1].skipped ~ ' already existed or were not eligible.') }}{% endif %}
 <div class="cluster mt-4">
   {% for kind, label, hint in [('participation', 'Issue participation certificates', 'every member of a team with a submitted project'), ('judge', 'Issue judge records', 'every judge who submitted at least one review, once judging is closed'), ('winner', 'Issue winner certificates', 'members of the teams that won a prize (the top three ranks, ties included, when no prize has been awarded), once results are published')] %}
   {% set blocked = (kind == 'judge' and judging_open and 'Close judging first') or (kind == 'winner' and not published and 'Publish results first') %}

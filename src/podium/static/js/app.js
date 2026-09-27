@@ -101,18 +101,39 @@
   document.body.addEventListener("htmx:load", localizeDateForms);
 
   // ---- local time beside UTC ------------------------------------------------------------------
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function fmtLocal(d) {  // one format everywhere, same month names as the server
+    return d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear() + ", " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+  function fmtDelta(ms) {
+    var s = Math.round(Math.abs(ms) / 1000), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    if (d >= 2) return d + " d " + h + " h";
+    if (s >= 3600) return (d * 24 + h) + " h " + m + " m";
+    if (s >= 60) return m + " m";
+    return "under a minute";
+  }
+  function enhanceCountdowns(root) {
+    (root || document).querySelectorAll("[data-countdown]").forEach(function (el) {
+      var d = new Date(el.getAttribute("data-countdown"));
+      if (isNaN(d)) return;
+      var diff = d - Date.now();
+      var time = el.querySelector("time");
+      var abs = time ? time.textContent : fmtLocal(d);
+      el.textContent = diff > 0 ? el.getAttribute("data-before") + " in " + fmtDelta(diff) + " (" + abs + ")" : el.getAttribute("data-after") + " " + fmtDelta(diff) + " ago (" + abs + ")";
+    });
+  }
   function enhanceTimes(root) {
     (root || document).querySelectorAll("time[datetime][data-local]").forEach(function (t) {
       if (t.dataset.done) return;
       var d = new Date(t.getAttribute("datetime"));
       if (isNaN(d)) return;
-      var local = d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-      var span = document.createElement("span");
-      span.className = "muted";
-      span.textContent = " (" + local + " local)";
-      t.appendChild(span);
+      var utc = t.textContent.trim();
+      t.setAttribute("title", utc);
+      t.setAttribute("aria-label", fmtLocal(d) + " local time, " + utc);
+      t.textContent = t.hasAttribute("data-time-only") ? pad(d.getHours()) + ":" + pad(d.getMinutes()) : fmtLocal(d);
       t.dataset.done = "1";
     });
+    enhanceCountdowns(root);
   }
   enhanceTimes();
   document.body.addEventListener("htmx:afterSettle", function (e) { enhanceTimes(e.target); });

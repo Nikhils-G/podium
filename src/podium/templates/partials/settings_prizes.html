@@ -9,7 +9,7 @@
     {% endfor %}
   </ul>
   {% else %}<p class="muted">No prizes yet.</p>{% endif %}
-  <form class="field-grid align-end" method="post" action="/e/{{ event.slug }}/organizer/prizes" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/prizes" hx-target="#prizes" hx-swap="outerHTML">
+  <form class="field-grid" method="post" action="/e/{{ event.slug }}/organizer/prizes" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/prizes" hx-target="#prizes" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {{ field('name', 'Prize name', required=True, error=errors.prize_name, placeholder='1st place') }}
     {{ field('amount', 'Amount or description', placeholder='$800', maxlength=60) }}

@@ -2,7 +2,7 @@
 {% from "macros/ui.html" import alert, badge %}
 {% block content %}
 <div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Assignments</h1><p class="ink-2 mt-2">Who reviews what. Auto-assign balances load across judges inside their tracks and never places a judge on their own team's project.</p></div></div>
-{% if request.query_params.get('applied') %}{{ alert('success', request.query_params.get('applied') ~ ' assignment(s) created.') }}{% endif %}
+{% if request.query_params.get('applied') %}{{ alert('success', request.query_params.get('applied')|plural('assignment') ~ ' created.') }}{% endif %}
 {% if errors.manual %}{{ alert('critical', errors.manual) }}{% endif %}
 <div class="two-col two-col--wide mt-4">
   <section class="stack">

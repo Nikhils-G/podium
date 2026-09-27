@@ -1,5 +1,5 @@
 {% extends "layouts/public.html" %}
-{% from "macros/ui.html" import stage_badge, when, badge %}
+{% from "macros/ui.html" import stage_badge, when, badge, countdown %}
 {% block content %}
 <div class="page-header">
   <div>
@@ -14,7 +14,7 @@
     <section class="stack">
       <h2>Timeline</h2>
       <ol class="timeline">
-        <li><span class="timeline__label">Submissions</span><span>{{ when(event.submissions_open_at) if event.submissions_open_at else 'open' }} → {{ when(event.submissions_close_at) }}</span></li>
+        <li><span class="timeline__label">Submissions</span><span>{{ when(event.submissions_open_at) if event.submissions_open_at else 'open' }} → {{ countdown(event.submissions_close_at, 'closes', 'closed') if submissions_open else when(event.submissions_close_at) }}</span></li>
         <li><span class="timeline__label">Judging</span><span>{% if event.judging_opened_at %}opened {{ when(event.judging_opened_at) }}{% if event.judging_closed_at %} · closed {{ when(event.judging_closed_at) }}{% endif %}{% else %}after submissions close{% endif %}</span></li>
         {% if event.voting_open_at %}<li><span class="timeline__label">Community voting</span><span>{{ when(event.voting_open_at) }} → {{ when(event.voting_close_at) }}</span></li>{% endif %}
         <li><span class="timeline__label">Results</span><span>{% if event.results_published_at %}published {{ when(event.results_published_at) }} · <a href="/e/{{ event.slug }}/results">see results</a>{% else %}published by the organizers after judging{% endif %}</span></li>

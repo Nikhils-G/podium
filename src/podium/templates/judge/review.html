@@ -4,7 +4,7 @@
 <div class="page-header">
   <div><p class="page-header__eyebrow"><a href="/e/{{ event.slug }}/judge">Queue</a> · {{ position }} of {{ count }}</p>
     <h1>{{ project.title }}</h1>
-    <div class="page-header__meta">{% if project.track %}<span class="chip t-{{ (project.track.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ project.track.name }}</span>{% endif %}<span>by {{ project.team.name }}</span>{% if submitted %}{{ badge('Submitted ' ~ review.submitted_at.strftime('%-d %b, %H:%M') ~ ' UTC', 'good') }}{% endif %}</div></div>
+    <div class="page-header__meta">{% if project.track %}<span class="chip t-{{ (project.track.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ project.track.name }}</span>{% endif %}<span>by {{ project.team.name }}</span>{% if submitted %}<span class="badge badge--good">Submitted {{ when(review.submitted_at) }}</span>{% endif %}</div></div>
   <div class="cluster">
     {% if prev_item %}<a class="btn btn--ghost btn--sm" href="/e/{{ event.slug }}/judge/review/{{ prev_item.project.public_id }}">← Previous</a>{% endif %}
     {% if next_item %}<a class="btn btn--ghost btn--sm" href="/e/{{ event.slug }}/judge/review/{{ next_item.project.public_id }}">Next →</a>{% endif %}

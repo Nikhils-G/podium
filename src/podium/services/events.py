@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session as DbSession
 from podium.errors import Conflict, Forbidden, NotFound, ValidationFailed
 from podium.models import Event, EventRole, Prize, Project, ProjectStatus, Role, Track, User, utcnow
 from podium.services import audit, webhooks
+from podium.services.text import plural
 
 
 class Stage(enum.StrEnum):
@@ -393,7 +394,7 @@ def remove_track(db: DbSession, event: Event, user: User, public_id: str) -> Non
         select(func.count()).select_from(Project).where(Project.track_id == track.id)
     ).scalar_one()
     if used:
-        raise Conflict(f"{used} project(s) are in this track. Move them first.")
+        raise Conflict(f"{plural(used, 'project')} are in this track. Move them first.")
     audit.record(
         db,
         "track.removed",
@@ -556,7 +557,7 @@ def update_voting_settings(
         ).scalar_one()
         if cast:
             raise Conflict(
-                f"Voting is open and {cast} vote(s) are in. "
+                f"Voting is open and {plural(cast, 'vote')} are in. "
                 "Close the window before changing how people vote."
             )
     quadratic = str(data.get("quadratic_enabled", "")).lower() in ("1", "true", "on", "yes")
