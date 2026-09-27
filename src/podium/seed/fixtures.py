@@ -250,6 +250,8 @@ def import_fixtures(
         project.repo_url = p.get("repo_url", "") or ""
         project.status = ProjectStatus.submitted
         project.submitted_at = parse_ts(p["submitted_at"]) if p.get("submitted_at") else closes
+        # the explicit value also wins over onupdate on a re-seed
+        project.created_at = project.updated_at = project.submitted_at
         key = (team.id, project.repo_url or project.title.lower())
         if key in seen_repo and seen_repo[key] is not project:
             project.duplicate_of_id = seen_repo[key].id

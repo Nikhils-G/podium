@@ -13,7 +13,10 @@
   {% if project %}<a class="btn btn--secondary" href="/e/{{ event.slug }}/projects/{{ project.public_id }}">View public page</a>{% endif %}
 </div>
 {% if error %}{{ alert('critical', error) }}{% endif %}
-{% if not view %}
+{% if not view and teams_final %}
+  {{ alert('info', 'Submissions are closed. Projects belong to teams, and teams are final now.') }}
+  <p class="mt-4"><a class="btn btn--secondary" href="/e/{{ event.slug }}/projects">Browse the projects</a></p>
+{% elif not view %}
   {{ alert('info', 'Create or join a team first — projects belong to teams.') }}
   <p class="mt-4"><a class="btn btn--primary" href="/e/{{ event.slug }}/team">Set up your team</a></p>
 {% else %}
@@ -48,7 +51,7 @@
         <button class="btn btn--primary" type="submit" name="action" value="save">Save changes</button>
         <button class="btn btn--ghost" type="submit" name="action" value="unsubmit">Return to draft</button>
       {% endif %}
-      <span class="muted text-sm">Drafts are visible only to your team.</span>
+      <span class="muted text-sm">Drafts are visible only to your team and the organizers.</span>
     </div>
     {% endif %}
   </form>

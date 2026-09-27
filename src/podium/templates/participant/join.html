@@ -1,5 +1,5 @@
 {% extends "layouts/public.html" %}
-{% from "macros/ui.html" import badge %}
+{% from "macros/ui.html" import badge, when %}
 {% block content %}
 <div class="auth-card stack">
   <div>
@@ -7,7 +7,10 @@
     <h1 class="serif">Join {{ team.name }}</h1>
     <p class="ink-2 mt-2">{{ view.members|length }} member{{ '' if view.members|length == 1 else 's' }} so far: {% for m, r in view.members %}{{ m.name }}{{ ', ' if not loop.last }}{% endfor %}.</p>
   </div>
-  {% if already %}
+  {% if teams_final and not already %}
+    <p>Submissions closed {{ when(event.submissions_close_at) }}, so this team is final and can't take new members.</p>
+    <a class="btn btn--secondary" href="/e/{{ event.slug }}">Go to the event</a>
+  {% elif already %}
     <p>You're already in this team.</p>
     <a class="btn btn--primary" href="/e/{{ event.slug }}/team">Go to your team</a>
   {% elif user %}

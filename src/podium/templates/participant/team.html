@@ -1,7 +1,9 @@
 {% extends "layouts/public.html" %}
 {% from "macros/ui.html" import field, alert, badge, empty, when %}
 {% block content %}
-{% if saved == 'invite' %}{{ alert('success', 'New join link created. The old link no longer works.') }}{% elif saved == 'left' %}{{ alert('success', 'You left the team. Create a new one or join another with its link.') }}{% endif %}
+{% if saved == 'invite' %}{{ alert('success', 'New join link created. The old link no longer works.') }}{% elif saved == 'left' %}{{ alert('success', 'You left the team. Create a new one or join another with its link.') }}
+{% elif saved == 'created' and view %}{{ alert('success', 'Team created. Share the join link below, then start your submission.') }}
+{% elif saved == 'joined' and view %}{{ alert('success', 'You joined ' ~ view.team.name ~ '. ' ~ ('Your team\'s project is below.' if view.project else 'Start your team\'s submission when you\'re ready.')) }}{% endif %}
 <div class="page-header">
   <div>
     <p class="page-header__eyebrow">{{ event.name }}</p>
@@ -23,7 +25,9 @@
         <li><span class="avatar" aria-hidden="true">{{ member.name[:1]|upper }}</span><span>{{ member.name }}</span>{% if role == 'lead' %}{{ badge('Lead', 'accent') }}{% endif %}{% if user and member.id == user.id %}<span class="muted text-sm">(you)</span>{% endif %}</li>
       {% endfor %}
     </ul>
-    {% if view.members|length < event.max_team_size %}
+    {% if teams_final %}
+    <p class="muted mt-4">Submissions closed {{ when(event.submissions_close_at) }}, so your team is final.</p>
+    {% elif view.members|length < event.max_team_size %}
     <h3 class="mt-4">Invite teammates</h3>
     <p class="ink-2 text-sm">Anyone with this link can join your team{% if event.submissions_close_at %} until submissions close {{ when(event.submissions_close_at) }}{% endif %}.</p>
     <div class="copy-field">
@@ -39,7 +43,7 @@
     <h2>Project</h2>
     {% if view.project %}
       <p><strong>{{ view.project.title }}</strong> {{ badge(view.project.status.value|capitalize, 'good' if view.project.status.value == 'submitted' else ('critical' if view.project.status.value == 'withdrawn' else 'warning')) }}</p>
-      <p class="muted text-sm">Last edited {{ when(view.project.updated_at) }}</p>
+      {% if view.project.submitted_at and view.project.updated_at and (view.project.updated_at - view.project.submitted_at).total_seconds() > 60 %}<p class="muted text-sm">Last edited {{ when(view.project.updated_at) }}</p>{% endif %}
       <div class="cluster">
         {% if view.project.status.value == 'draft' and open %}<a class="btn btn--primary" href="/e/{{ event.slug }}/submit">Finish and submit</a>
         {% else %}<a class="btn btn--primary" href="/e/{{ event.slug }}/submit">{{ 'Edit project' if open else 'View submission' }}</a>{% endif %}
@@ -58,6 +62,10 @@
   </form>
   {% endif %}
 </section>
+{% elif event_role in ('judge', 'organizer') %}
+  {{ empty('You ' ~ ('judge' if event_role == 'judge' else 'organize') ~ ' this event', 'Judges and organizers can\'t join a team in the event they run or score.', 'Browse the projects', '/e/' ~ event.slug ~ '/projects') }}
+{% elif teams_final %}
+  {{ empty('Submissions are closed', 'Teams could form until the deadline. You can still browse the projects.', 'Browse the projects', '/e/' ~ event.slug ~ '/projects') }}
 {% else %}
 <div class="two-col">
   <form class="card stack" method="post" action="/e/{{ event.slug }}/team" hx-boost="false">

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from podium.errors import Conflict, Forbidden, NotFound, ValidationFailed
+from podium.errors import Closed, Conflict, Forbidden, NotFound, ValidationFailed
 from podium.models import (
     Event,
     EventRole,
@@ -17,8 +17,10 @@ from podium.models import (
     TeamMember,
     User,
     new_public_id,
+    utcnow,
 )
 from podium.services import audit
+from podium.services.text import utc_text
 
 
 @dataclass
@@ -78,9 +80,23 @@ def _ensure_participant(db: DbSession, event: Event, user: User) -> None:
         raise Forbidden(f"You're a {row.role} in this event, so you can't also compete in it.")
 
 
+def teams_are_final(event: Event) -> bool:
+    """Teams form until the submission deadline; after it, nobody joins a team whose project
+    is already being judged."""
+    return event.submissions_close_at is not None and utcnow() >= event.submissions_close_at
+
+
+def _teams_open(event: Event) -> None:
+    if teams_are_final(event):
+        raise Closed(
+            f"Submissions closed on {utc_text(event.submissions_close_at)}, so teams are final."
+        )
+
+
 def create_team(
     db: DbSession, event: Event, user: User, name: str, *, ip_hash: str | None = None
 ) -> Team:
+    _teams_open(event)
     name = name.strip()
     if not name:
         raise ValidationFailed(errors={"name": "Give your team a name."})
@@ -112,7 +128,10 @@ def create_team(
 def team_by_invite(db: DbSession, code: str) -> Team:
     team = db.execute(select(Team).where(Team.invite_code == code)).scalar_one_or_none()
     if team is None:
-        raise NotFound("That invite link isn't valid any more.")
+        raise NotFound(
+            "That join link doesn't work any more. It was replaced or the team no longer exists. "
+            "Ask a teammate for the current link."
+        )
     return team
 
 
@@ -121,9 +140,10 @@ def join_team(db: DbSession, team: Team, user: User, *, ip_hash: str | None = No
     if event.archived_at is not None:
         raise Conflict("This event is archived.")
     existing = team_for(db, event, user)
+    if existing is not None and existing.id == team.id:
+        return team  # opening your own team's link again is fine, even after the deadline
+    _teams_open(event)
     if existing is not None:
-        if existing.id == team.id:
-            return team
         raise Conflict(f"You're already in the team “{existing.name}” for this event.")
     _ensure_participant(db, event, user)
     size = db.execute(
@@ -190,6 +210,7 @@ def regenerate_invite(
     team = team_for(db, event, user)
     if team is None:
         raise NotFound("You're not in a team for this event.")
+    _teams_open(event)
     team.invite_code = new_public_id("join", 10)
     audit.record(
         db,

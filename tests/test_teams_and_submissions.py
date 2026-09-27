@@ -130,7 +130,8 @@ def test_deadline_holds_and_unlock_reopens(world):
     )
     assert r.status_code == 403
     r = c.post(f"/api/v1/events/{slug}/teams", headers=world["carol"], json={"name": "Latecomers"})
-    assert r.status_code == 201, "teams can still form; only submissions are closed"
+    assert r.status_code == 403 and r.json()["error"]["code"] == "closed", "teams are final now"
+    assert "so teams are final" in r.json()["error"]["message"]
 
 
 def test_withdraw_and_restore(world):
@@ -270,3 +271,49 @@ def test_nobody_withdraws_once_results_are_published(locked):
         assert r.json()["error"]["message"].startswith("Results are published"), who
     r = _web_post(locked, "org", f"/e/{slug}/projects/{pid}/withdraw")
     assert r.status_code == 409 and "Unpublish them before withdrawing" in r.text
+
+
+def test_teams_are_final_after_the_deadline_on_every_path(app, client, auth):
+    """P-01: the join link, the code form, the API and link regeneration all refuse once
+    submissions close; the pages say so instead of offering forms that can't work."""
+    from tests.conftest import SLUG
+    from tests.test_forms_sweep import demo, fresh_user
+
+    org, now = auth("organizer"), datetime.now(UTC)
+    slug = client.post(
+        "/api/v1/events",
+        headers=org,
+        json={
+            "name": "Final Teams Night",
+            "is_public": True,
+            "submissions_open_at": (now - timedelta(days=2)).isoformat(),
+            "submissions_close_at": (now + timedelta(hours=1)).isoformat(),
+        },
+    ).json()["event"]["slug"]
+    lead = fresh_user(app, "final-lead@example.test")
+    r = lead.post(f"/e/{slug}/team", {"name": "Final Owls"})
+    assert r.status_code == 303 and r.headers["location"].endswith("?saved=created")
+    assert "Team created." in lead.get(r.headers["location"]).text
+    code = client.get(
+        f"/api/v1/events/{slug}/teams/mine", headers={"Cookie": f"session={lead.token}"}
+    ).json()["team"]["invite_code"]
+    client.patch(
+        f"/api/v1/events/{slug}",
+        headers=org,
+        json={
+            "name": "Final Teams Night",
+            "submissions_close_at": (now - timedelta(minutes=1)).isoformat(),
+        },
+    )
+    late = fresh_user(app, "final-late@example.test")
+    r = late.post(f"/join/{code}")
+    assert r.status_code == 403 and "so teams are final" in r.text
+    page = late.get(f"/join/{code}").text
+    assert "so this team is final" in page and f'action="/join/{code}"' not in page
+    team_page = late.get(f"/e/{slug}/team").text
+    assert "Submissions are closed" in team_page and "Create team" not in team_page
+    assert lead.post(f"/e/{slug}/team/invite/regenerate").status_code == 403
+    assert "so your team is final" in lead.get(f"/e/{slug}/team").text
+    judge_page = demo(app, "judge_b").get(f"/e/{SLUG}/team").text
+    assert "You judge this event" in judge_page
+    assert "doesn&#39;t work any more" in client.get("/join/join_doesnotexist").text

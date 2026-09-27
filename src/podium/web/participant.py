@@ -32,6 +32,8 @@ def _base(ctx: EventContext, **extra):
         "stage": stage.value,
         "stage_label": STAGE_LABELS[stage],
         "open": submissions_are_open(ctx.event),
+        "teams_final": teams.teams_are_final(ctx.event),
+        "event_role": ctx.role.value if ctx.role else None,
         **extra,
     }
 
@@ -98,7 +100,7 @@ def team_create(
             nav="team",
             **_base(ctx, view=None, errors={}, values={"name": name}, error=exc.message),
         )
-    return RedirectResponse(f"/e/{ctx.event.slug}/team", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/team?saved=created", status_code=303)
 
 
 @router.post("/e/{slug}/team/join", dependencies=[Depends(verify_csrf)])
@@ -124,7 +126,7 @@ def team_join_by_code(
             nav="team",
             **_base(ctx, view=None, errors={}, values={"code": code}, error=exc.message),
         )
-    return RedirectResponse(f"/e/{ctx.event.slug}/team", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/team?saved=joined", status_code=303)
 
 
 @router.post("/e/{slug}/team/leave", dependencies=[Depends(verify_csrf)])
@@ -162,6 +164,7 @@ def join_page(
         already=already,
         code=code,
         next=f"/join/{code}",
+        teams_final=teams.teams_are_final(event),
     )
 
 
@@ -172,7 +175,7 @@ def join_submit(
     team = teams.team_by_invite(db, code)
     event = db.get(Event, team.event_id)
     teams.join_team(db, team, user, ip_hash=ip_hash(request))
-    return RedirectResponse(f"/e/{event.slug}/team", status_code=303)
+    return RedirectResponse(f"/e/{event.slug}/team?saved=joined", status_code=303)
 
 
 # --- projects: submit / edit / withdraw ----------------------------------------------------------

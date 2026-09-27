@@ -29,7 +29,7 @@
       {% if project.track %}<span class="chip t-{{ (project.track.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ project.track.name }}</span>{% endif %}
       <span>by <strong>{{ project.team.name }}</strong></span>
       {% if project.submitted_at %}<span>Submitted {{ when(project.submitted_at) }}</span>{% endif %}
-      {% if member or ctx.is_organizer %}<span>Last edited {{ when(project.updated_at) }}</span>{% endif %}
+      {% if (member or ctx.is_organizer) and project.submitted_at and project.updated_at and (project.updated_at - project.submitted_at).total_seconds() > 60 %}<span>Last edited {{ when(project.updated_at) }}</span>{% endif %}
     </div>
   </div>
   <div class="cluster">
