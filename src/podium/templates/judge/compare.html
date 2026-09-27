@@ -4,5 +4,5 @@
 <div class="page-header"><div><p class="page-header__eyebrow">Judge</p><h1>Compare projects</h1>
   <p class="ink-2 mt-2">Pick the stronger of two projects you've been assigned. Pairwise choices feed a Bradley-Terry ranking the organizer can set beside the scored one. <span class="kbd">←</span> left · <span class="kbd">→</span> right · <span class="kbd">s</span> skip · <span class="kbd">u</span> undo</p></div></div>
 {% if not judging_open %}{{ alert('info', 'Judging is closed; comparisons are read-only now.') }}{% endif %}
-<div id="compare" data-compare>{% include "partials/compare_card.html" %}</div>
+{% include "partials/compare_card.html" %}
 {% endblock %}

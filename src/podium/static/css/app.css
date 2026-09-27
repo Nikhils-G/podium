@@ -301,8 +301,6 @@
   .alert--critical { border-color: color-mix(in srgb, var(--critical) 50%, transparent); color: var(--critical-text); }
   .alerts { position: fixed; left: 50%; bottom: var(--s-5); transform: translateX(-50%); width: min(560px, calc(100% - 32px)); z-index: 70; display: grid; gap: var(--s-2); }
   .alerts:empty { display: none; }
-  .toasts { position: fixed; right: var(--s-4); bottom: var(--s-4); display: grid; gap: var(--s-2); z-index: 70; }
-  .toast { padding: var(--s-3) var(--s-4); background: var(--ink); color: var(--page); border-radius: var(--r-2); box-shadow: var(--shadow-2); font-size: 14px; }
 
   .empty { text-align: center; padding: var(--s-7) var(--s-4); border: 1px dashed var(--border-strong); border-radius: var(--r-3); color: var(--ink-2); }
   .empty__title { font-family: var(--font-display); font-weight: 500; font-size: 26px; color: var(--ink); margin-bottom: var(--s-2); }
@@ -337,6 +335,7 @@
   .hero h1 { font-family: var(--font-display); font-weight: 500; font-size: clamp(36px, 6vw, 56px); letter-spacing: 0; line-height: 1.05; }
   .hero p { font-size: 18px; color: var(--ink-2); margin-top: var(--s-3); }
   .confirm { border: 1px solid var(--border-strong); border-radius: var(--r-3); padding: 0; max-width: 440px; width: calc(100% - 2 * var(--s-4)); background: var(--surface-raised); color: var(--ink); box-shadow: var(--shadow-1); }
+  .confirm { margin: auto; } /* the global `* { margin: 0 }` reset would pin a modal to the top-left corner */
   .confirm::backdrop { background: rgb(0 0 0 / .45); }
   .confirm__form { padding: var(--s-5); }
   .confirm__title { font-size: 18px; font-weight: 600; margin-bottom: var(--s-2); }
@@ -539,7 +538,7 @@
   .viz__key { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
   .viz__key--dot { background: var(--accent); } .viz__key--hollow { border: 2px solid var(--accent); } .viz__key--bar { width: 18px; height: 3px; border-radius: 2px; background: var(--score-2); }
   @media print {
-    .topbar, footer.site, .no-print, .nav-progress, .alerts, .toasts, .rail, .rail-menu { display: none !important; }
+    .topbar, footer.site, .no-print, .nav-progress, .alerts, .rail, .rail-menu { display: none !important; }
     .shell { display: block; }
     body { background: #fff; color: #000; }
     .certificate { margin: 0; max-width: none; }

@@ -582,7 +582,10 @@ def test_audit_feed_reads_as_sentences(app, db):
         prev_hash="x",
         row_hash="y",
     )
-    assert describe(entry) == "Changed the submission deadline 2026-03-01 18:00 → 2026-03-01 12:30"
+    assert (
+        describe(entry)
+        == "Changed the submission deadline 1 Mar 2026, 18:00 UTC → 1 Mar 2026, 12:30 UTC"
+    )
     entry.action, entry.meta = "prize.awarded", {"name": "Best overall", "project": "prj_07"}
     assert describe(entry) == "Awarded “Best overall” to prj_07"
     entry.action, entry.meta = "something.new", None

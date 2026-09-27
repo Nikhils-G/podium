@@ -1,17 +1,17 @@
 {% from "macros/ui.html" import field %}
 <section class="stack mt-6" id="prizes">
-  <h2>Prizes</h2>
+  <h2>Prizes <span class="count">{{ event.prizes|length }}</span></h2>
   {% if event.prizes %}
   <ul class="row-list">
     {% for prize in event.prizes %}
     <li><strong>{{ prize.name }}</strong><span class="text-sm ink-2">{{ prize.amount_text }}{% if prize.track %} · {{ prize.track.name }}{% endif %}</span><span class="grow"></span>
-      <form method="post" action="/e/{{ event.slug }}/organizer/prizes/{{ prize.public_id }}/delete" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/prizes/{{ prize.public_id }}/delete" hx-target="#prizes" hx-swap="outerHTML"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form></li>
+      <form method="post" action="/e/{{ event.slug }}/organizer/prizes/{{ prize.public_id }}/delete" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/prizes/{{ prize.public_id }}/delete" hx-target="#prizes" hx-swap="outerHTML" data-confirm="Remove the “{{ prize.name }}” prize?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form></li>
     {% endfor %}
   </ul>
   {% else %}<p class="muted">No prizes yet.</p>{% endif %}
   <form class="field-grid" method="post" action="/e/{{ event.slug }}/organizer/prizes" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/prizes" hx-target="#prizes" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    {{ field('name', 'Prize name', required=True, error=errors.prize_name, placeholder='1st place') }}
+    {{ field('name', 'Prize name', required=True, error=errors.prize_name, placeholder='1st place', maxlength=120, key='prize-name') }}
     {{ field('amount', 'Amount or description', placeholder='$800', maxlength=60) }}
     <div class="field"><label class="field__label" for="f-prize-track">Track (optional)</label><select class="select" id="f-prize-track" name="track"><option value="">Overall</option>{% for track in event.tracks %}<option value="{{ track.public_id }}">{{ track.name }}</option>{% endfor %}</select></div>
     <div class="field"><span class="field__label">&nbsp;</span><button class="btn btn--secondary" type="submit">Add prize</button></div>

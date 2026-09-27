@@ -1,7 +1,7 @@
 {% extends "layouts/public.html" %}
 {% from "macros/ui.html" import field, alert, badge, empty, when %}
 {% block content %}
-{% if saved == 'invite' %}{{ alert('success', 'New join link created. The old link no longer works.') }}{% endif %}
+{% if saved == 'invite' %}{{ alert('success', 'New join link created. The old link no longer works.') }}{% elif saved == 'left' %}{{ alert('success', 'You left the team. Create a new one or join another with its link.') }}{% endif %}
 <div class="page-header">
   <div>
     <p class="page-header__eyebrow">{{ event.name }}</p>
@@ -52,7 +52,7 @@
     {% endif %}
   </div>
   {% if not (view.project and view.project.submitted_at) %}
-  <form method="post" action="/e/{{ event.slug }}/team/leave" hx-boost="false" class="cluster">
+  <form method="post" action="/e/{{ event.slug }}/team/leave" hx-boost="false" class="cluster" data-confirm="Leave {{ view.team.name }}? You can join another team, or come back with the join link.">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button class="btn btn--ghost" type="submit">Leave team</button>
   </form>

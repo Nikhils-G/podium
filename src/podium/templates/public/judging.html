@@ -61,7 +61,7 @@
   <aside class="stack" data-sticky>
     <div class="card">
       <h3>Signed audit anchor</h3>
-      <p class="text-sm ink-2">Every sensitive action was appended to a hash-chained log. This is its head at {{ when(anchor.at|replace('T', ' ')|replace('+00:00', '')|truncate(16, True, '')) if false else anchor.at[:16].replace('T', ' ') }} UTC, signed with the instance key, so the history behind these results can be checked later.</p>
+      <p class="text-sm ink-2">Every sensitive action was appended to a hash-chained log. This is its head at {{ when(anchor_at) }}, signed with the instance key, so the history behind these results can be checked later.</p>
       <p class="text-sm"><code>{{ anchor.head_hash[:24] }}…</code> · {{ anchor.entries|plural('entry', 'entries') }}</p>
       <p class="text-sm muted">Verify with <a href="/.well-known/podium-signing-key.json">the public key</a> and <code>GET /api/v1/events/{{ event.slug }}/audit/anchor</code>.</p>
     </div>

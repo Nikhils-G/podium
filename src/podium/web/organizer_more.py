@@ -344,7 +344,9 @@ def certificate_revoke(
     cert = cert_service.by_serial(db, serial)
     if cert.event_id == ctx.event.id:
         cert_service.revoke(db, ctx.event, ctx.user, cert)
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/certificates", status_code=303)
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/certificates?saved=revoked", status_code=303
+    )
 
 
 _ = CertificateKind

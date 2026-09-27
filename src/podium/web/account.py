@@ -110,7 +110,7 @@ def token_create(
             "account/account.html",
             status_code=422,
             title="Account",
-            **_ctx(db, user, errors=exc.errors),
+            **_ctx(db, user, errors={f"token_{k}": v for k, v in exc.errors.items()}),
         )
     return render(request, "account/account.html", title="Account", **_ctx(db, user, new_token=raw))
 

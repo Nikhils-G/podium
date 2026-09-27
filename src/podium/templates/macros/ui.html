@@ -1,12 +1,13 @@
-{% macro field(name, label, value='', type='text', error='', help='', required=False, autocomplete='', placeholder='', maxlength=None, rows=None) -%}
+{% macro field(name, label, value='', type='text', error='', help='', required=False, autocomplete='', placeholder='', maxlength=None, rows=None, key='', min=None, max=None, step=None, minlength=None) -%}
+{%- set fid = key or name -%}
 <div class="field{% if error %} is-invalid{% endif %}">
-  <label class="field__label" for="f-{{ name }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+  <label class="field__label" for="f-{{ fid }}">{{ label }}{% if required %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
   {%- if type == 'textarea' %}
-  <textarea class="textarea" id="f-{{ name }}" name="{{ name }}"{% if required %} required{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}{% if rows %} rows="{{ rows }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if error %} aria-invalid="true" aria-describedby="e-{{ name }}"{% elif help %} aria-describedby="h-{{ name }}"{% endif %}>{{ value }}</textarea>
+  <textarea class="textarea" id="f-{{ fid }}" name="{{ name }}"{% if required %} required{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}{% if rows %} rows="{{ rows }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if error %} aria-invalid="true" aria-describedby="e-{{ fid }}"{% elif help %} aria-describedby="h-{{ fid }}"{% endif %}>{{ value }}</textarea>
   {%- else %}
-  <input class="input" id="f-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"{% if required %} required{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}{% if type == 'email' %} inputmode="email"{% endif %}{% if error %} aria-invalid="true" aria-describedby="e-{{ name }}"{% elif help %} aria-describedby="h-{{ name }}"{% endif %}>
+  <input class="input" id="f-{{ fid }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"{% if required %} required{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}{% if minlength %} minlength="{{ minlength }}"{% endif %}{% if min is not none %} min="{{ min }}"{% endif %}{% if max is not none %} max="{{ max }}"{% endif %}{% if step %} step="{{ step }}"{% endif %}{% if type == 'email' %} inputmode="email"{% endif %}{% if error %} aria-invalid="true" aria-describedby="e-{{ fid }}"{% elif help %} aria-describedby="h-{{ fid }}"{% endif %}>
   {%- endif %}
-  {%- if error %}<p class="field__error" id="e-{{ name }}">{{ error }}</p>{% elif help %}<p class="field__help" id="h-{{ name }}">{{ help }}</p>{% endif %}
+  {%- if error %}<p class="field__error" id="e-{{ fid }}">{{ error }}</p>{% elif help %}<p class="field__help" id="h-{{ fid }}">{{ help }}</p>{% endif %}
 </div>
 {%- endmacro %}
 
@@ -31,8 +32,8 @@
 </div>
 {%- endmacro %}
 
-{% macro when(value) -%}
-{% if value %}<time datetime="{{ value.isoformat() }}" data-local title="{{ value.strftime('%-d %b %Y, %H:%M') }} UTC">{{ value.strftime('%-d %b %Y, %H:%M') }} UTC</time>{% else %}—{% endif %}
+{% macro when(value, short=False) -%}
+{% if value %}{% set fmt = '%-d %b, %H:%M' if short else '%-d %b %Y, %H:%M' %}<time datetime="{{ value.isoformat() }}" data-local{% if short %} data-short{% endif %} title="{{ value.strftime('%-d %b %Y, %H:%M') }} UTC">{{ value.strftime(fmt) }} UTC</time>{% else %}—{% endif %}
 {%- endmacro %}
 
 {% macro countdown(value, before='closes', after='closed') -%}

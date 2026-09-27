@@ -32,7 +32,7 @@
   {% else %}<p class="muted text-sm">No tokens yet.</p>{% endif %}
   <form class="cluster align-end" method="post" action="/account/tokens" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div class="grow">{{ field('name', 'New token name', required=True, placeholder='e.g. results exporter', error=errors.name, maxlength=80) }}</div>
+    <div class="grow">{{ field('name', 'New token name', required=True, placeholder='e.g. results exporter', error=errors.token_name, maxlength=80, key='token-name') }}</div>
     <div class="field"><label class="field__label" for="f-scope">Scope</label><select class="select" id="f-scope" name="scope"><option value="read" selected>Read-only</option><option value="write">Read &amp; write</option></select></div>
     <div class="field"><label class="field__label" for="f-expires">Expires in (days)</label><input class="input" id="f-expires" name="expires_in_days" type="number" min="1" max="3650" value="90" placeholder="empty = never"></div>
     <button class="btn btn--secondary" type="submit">Create token</button>

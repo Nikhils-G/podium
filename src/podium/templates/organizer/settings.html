@@ -27,7 +27,7 @@
     {% if organizers|length > 1 %}<form method="post" action="/e/{{ event.slug }}/organizer/organizers/{{ o.public_id }}/remove" hx-boost="false" data-confirm="Remove {{ o.name }} as an organizer?"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form>{% endif %}</li>{% endfor %}</ul>
   <form class="cluster align-end" method="post" action="/e/{{ event.slug }}/organizer/organizers" hx-boost="false">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div class="grow">{{ field('email', 'Add a co-organizer by email', type='email', required=True, error=errors.organizer_email, help='They need an account first and no other role in this event.') }}</div>
+    <div class="grow">{{ field('email', 'Add a co-organizer by email', type='email', required=True, error=errors.organizer_email, maxlength=254, help='They need an account first and no other role in this event.') }}</div>
     <div class="field"><span class="field__label">&nbsp;</span><button class="btn btn--secondary" type="submit">Add organizer</button></div>
   </form>
 </section>

@@ -3,6 +3,7 @@
 {% block content %}
 <div class="page-header"><div><p class="page-header__eyebrow">Organizer</p><h1>Assignments</h1><p class="ink-2 mt-2">Who reviews what. Auto-assign balances load across judges inside their tracks and never places a judge on their own team's project.</p></div></div>
 {% if request.query_params.get('applied') %}{{ alert('success', request.query_params.get('applied')|plural('assignment') ~ ' created.') }}{% endif %}
+{% if request.query_params.get('saved') == 'assigned' %}{{ alert('success', 'Assigned. The projects are in the judge\'s queue now.') }}{% elif request.query_params.get('saved') == 'unassigned' %}{{ alert('success', 'Assignment removed.') }}{% endif %}
 {% if errors.manual %}{{ alert('critical', errors.manual) }}{% endif %}
 <div class="two-col two-col--wide mt-4">
   <section class="stack">
@@ -16,7 +17,7 @@
         <ul class="row-list mt-2">
           {% for a in load.assignments %}
           <li><a href="/e/{{ event.slug }}/projects/{{ a.project.public_id }}">{{ a.project.title }}</a>{{ badge(a.status.value.replace('_', ' '), 'good' if a.status.value == 'done' else ('warning' if a.status.value == 'in_progress' else 'plain')) }}<span class="muted text-sm">{{ a.method.value }}</span><span class="grow"></span>
-            {% if a.status.value != 'done' %}<form method="post" action="/e/{{ event.slug }}/organizer/assignments/{{ a.id }}/remove" hx-boost="false"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form>{% endif %}</li>
+            {% if a.status.value != 'done' %}<form method="post" action="/e/{{ event.slug }}/organizer/assignments/{{ a.id }}/remove" hx-boost="false" data-confirm="Remove “{{ a.project.title }}” from {{ load.judge.name }}'s queue? A draft review they started is discarded."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form>{% endif %}</li>
           {% endfor %}
         </ul>
         {% else %}<p class="muted text-sm mt-2">Nothing assigned yet.</p>{% endif %}

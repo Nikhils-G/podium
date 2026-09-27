@@ -4,6 +4,7 @@ deleted or edited entry breaks verification."""
 import hashlib
 import json
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -103,7 +104,8 @@ def describe(entry: "AuditLog") -> str:
         for field, (old, new) in changes.items():
             label = FIELD_LABELS.get(field, field.replace("_", " "))
             parts.append(f"changed the {label} {_short(old)} → {_short(new)}")
-        return "; ".join(parts).capitalize() if parts else "Saved the event settings"
+        sentence = "; ".join(parts)  # capitalise the first letter only: keep "Mar", "UTC", names
+        return sentence[:1].upper() + sentence[1:] if parts else "Saved the event settings"
     table = {
         "event.created": "Created the event",
         "judging.opened": "Opened judging",
@@ -182,10 +184,17 @@ def describe(entry: "AuditLog") -> str:
 
 
 def _short(value) -> str:
+    """A value for an audit sentence; timestamps read the way the rest of the app shows them."""
     if value is None:
         return "—"
     text = str(value)
-    return text[:16] if len(text) >= 16 and text[:4].isdigit() and text[4] == "-" else text
+    if len(text) >= 16 and text[:4].isdigit() and text[4] == "-":
+        try:
+            moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return text[:16]
+        return f"{moment.day} {moment:%b %Y, %H:%M} UTC"
+    return text
 
 
 def anchor(db: DbSession, settings) -> dict:

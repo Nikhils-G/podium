@@ -137,7 +137,7 @@ def team_leave(
     team = teams.team_for(db, ctx.event, user)
     if team is not None:
         teams.leave_team(db, team, user, ip_hash=ip_hash(request))
-    return RedirectResponse(f"/e/{ctx.event.slug}/team", status_code=303)
+    return RedirectResponse(f"/e/{ctx.event.slug}/team?saved=left", status_code=303)
 
 
 @router.get("/join/{code}")

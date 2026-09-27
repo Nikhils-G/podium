@@ -1,17 +1,17 @@
 {% from "macros/ui.html" import field %}
 <section class="stack mt-6" id="tracks">
-  <h2>Tracks</h2>
+  <h2>Tracks <span class="count">{{ event.tracks|length }}</span></h2>
   {% if event.tracks %}
   <ul class="row-list">
     {% for track in event.tracks %}
     <li><span class="chip t-{{ (track.position % 8) + 1 }}"><span class="chip__dot" aria-hidden="true"></span>{{ track.name }}</span><span class="grow text-sm ink-2">{{ track.description }}</span>
-      <form method="post" action="/e/{{ event.slug }}/organizer/tracks/{{ track.public_id }}/delete" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/tracks/{{ track.public_id }}/delete" hx-target="#tracks" hx-swap="outerHTML"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form></li>
+      <form method="post" action="/e/{{ event.slug }}/organizer/tracks/{{ track.public_id }}/delete" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/tracks/{{ track.public_id }}/delete" hx-target="#tracks" hx-swap="outerHTML" data-confirm="Remove the “{{ track.name }}” track? Tracks that projects use cannot be removed."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn--ghost btn--sm" type="submit">Remove</button></form></li>
     {% endfor %}
   </ul>
   {% else %}<p class="muted">No tracks yet.</p>{% endif %}
   <form class="cluster align-end" method="post" action="/e/{{ event.slug }}/organizer/tracks" hx-boost="false" hx-post="/e/{{ event.slug }}/organizer/tracks" hx-target="#tracks" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div class="grow">{{ field('name', 'New track', required=True, error=errors.track_name, maxlength=120, placeholder='e.g. Developer tools') }}</div>
+    <div class="grow">{{ field('name', 'New track', required=True, error=errors.track_name, maxlength=120, placeholder='e.g. Developer tools', key='track-name') }}</div>
     <button class="btn btn--secondary" type="submit">Add track</button>
   </form>
 </section>

@@ -65,15 +65,27 @@ def params(app):
 
 
 def web_get_routes(app):
+    """Every HTML GET route. FastAPI 0.141 nests included routers, so `app.routes` holds router
+    wrappers, not APIRoutes; walk the effective routes the way the app itself resolves them."""
+    try:
+        from fastapi.routing import iter_route_contexts
+    except ImportError:  # older FastAPI keeps routes flat
+        routes = [r for r in app.routes if isinstance(r, APIRoute)]
+    else:
+        routes = list(iter_route_contexts(app.routes))
     out = []
-    for route in app.routes:
-        if (
-            isinstance(route, APIRoute)
-            and "GET" in route.methods
-            and not route.path.startswith("/api/")
-        ):
-            out.append(route.path)
+    for route in routes:
+        path = getattr(route, "path_format", None) or getattr(route, "path", "")
+        if "GET" in (getattr(route, "methods", None) or ()) and not path.startswith("/api/v1"):
+            out.append(path)
     return sorted(set(out))
+
+
+def test_the_sweep_really_covers_the_app(app):
+    """This sweep once iterated zero routes and passed; never again."""
+    routes = web_get_routes(app)
+    assert len(routes) > 40
+    assert "/e/{slug}/organizer/integrations" in routes and "/api/docs" in routes
 
 
 def fill(path: str, values: dict) -> str:
@@ -95,6 +107,10 @@ def test_every_page_renders_for(role, app, client, auth, params):
             if r.status_code == 200 and "text/html" in r.headers.get("content-type", ""):
                 for marker in ("UndefinedError", "Traceback", "jinja2.exceptions"):
                     assert marker not in r.text, f"{url} leaked {marker}"
+                ids = re.findall(r'\sid="([^"]+)"', r.text)
+                duplicates = sorted({i for i in ids if ids.count(i) > 1})
+                if duplicates:
+                    failures.append(f"{role or 'visitor'} GET {url} duplicate ids {duplicates}")
     assert not failures, "\n".join(failures)
 
 

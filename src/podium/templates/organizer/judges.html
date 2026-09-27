@@ -48,7 +48,7 @@
   <form class="card stack stack--aside" method="post" action="/e/{{ event.slug }}/organizer/judges/invite" hx-boost="false" data-sticky>
     <h2>Invite a judge</h2>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    {{ field('email', 'Email', type='email', required=True, error=errors.email, autocomplete='off') }}
+    {{ field('email', 'Email', type='email', required=True, error=errors.email, autocomplete='off', maxlength=254) }}
     <div class="field"><span class="field__label">Tracks they can judge</span>
       <div class="cluster">{% for t in event.tracks %}<label class="chip chip--check"><input type="checkbox" name="tracks" value="{{ t.public_id }}"><span class="chip__dot t-{{ (t.position % 8) + 1 }}" aria-hidden="true"></span>{{ t.name }}</label>{% else %}<span class="muted text-sm">No tracks yet — the judge can be assigned any project.</span>{% endfor %}</div>
       <p class="field__help">Leave all unchecked to allow any track.</p></div>

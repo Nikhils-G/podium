@@ -49,7 +49,7 @@
     setTimeout(function () { el.remove(); }, 6000);
   }
   // 4xx responses that carry an HTML partial (vote control, comments, save status, re-rendered
-  // forms) swap in place: the message lives inside the control. JSON 4xx and 5xx keep the toast.
+  // forms) swap in place: the message lives inside the control. JSON 4xx and 5xx keep the alert.
   document.body.addEventListener("htmx:beforeSwap", function (e) {
     var xhr = e.detail.xhr;
     if (!xhr || xhr.status < 400 || xhr.status >= 500) return;
@@ -94,7 +94,7 @@
         input.value = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
       });
       var note = form.querySelector("[data-tz-note]");
-      if (note) note.textContent = "Times are in your local time" + (zone ? " (" + zone + ")" : "") + " and stored in UTC. Deadlines are enforced server-side to the minute.";
+      if (note) note.textContent = "Times are in your local time" + (zone ? " (" + zone + ")" : "") + " and stored in UTC.";
     });
   }
   localizeDateForms();
@@ -130,7 +130,9 @@
       var utc = t.textContent.trim();
       t.setAttribute("title", utc);
       t.setAttribute("aria-label", fmtLocal(d) + " local time, " + utc);
-      t.textContent = t.hasAttribute("data-time-only") ? pad(d.getHours()) + ":" + pad(d.getMinutes()) : fmtLocal(d);
+      if (t.hasAttribute("data-time-only")) t.textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+      else if (t.hasAttribute("data-short")) t.textContent = d.getDate() + " " + MONTHS[d.getMonth()] + ", " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+      else t.textContent = fmtLocal(d);
       t.dataset.done = "1";
     });
     enhanceCountdowns(root);
@@ -258,7 +260,9 @@
     }
     confirmPending = { onOk: opts.onOk };
     confirmDialog.querySelector("[data-confirm-title]").textContent = opts.title;
-    confirmDialog.querySelector("[data-confirm-body]").textContent = opts.body;
+    var bodyEl = confirmDialog.querySelector("[data-confirm-body]");
+    bodyEl.textContent = opts.body || "";
+    bodyEl.hidden = !opts.body;
     var ok = confirmDialog.querySelector("[data-confirm-ok]");
     ok.textContent = opts.label || opts.title;
     ok.className = "btn " + (opts.danger ? "btn--danger" : "btn--primary");
@@ -273,9 +277,20 @@
     e.stopImmediatePropagation();  // htmx must not send the request until the person confirms
     var submitter = e.submitter || form.querySelector('button[type="submit"]');
     var label = submitter ? submitter.textContent.trim() : "Confirm";
+    // "Remove X? It stops working." → title "Remove X?", body "It stops working."; a statement
+    // without a question gets the button's verb as its title ("Close now?").
+    var text = (form.getAttribute("data-confirm") || "").trim();
+    var title = form.getAttribute("data-confirm-title");
+    var body = text;
+    if (!title) {
+      var question = text.match(/^([^?]*\?)\s*([\s\S]*)$/);
+      if (question && question[1].length <= 120) { title = question[1]; body = question[2]; }
+      else title = label + "?";
+    } else if (body.indexOf(title) === 0) body = body.slice(title.length).trim();
     askConfirm({
-      title: label, body: form.getAttribute("data-confirm"), label: label,
-      danger: !!(submitter && submitter.classList.contains("btn--danger")),
+      title: title, body: body, label: label,
+      danger: !!(submitter && (submitter.classList.contains("btn--danger") || submitter.classList.contains("btn--danger-text"))) ||
+        /^(Remove|Delete|Revoke|Void|Withdraw|Leave|Archive|Unpublish)/i.test(label),
       onOk: function () { form.dataset.confirmed = "1"; form.requestSubmit(submitter || undefined); }
     });
   }, true);

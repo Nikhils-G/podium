@@ -285,7 +285,9 @@ async def assignments_manual(
             title="Assignments",
             **c,
         )
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/assignments", status_code=303)
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/assignments?saved=assigned", status_code=303
+    )
 
 
 @router.post("/e/{slug}/organizer/assignments/auto/preview", dependencies=[Depends(verify_csrf)])
@@ -345,7 +347,9 @@ def assignments_remove(
             title="Assignments",
             **c,
         )
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/assignments", status_code=303)
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/assignments?saved=unassigned", status_code=303
+    )
 
 
 # --- progress -------------------------------------------------------------------------------------

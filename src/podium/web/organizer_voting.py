@@ -191,4 +191,6 @@ def void_vote(
         return render(
             request, "organizer/voting.html", status_code=exc.status_code, title="Voting", **c
         )
-    return RedirectResponse(f"/e/{ctx.event.slug}/organizer/voting#abuse", status_code=303)
+    return RedirectResponse(
+        f"/e/{ctx.event.slug}/organizer/voting?saved=voided#abuse", status_code=303
+    )

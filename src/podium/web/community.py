@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse, Response
@@ -232,6 +233,7 @@ def how_judged_page(
         key=lambda p: -abs(p.rank_delta or 0),
     )[:5]
     stage = stage_of(event)
+    anchor = audit_service.anchor(db, settings)
     return render(
         request,
         "public/judging.html",
@@ -252,7 +254,8 @@ def how_judged_page(
         },
         movers=movers,
         pairwise=pairwise.results(db, event),
-        anchor=audit_service.anchor(db, settings),
+        anchor=anchor,
+        anchor_at=datetime.fromisoformat(anchor["at"]),
         confidence=scoring.confidence(results, seed=event.id),
     )
 
